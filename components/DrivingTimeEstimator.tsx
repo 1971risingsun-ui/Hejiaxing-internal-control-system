@@ -9,7 +9,7 @@ interface DrivingTimeEstimatorProps {
 }
 
 const START_ADDRESS = "桃園市龜山區文化三路620巷80弄118-1號";
-const START_LABEL = "合家興";
+const START_LABEL = "合家興總部";
 
 const DrivingTimeEstimator: React.FC<DrivingTimeEstimatorProps> = ({ projects }) => {
   const [destinations, setDestinations] = useState<string[]>(['']);
@@ -18,21 +18,23 @@ const DrivingTimeEstimator: React.FC<DrivingTimeEstimatorProps> = ({ projects })
   const [normalizedAddrs, setNormalizedAddrs] = useState<string[]>(['']);
   const [isEstimating, setIsEstimating] = useState(false);
   const [loadingStatus, setLoadingStatus] = useState('');
+  const [errorIndex, setErrorIndex] = useState<number | null>(null);
   
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // 自動觸發監控：當目的地列表或結果狀態變動時
   useEffect(() => {
     if (debounceTimerRef.current) {
       clearTimeout(debounceTimerRef.current);
     }
 
-    // 檢查是否有任何有效的目的地需要計算
-    const needsCalculation = destinations.some((d, idx) => d.trim().length > 2 && results[idx] === null);
+    // 判斷是否有需要計算的項目：地址長度 > 2 且 尚未有結果
+    const hasPending = destinations.some((d, idx) => d.trim().length > 2 && results[idx] === null);
 
-    if (needsCalculation) {
+    if (hasPending) {
       debounceTimerRef.current = setTimeout(() => {
-        estimateTime();
-      }, 1500); 
+        runAutoEstimation();
+      }, 1200); // 1.2秒防抖，讓輸入更流暢
     }
 
     return () => {
@@ -40,18 +42,17 @@ const DrivingTimeEstimator: React.FC<DrivingTimeEstimatorProps> = ({ projects })
     };
   }, [destinations, results]);
 
-  const estimateTime = async () => {
-    const validIndices = destinations
-      .map((d, idx) => ({ val: d.trim(), idx }))
-      .filter(item => item.val.length > 2 && results[item.idx] === null);
-
-    if (validIndices.length === 0) return;
+  const runAutoEstimation = async () => {
+    // 檢查 API Key 是否存在 (針對 GitHub Pages 部署環境)
+    if (!process.env.API_KEY) {
+      setLoadingStatus('錯誤：找不到 API Key，請檢查部署環境變數。');
+      return;
+    }
 
     setIsEstimating(true);
-    setLoadingStatus('正在透過 AI 規劃路徑...');
+    setErrorIndex(null);
 
     try {
-      // Fix: Create a new GoogleGenAI instance right before making an API call to ensure it uses the most up-to-date API key.
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
       const newResults = [...results];
       const newNormalized = [...normalizedAddrs];
@@ -59,62 +60,71 @@ const DrivingTimeEstimator: React.FC<DrivingTimeEstimatorProps> = ({ projects })
       let currentOrigin = START_ADDRESS;
 
       for (let i = 0; i < destinations.length; i++) {
+        const target = destinations[i].trim();
+        
         // 如果該索引已有結果，直接作為下一段的起點
-        if (results[i] !== null && normalizedAddrs[i]) {
-            currentOrigin = normalizedAddrs[i];
-            continue;
+        if (newResults[i] !== null && newNormalized[i]) {
+          currentOrigin = newNormalized[i];
+          continue;
         }
 
-        const target = destinations[i].trim();
+        // 跳過無效輸入
         if (target.length <= 2) continue;
 
-        setLoadingStatus(`正在分析路段 ${i + 1}：${target}...`);
+        setLoadingStatus(`AI 正在分析路段 ${i + 1}：${target.substring(0, 10)}...`);
 
         try {
-            const response = await ai.models.generateContent({
-              // Guideline: Maps grounding is only supported in Gemini 2.5 series models.
-              model: "gemini-2.5-flash",
-              contents: `你是一個專業的地理導航助理。請為我執行以下任務：
-              1. 使用 Google Maps 找到「${target}」的最精確且可供導航搜尋的完整地址。
-              2. 計算從「${currentOrigin}」開車到該地點的首選行車距離（公里）。
-              
-              回報格式請嚴格遵守：
-              地址：[標準完整地址名稱]
-              距離：[僅數字] km
-              
-              備註：若地圖無法取得精確里程，請根據地點經緯度進行直線距離加權估計（乘以 1.3 倍）。`,
-              config: {
-                tools: [{ googleMaps: {} }]
-              }
-            });
-
-            // Guideline: Access the .text property directly (do not call as a function).
-            const text = response.text || "";
-            const addrMatch = text.match(/地址：\s*(.+)/);
-            const displayAddr = addrMatch ? addrMatch[1].trim() : target;
+          const response = await ai.models.generateContent({
+            model: "gemini-2.5-flash",
+            contents: `你是一個專業的物流路徑規劃專家。
             
-            const distMatch = text.match(/距離：\s*([\d.]+)/);
-            let distance = distMatch ? parseFloat(distMatch[1]) : 0;
-
-            if (distance === 0) {
-                const anyNum = text.match(/(\d+(\.\d+)?)\s*km/i);
-                distance = anyNum ? parseFloat(anyNum[1]) : 0;
+            當前任務：
+            1. 分析目的地描述：「${target}」。
+            2. 如果地址不完整（例如只有建案名、簡簡稱），請使用 Google Maps 工具進行聯想分析，找出該地點「最可能、絕對精確且可供導航搜尋」的完整標準地址。
+            3. 計算從「${currentOrigin}」開車到該「修正後地址」的最佳預估里程。
+            
+            回報格式（嚴格遵守，不要廢話）：
+            標準地址：[完整地址內容]
+            預估里程：[僅數字] km
+            
+            注意：里程必須是數字。如果無法取得路徑，請根據經緯度直線距離乘以 1.3 作為替代。`,
+            config: {
+              tools: [{ googleMaps: {} }]
             }
+          });
 
-            newNormalized[i] = displayAddr;
-            newResults[i] = distance;
-            currentOrigin = displayAddr; 
+          const text = response.text || "";
+          
+          // 強大的解析邏輯，處理各種 AI 可能回傳的格式
+          const addrMatch = text.match(/標準地址：\s*(.+)/);
+          const distMatch = text.match(/預估里程：\s*([\d.]+)/);
+          
+          const displayAddr = addrMatch ? addrMatch[1].trim().replace(/\*/g, '') : target;
+          let distance = distMatch ? parseFloat(distMatch[1]) : 0;
+
+          // 備援解析：如果固定格式失敗，嘗試搜尋帶有 km 的數字
+          if (distance === 0) {
+            const backupDist = text.match(/(\d+(\.\d+)?)\s*km/i);
+            distance = backupDist ? parseFloat(backupDist[1]) : 0;
+          }
+
+          newNormalized[i] = displayAddr;
+          newResults[i] = distance;
+          currentOrigin = displayAddr; // 更新下一段的起點
+          
+          // 即時更新進度
+          setNormalizedAddrs([...newNormalized]);
+          setResults([...newResults]);
         } catch (innerError) {
-            console.error(`Error calculating index ${i}:`, innerError);
-            newResults[i] = 0; 
-            newNormalized[i] = target;
+          console.error(`Row ${i} failed:`, innerError);
+          setErrorIndex(i);
+          newResults[i] = 0; // 標記失敗
+          break; // 停止後續計算，避免路徑斷裂
         }
       }
-
-      setResults(newResults);
-      setNormalizedAddrs(newNormalized);
     } catch (error: any) {
-      console.error("Main estimation failed:", error);
+      console.error("Estimation Global Error:", error);
+      setLoadingStatus('計算失敗，請檢查網路或地址。');
     } finally {
       setIsEstimating(false);
       setLoadingStatus('');
@@ -130,10 +140,11 @@ const DrivingTimeEstimator: React.FC<DrivingTimeEstimatorProps> = ({ projects })
 
   const handleRemoveDestination = (index: number) => {
     if (destinations.length <= 1) return;
-    setDestinations(destinations.filter((_, i) => i !== index));
-    setProjectLabels(projectLabels.filter((_, i) => i !== index));
-    setResults(results.filter((_, i) => i !== index));
-    setNormalizedAddrs(normalizedAddrs.filter((_, i) => i !== index));
+    const filterFn = (_: any, i: number) => i !== index;
+    setDestinations(destinations.filter(filterFn));
+    setProjectLabels(projectLabels.filter(filterFn));
+    setResults(results.filter(filterFn));
+    setNormalizedAddrs(normalizedAddrs.filter(filterFn));
   };
 
   const handleUpdateDestination = (index: number, value: string, label?: string) => {
@@ -145,9 +156,13 @@ const DrivingTimeEstimator: React.FC<DrivingTimeEstimatorProps> = ({ projects })
     newLabels[index] = label || '';
     setProjectLabels(newLabels);
 
+    // 重置該索引及其後的所有結果，因為路徑是連動的
     const newRes = [...results];
-    newRes[index] = null;
+    for (let i = index; i < newRes.length; i++) {
+        newRes[i] = null;
+    }
     setResults(newRes);
+    setErrorIndex(null);
   };
 
   const getProjectDisplayTag = (type: ProjectType) => {
@@ -161,9 +176,9 @@ const DrivingTimeEstimator: React.FC<DrivingTimeEstimatorProps> = ({ projects })
   const totalKm = results.reduce((acc, curr) => acc + (curr || 0), 0);
 
   return (
-    <div className="p-4 md:p-6 max-w-3xl mx-auto animate-fade-in flex flex-col gap-6">
+    <div className="p-4 md:p-6 max-w-3xl mx-auto animate-fade-in flex flex-col gap-6 pb-24">
       <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-xl shadow-slate-200/50">
-        <div className="flex items-center gap-4 mb-8">
+        <div className="flex items-center gap-4 mb-10">
           <div className="bg-indigo-600 p-3.5 rounded-2xl text-white shadow-lg shadow-indigo-100">
             <NavigationIcon className="w-6 h-6" />
           </div>
@@ -171,7 +186,7 @@ const DrivingTimeEstimator: React.FC<DrivingTimeEstimatorProps> = ({ projects })
             <h1 className="text-xl font-black text-slate-800 tracking-tight">智慧路徑自動估算</h1>
             <p className="text-xs text-slate-500 font-bold flex items-center gap-1.5 mt-0.5">
                 <SparklesIcon className="w-3.5 h-3.5 text-indigo-500" />
-                填入或選取後 AI 將自動分析地址並顯示里程
+                填入後 AI 會自動聯想精確地址並同步里程
             </p>
           </div>
         </div>
@@ -198,21 +213,37 @@ const DrivingTimeEstimator: React.FC<DrivingTimeEstimatorProps> = ({ projects })
               <div className="flex items-center gap-4 ml-[19px] -my-2 relative h-16">
                 <div className="w-0.5 h-full bg-slate-100 border-l-2 border-dashed border-slate-200"></div>
                 
-                {results[idx] !== null && (
+                {results[idx] !== null ? (
                   <div className="absolute left-6 top-1/2 -translate-y-1/2 flex items-center gap-2.5 bg-emerald-50 px-4 py-1.5 rounded-full border border-emerald-100 shadow-sm animate-scale-in z-20">
                     <div className="flex items-center gap-1.5 text-emerald-700 font-black">
                       <NavigationIcon className="w-3.5 h-3.5" />
                       <span className="text-sm font-mono">{results[idx]?.toFixed(1)} <span className="text-[10px] font-bold opacity-60">km</span></span>
                     </div>
-                    <div className="w-px h-3 bg-emerald-200"></div>
-                    <div className="text-[10px] font-black text-emerald-600 truncate max-w-[100px]">{normalizedAddrs[idx]}</div>
+                    {normalizedAddrs[idx] && (
+                        <>
+                            <div className="w-px h-3 bg-emerald-200"></div>
+                            <div className="text-[10px] font-black text-emerald-600 truncate max-w-[150px]">{normalizedAddrs[idx]}</div>
+                        </>
+                    )}
                   </div>
+                ) : (dest.trim().length > 2) ? (
+                    <div className="absolute left-6 top-1/2 -translate-y-1/2 flex items-center gap-2 text-[10px] font-black text-indigo-500 bg-indigo-50 px-3 py-1.5 rounded-full border border-indigo-100 animate-pulse z-20">
+                        <LoaderIcon className="w-3 h-3 animate-spin" />
+                        AI 正在計算里程...
+                    </div>
+                ) : null}
+
+                {errorIndex === idx && (
+                    <div className="absolute left-6 top-1/2 -translate-y-1/2 flex items-center gap-1.5 text-[10px] font-bold text-red-600 bg-red-50 px-3 py-1.5 rounded-full border border-red-100 z-20">
+                        <AlertIcon className="w-3 h-3" />
+                        地址無法辨識或超出範圍
+                    </div>
                 )}
               </div>
 
               <div className="flex items-start gap-4">
                 <div className="flex flex-col items-center">
-                  <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white z-10 shadow-lg border-4 border-white ${results[idx] !== null ? 'bg-emerald-500' : 'bg-slate-300'}`}>
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white z-10 shadow-lg border-4 border-white transition-colors duration-500 ${results[idx] !== null && results[idx]! > 0 ? 'bg-emerald-500' : 'bg-indigo-400'}`}>
                     <MapPinIcon className="w-5 h-5" />
                   </div>
                   {idx < destinations.length - 1 && (
@@ -221,7 +252,15 @@ const DrivingTimeEstimator: React.FC<DrivingTimeEstimatorProps> = ({ projects })
                 </div>
                 <div className="flex-1 pt-1.5">
                   <div className="flex items-center justify-between gap-2 mb-2">
-                    <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest opacity-60">DESTINATION {idx + 1}</div>
+                    <div className="flex items-center gap-2">
+                        <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest opacity-60">DESTINATION {idx + 1}</div>
+                        {projectLabels[idx] && (
+                            <div className="bg-slate-800 text-white text-[9px] font-bold px-2 py-0.5 rounded-md flex items-center gap-1 animate-fade-in shadow-sm">
+                                <BriefcaseIcon className="w-2.5 h-2.5" />
+                                {projectLabels[idx]}
+                            </div>
+                        )}
+                    </div>
                     {destinations.length > 1 && (
                       <button onClick={() => handleRemoveDestination(idx)} className="text-slate-300 hover:text-red-500 transition-colors p-1">
                         <TrashIcon className="w-4 h-4" />
@@ -230,13 +269,12 @@ const DrivingTimeEstimator: React.FC<DrivingTimeEstimatorProps> = ({ projects })
                   </div>
                   <div className="flex flex-col gap-2">
                     <div className="relative group">
-                      <MapPinIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
                       <input 
                         list={`projects-list-${idx}`}
                         value={dest}
                         onChange={(e) => handleUpdateDestination(idx, e.target.value)}
-                        placeholder="輸入地址或選擇案件..."
-                        className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-medium"
+                        placeholder="手動輸入或從選單選取專案"
+                        className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-bold text-slate-700"
                       />
                       <datalist id={`projects-list-${idx}`}>
                         {projects.map(p => (
@@ -254,21 +292,22 @@ const DrivingTimeEstimator: React.FC<DrivingTimeEstimatorProps> = ({ projects })
         <div className="mt-10 flex flex-col sm:flex-row items-center justify-between gap-4 pt-8 border-t border-slate-100">
            <button 
              onClick={handleAddDestination}
-             className="flex items-center gap-2 px-6 py-3 bg-white border border-slate-200 rounded-2xl text-slate-600 font-bold text-sm hover:bg-slate-50 transition-all shadow-sm active:scale-95"
+             className="flex items-center gap-2 px-6 py-3 bg-white border border-slate-200 rounded-2xl text-indigo-600 font-black text-xs hover:bg-indigo-50 transition-all shadow-sm active:scale-95 uppercase tracking-widest"
            >
-             <PlusIcon className="w-4 h-4" /> 追加中繼站
+             <PlusIcon className="w-4 h-4" /> ADD STOP
            </button>
            
-           <div className="flex items-center gap-4 bg-slate-900 px-6 py-4 rounded-3xl shadow-xl shadow-slate-900/20">
-              <div className="flex flex-col">
-                <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Total Distance</span>
-                <span className="text-2xl font-black text-white leading-tight">{totalKm.toFixed(1)} <span className="text-sm font-bold opacity-60">km</span></span>
+           <div className="flex items-center gap-4 bg-slate-900 px-8 py-5 rounded-[32px] shadow-2xl shadow-slate-900/20 relative overflow-hidden group">
+              <div className="absolute inset-0 bg-indigo-600/10 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+              <div className="flex flex-col relative z-10">
+                <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-1">Total Distance</span>
+                <span className="text-3xl font-black text-white leading-none tracking-tight">{totalKm.toFixed(1)} <span className="text-sm font-bold text-indigo-400">km</span></span>
               </div>
-              <div className="w-px h-8 bg-white/10 mx-2"></div>
-              <div className="flex flex-col">
-                <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Est. Travel Time</span>
-                <span className="text-2xl font-black text-indigo-400 leading-tight">
-                  {Math.round(totalKm * 1.5)} <span className="text-sm font-bold opacity-60">mins</span>
+              <div className="w-px h-10 bg-white/10 mx-2 relative z-10"></div>
+              <div className="flex flex-col relative z-10">
+                <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-1">Drive Time</span>
+                <span className="text-3xl font-black text-emerald-400 leading-none tracking-tight">
+                  {Math.round(totalKm * 1.6)} <span className="text-sm font-bold opacity-60 text-emerald-500/70">min</span>
                 </span>
               </div>
            </div>
@@ -276,11 +315,21 @@ const DrivingTimeEstimator: React.FC<DrivingTimeEstimatorProps> = ({ projects })
       </div>
 
       {isEstimating && (
-        <div className="fixed bottom-10 left-1/2 -translate-x-1/2 bg-slate-900/90 backdrop-blur-md text-white px-6 py-4 rounded-full shadow-2xl flex items-center gap-4 z-[100] animate-fade-in">
-           <LoaderIcon className="w-5 h-5 animate-spin text-indigo-400" />
-           <span className="text-sm font-bold tracking-wide">{loadingStatus}</span>
+        <div className="fixed bottom-8 left-1/2 -translate-x-1/2 bg-slate-900/95 backdrop-blur-xl text-white px-8 py-4 rounded-full shadow-2xl flex items-center gap-4 z-[100] animate-fade-in border border-white/10">
+           <LoaderIcon className="w-6 h-6 animate-spin text-indigo-400" />
+           <span className="text-sm font-black tracking-widest uppercase">{loadingStatus}</span>
         </div>
       )}
+
+      <div className="bg-amber-50 border border-amber-100 p-6 rounded-3xl flex items-start gap-4 shadow-sm border-l-4 border-l-amber-500">
+        <div className="bg-amber-500 p-2 rounded-xl text-white shadow-md flex-shrink-0">
+            <AlertIcon className="w-5 h-5" />
+        </div>
+        <div className="text-xs text-amber-900 leading-relaxed font-bold">
+          <p className="mb-1 uppercase tracking-widest text-[9px] opacity-60">System Notice</p>
+          本工具透過 Gemini AI 自動校正地址。若輸入的地點過於模糊，AI 會嘗試搜尋 Google Maps 數據庫聯想最可能的實體地址。估算里程已包含 1.3 倍的行車誤差校正，僅供排程參考。
+        </div>
+      </div>
     </div>
   );
 };
