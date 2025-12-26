@@ -13,6 +13,7 @@ import GlobalMaterials from './components/GlobalMaterials';
 import WeeklySchedule from './components/WeeklySchedule';
 import DailyDispatch from './components/DailyDispatch';
 import EngineeringGroups from './components/EngineeringGroups';
+import PurchasingManagement from './components/PurchasingManagement'; // 新增導入
 import { HomeIcon, UserIcon, LogOutIcon, ShieldIcon, MenuIcon, XIcon, ChevronRightIcon, WrenchIcon, UploadIcon, LoaderIcon, ClipboardListIcon, LayoutGridIcon, BoxIcon, DownloadIcon, FileTextIcon, CheckCircleIcon, AlertIcon, XCircleIcon, UsersIcon, TruckIcon, BriefcaseIcon, ArrowLeftIcon, CalendarIcon } from './components/Icons';
 import { getDirectoryHandle, saveDbToLocal, loadDbFromLocal, getHandleFromIdb, clearHandleFromIdb, saveAppStateToIdb, loadAppStateFromIdb } from './utils/fileSystem';
 import { downloadBlob } from './utils/fileHelpers';
@@ -407,7 +408,7 @@ const App: React.FC = () => {
       case 'weekly_schedule': return '週間工作排程';
       case 'daily_dispatch': return '每日派工排程';
       case 'engineering_groups': return '工程小組管理';
-      case 'purchasing': return '採購模組';
+      case 'purchasing': return '採購管理';
       case 'hr': return '人事模組';
       case 'equipment': return equipmentSubView ? `設備／工具 - ${equipmentSubView}` : '設備／工具模組';
       case 'construction': return '圍籬案件';
@@ -533,7 +534,7 @@ const App: React.FC = () => {
             </div>
            ) :
            view === 'materials' ? (<GlobalMaterials projects={projects} onSelectProject={setSelectedProject} />) : 
-           view === 'purchasing' ? (<div className="flex flex-col items-center justify-center h-full text-slate-400 gap-4"><BoxIcon className="w-16 h-16 opacity-20" /><div className="text-lg font-bold">採購模組建設中...</div></div>) :
+           view === 'purchasing' ? (<PurchasingManagement projects={projects} currentUser={currentUser} onUpdateProject={handleUpdateProject} />) : // 更新這裡
            view === 'hr' ? (<div className="flex flex-col items-center justify-center h-full text-slate-400 gap-4"><UsersIcon className="w-16 h-16 opacity-20" /><div className="text-lg font-bold">人事模組建設中...</div></div>) :
            view === 'equipment' ? renderEquipmentView() :
            selectedProject ? (<ProjectDetail project={selectedProject} currentUser={currentUser} onBack={() => setSelectedProject(null)} onUpdateProject={handleUpdateProject} onEditProject={setEditingProject} />) : 
