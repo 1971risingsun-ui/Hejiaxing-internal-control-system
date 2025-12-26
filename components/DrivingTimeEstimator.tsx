@@ -1,10 +1,12 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Project, ProjectType } from '../types';
-import { MapPinIcon, NavigationIcon, PlusIcon, TrashIcon, HomeIcon, SparklesIcon, BriefcaseIcon, SearchIcon, XIcon } from './Icons';
+import { Project, ProjectType, GlobalTeamConfigs } from '../types';
+import { MapPinIcon, NavigationIcon, PlusIcon, TrashIcon, HomeIcon, SparklesIcon, BriefcaseIcon, SearchIcon, XIcon, CalendarIcon, UsersIcon, CheckCircleIcon, ClipboardListIcon, LoaderIcon } from './Icons';
 
 interface DrivingTimeEstimatorProps {
   projects: Project[];
+  onAddToSchedule: (date: string, teamId: number, taskName: string) => boolean;
+  globalTeamConfigs: GlobalTeamConfigs;
 }
 
 // 總部座標
@@ -39,15 +41,20 @@ const DISTRICT_COORDS: Record<string, { lat: number; lng: number }> = {
   "新店": { lat: 24.967, lng: 121.541 },
 };
 
-const DrivingTimeEstimator: React.FC<DrivingTimeEstimatorProps> = ({ projects }) => {
+const DrivingTimeEstimator: React.FC<DrivingTimeEstimatorProps> = ({ projects, onAddToSchedule, globalTeamConfigs }) => {
   const [destinations, setDestinations] = useState<string[]>(['']);
   const [projectLabels, setProjectLabels] = useState<string[]>(['']);
   const [results, setResults] = useState<(number | null)[]>([null]);
   const [activeIdx, setActiveIdx] = useState<number | null>(null);
   
+  // 統一排程狀態
+  const [batchDate, setBatchDate] = useState(new Date().toISOString().split('T')[0]);
+  const [batchTeam, setBatchTeam] = useState(1);
+  const [isBatchPasting, setIsBatchPasting] = useState(false);
+  const [pastedDone, setPastedDone] = useState(false);
+
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // 點擊外部關閉選單
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
@@ -98,17 +105,18 @@ const DrivingTimeEstimator: React.FC<DrivingTimeEstimatorProps> = ({ projects })
     const newRes = [...results];
     newRes[index] = estimateLocal(index, value, newDests);
     
-    // 連鎖計算後續路段
     for(let i = index + 1; i < newDests.length; i++) {
         newRes[i] = estimateLocal(i, newDests[i], newDests);
     }
     setResults(newRes);
+    setPastedDone(false);
   };
 
   const handleAddDestination = () => {
     setDestinations([...destinations, '']);
     setProjectLabels([...projectLabels, '']);
     setResults([...results, null]);
+    setPastedDone(false);
   };
 
   const handleRemoveDestination = (index: number) => {
@@ -122,6 +130,30 @@ const DrivingTimeEstimator: React.FC<DrivingTimeEstimatorProps> = ({ projects })
         newRes.push(estimateLocal(i, d, newDests));
     });
     setResults(newRes);
+    setPastedDone(false);
+  };
+
+  const handleBatchPaste = async () => {
+    const validProjects = projectLabels.filter(label => !!label);
+    if (validProjects.length === 0) {
+      alert('請先選取至少一個案件');
+      return;
+    }
+
+    setIsBatchPasting(true);
+    
+    // 依序匯入所有案件
+    // 在 App.tsx 修正後，這組呼叫會正確累加
+    for (const projectName of validProjects) {
+       onAddToSchedule(batchDate, batchTeam, projectName);
+    }
+
+    setIsBatchPasting(false);
+    setPastedDone(true);
+    
+    setTimeout(() => {
+      setPastedDone(false);
+    }, 3000);
   };
 
   const getProjectTypeLabel = (type: ProjectType) => {
@@ -133,6 +165,7 @@ const DrivingTimeEstimator: React.FC<DrivingTimeEstimatorProps> = ({ projects })
   };
 
   const totalKm = results.reduce((acc, curr) => acc + (curr || 0), 0);
+  const selectedCount = projectLabels.filter(l => !!l).length;
 
   return (
     <div className="p-4 md:p-6 max-w-3xl mx-auto animate-fade-in flex flex-col gap-6 pb-24" ref={dropdownRef}>
@@ -145,7 +178,7 @@ const DrivingTimeEstimator: React.FC<DrivingTimeEstimatorProps> = ({ projects })
             <h1 className="text-xl font-black text-slate-800 tracking-tight">極速路徑估算 (本地引擎)</h1>
             <p className="text-xs text-slate-500 font-bold flex items-center gap-1.5 mt-0.5">
                 <SparklesIcon className="w-3.5 h-3.5 text-indigo-500" />
-                點選建議案件即刻完成計算
+                規劃整段施工路徑，並一鍵匯入週間排程
             </p>
           </div>
         </div>
@@ -186,7 +219,7 @@ const DrivingTimeEstimator: React.FC<DrivingTimeEstimatorProps> = ({ projects })
                     <MapPinIcon className="w-5 h-5" />
                   </div>
                   {idx < destinations.length - 1 && (
-                    <div className="w-0.5 h-14 bg-slate-100 border-l-2 border-dashed border-slate-200"></div>
+                    <div className="w-0.5 h-24 bg-slate-100 border-l-2 border-dashed border-slate-200"></div>
                   )}
                 </div>
                 <div className="flex-1 pt-1.5">
@@ -271,25 +304,70 @@ const DrivingTimeEstimator: React.FC<DrivingTimeEstimatorProps> = ({ projects })
           ))}
         </div>
 
-        <div className="mt-10 flex flex-col sm:flex-row items-center justify-between gap-4 pt-8 border-t border-slate-100">
+        <div className="mt-8 pt-8 border-t border-slate-100">
            <button 
              onClick={handleAddDestination}
-             className="flex items-center gap-2 px-6 py-3 bg-white border border-slate-200 rounded-2xl text-indigo-600 font-black text-xs hover:bg-indigo-50 transition-all shadow-sm active:scale-95 uppercase tracking-widest"
+             className="flex items-center gap-2 px-6 py-2.5 bg-white border border-slate-200 rounded-xl text-indigo-600 font-black text-xs hover:bg-indigo-50 transition-all shadow-sm active:scale-95 uppercase tracking-widest mb-10"
            >
              <PlusIcon className="w-4 h-4" /> 新增路段
            </button>
-           
-           <div className="flex items-center gap-4 bg-slate-900 px-8 py-5 rounded-[32px] shadow-2xl relative overflow-hidden group">
-              <div className="flex flex-col relative z-10">
-                <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-1">Total Distance</span>
-                <span className="text-3xl font-black text-white leading-none tracking-tight">{totalKm.toFixed(1)} <span className="text-sm font-bold text-indigo-400">km</span></span>
+
+           {/* 批次排程控制區 */}
+           <div className="bg-slate-50 rounded-[32px] p-5 border border-slate-200 mb-6 flex flex-wrap items-center gap-4">
+              <div className="flex items-center gap-2 px-4 py-2 bg-white rounded-2xl border border-slate-200 flex-1 min-w-[150px]">
+                <CalendarIcon className="w-4 h-4 text-indigo-500" />
+                <input 
+                  type="date" 
+                  value={batchDate}
+                  onChange={(e) => setBatchDate(e.target.value)}
+                  className="bg-transparent text-xs font-bold text-slate-600 outline-none w-full"
+                />
               </div>
-              <div className="w-px h-10 bg-white/10 mx-2 relative z-10"></div>
-              <div className="flex flex-col relative z-10">
-                <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-1">Drive Time</span>
-                <span className="text-3xl font-black text-emerald-400 leading-none tracking-tight">
-                  {Math.round(totalKm * 1.8)} <span className="text-sm font-bold opacity-60 text-emerald-500/70">min</span>
-                </span>
+              <div className="flex items-center gap-2 px-4 py-2 bg-white rounded-2xl border border-slate-200 flex-1 min-w-[150px]">
+                <UsersIcon className="w-4 h-4 text-indigo-500" />
+                <select 
+                  value={batchTeam}
+                  onChange={(e) => setBatchTeam(parseInt(e.target.value))}
+                  className="bg-transparent text-xs font-bold text-slate-600 outline-none w-full appearance-none cursor-pointer"
+                >
+                  {[1,2,3,4,5,6,7,8].map(t => {
+                    const masterName = globalTeamConfigs[t]?.master || '未指定';
+                    return (
+                      <option key={t} value={t}>
+                        第 {t} 組 ({masterName})
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+              <button 
+                onClick={handleBatchPaste}
+                disabled={isBatchPasting || selectedCount === 0}
+                className={`flex-1 min-w-[200px] flex items-center justify-center gap-2 px-6 py-3 rounded-2xl text-xs font-black transition-all shadow-lg active:scale-95 disabled:opacity-50 disabled:grayscale ${pastedDone ? 'bg-emerald-500 text-white' : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}
+              >
+                {isBatchPasting ? <LoaderIcon className="w-4 h-4 animate-spin" /> : pastedDone ? <CheckCircleIcon className="w-4 h-4" /> : <ClipboardListIcon className="w-4 h-4" />}
+                {isBatchPasting ? '處理中...' : pastedDone ? '已成功貼上排程' : `將全部案件 (${selectedCount}) 依序貼上排程`}
+              </button>
+           </div>
+           
+           <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="flex items-center gap-4 bg-slate-900 px-8 py-5 rounded-[32px] shadow-2xl relative overflow-hidden group w-full sm:w-auto">
+                  <div className="flex flex-col relative z-10">
+                    <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-1">Total Distance</span>
+                    <span className="text-3xl font-black text-white leading-none tracking-tight">{totalKm.toFixed(1)} <span className="text-sm font-bold text-indigo-400">km</span></span>
+                  </div>
+                  <div className="w-px h-10 bg-white/10 mx-2 relative z-10"></div>
+                  <div className="flex flex-col relative z-10">
+                    <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-1">Drive Time</span>
+                    <span className="text-3xl font-black text-emerald-400 leading-none tracking-tight">
+                      {Math.round(totalKm * 1.8)} <span className="text-sm font-bold opacity-60 text-emerald-500/70">min</span>
+                    </span>
+                  </div>
+                  <NavigationIcon className="absolute -right-2 -bottom-2 w-20 h-20 text-white/5 rotate-12" />
+              </div>
+              <div className="text-right hidden md:block">
+                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Route Intelligence</p>
+                 <p className="text-xs text-slate-500 font-medium">基於當地路況估算 (早上 08:00 基準)</p>
               </div>
            </div>
         </div>
@@ -300,8 +378,8 @@ const DrivingTimeEstimator: React.FC<DrivingTimeEstimatorProps> = ({ projects })
             <SparklesIcon className="w-5 h-5" />
         </div>
         <div className="text-xs text-indigo-900 leading-relaxed font-bold">
-          <p className="mb-1 uppercase tracking-widest text-[9px] opacity-60">Geometric Optimization</p>
-          選單已優化：顯示案件名稱、類別與地址。點選建議項目可自動帶入座標進行秒級估算。
+          <p className="mb-1 uppercase tracking-widest text-[9px] opacity-60">Smart Batching</p>
+          您可以一次規劃多個停靠點，確認路徑無誤後，使用下方的「批次貼上」按鈕，即可一次將所有案件依序排入指定日期的施工組別。選單已更新顯示預設師傅姓名。
         </div>
       </div>
     </div>

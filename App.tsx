@@ -14,7 +14,7 @@ import WeeklySchedule from './components/WeeklySchedule';
 import DailyDispatch from './components/DailyDispatch';
 import EngineeringGroups from './components/EngineeringGroups';
 import PurchasingManagement from './components/PurchasingManagement';
-import DrivingTimeEstimator from './components/DrivingTimeEstimator'; // 新增導入
+import DrivingTimeEstimator from './components/DrivingTimeEstimator';
 import { HomeIcon, UserIcon, LogOutIcon, ShieldIcon, MenuIcon, XIcon, ChevronRightIcon, WrenchIcon, UploadIcon, LoaderIcon, ClipboardListIcon, LayoutGridIcon, BoxIcon, DownloadIcon, FileTextIcon, CheckCircleIcon, AlertIcon, XCircleIcon, UsersIcon, TruckIcon, BriefcaseIcon, ArrowLeftIcon, CalendarIcon, ClockIcon, NavigationIcon } from './components/Icons';
 import { getDirectoryHandle, saveDbToLocal, loadDbFromLocal, getHandleFromIdb, clearHandleFromIdb, saveAppStateToIdb, loadAppStateFromIdb } from './utils/fileSystem';
 import { downloadBlob } from './utils/fileHelpers';
@@ -324,6 +324,46 @@ const App: React.FC = () => {
     if (selectedProject?.id === updatedProject.id) setSelectedProject(updatedProject);
   };
 
+  // 修正：使用函式型更新 (Functional Update) 確保批次處理時資料不會遺失
+  const handleAddToWeeklySchedule = (date: string, teamId: number, taskName: string) => {
+    let wasAdded = false;
+    setWeeklySchedules(prevSchedules => {
+      const newWeeklySchedules = [...prevSchedules];
+      const d = new Date(date);
+      const day = d.getDay();
+      const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+      const weekStart = new Date(d.setDate(diff)).toISOString().split('T')[0];
+
+      let weekIdx = newWeeklySchedules.findIndex(s => s.weekStartDate === weekStart);
+      if (weekIdx === -1) {
+        newWeeklySchedules.push({ weekStartDate: weekStart, teamConfigs: {}, days: {} });
+        weekIdx = newWeeklySchedules.length - 1;
+      }
+      
+      const week = { ...newWeeklySchedules[weekIdx] };
+      const days = { ...week.days };
+      if (!days[date]) days[date] = { date, teams: {} };
+      
+      const dayData = { ...days[date] };
+      const teams = { ...dayData.teams };
+      if (!teams[teamId]) teams[teamId] = { tasks: [] };
+      
+      const teamTasks = [...teams[teamId].tasks];
+      // 批次匯入時允許重複案件，因為同一個案件可能在不同路徑站點出現
+      teamTasks.push(taskName);
+      wasAdded = true;
+      
+      teams[teamId] = { tasks: teamTasks };
+      dayData.teams = teams;
+      days[date] = dayData;
+      week.days = days;
+      newWeeklySchedules[weekIdx] = week;
+      
+      return newWeeklySchedules;
+    });
+    return wasAdded;
+  };
+
   if (!currentUser) return <LoginScreen onLogin={handleLogin} />;
   
   const currentViewProjects = projects.filter(p => {
@@ -363,7 +403,6 @@ const App: React.FC = () => {
             </div>
           </div>
 
-          {/* 工務工程模組 */}
           <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-2 mt-4 px-4">工務工程 (Engineering)</div>
           <button onClick={() => { setSelectedProject(null); setView('engineering'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'engineering' && !selectedProject ? 'bg-blue-600 text-white shadow-md shadow-blue-900/20' : 'text-slate-400 hover:bg-slate-800'}`}>
             <LayoutGridIcon className="w-5 h-5" /> 
@@ -374,7 +413,6 @@ const App: React.FC = () => {
             <span className="font-medium">工程模組</span>
           </button>
 
-          {/* 行政管理模組 */}
           <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-2 mt-6 px-4">行政管理 (Administration)</div>
           <button onClick={() => { setSelectedProject(null); setView('purchasing'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'purchasing' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
             <BoxIcon className="w-5 h-5" /> 
@@ -428,7 +466,7 @@ const App: React.FC = () => {
       { id: 'weekly_schedule', label: '週間工作排程', icon: <CalendarIcon className="w-6 h-6" />, color: 'bg-indigo-50 text-indigo-600', desc: '規劃本週各小組派工任務' },
       { id: 'daily_dispatch', label: '明日派工排程', icon: <ClipboardListIcon className="w-6 h-6" />, color: 'bg-blue-50 text-blue-600', desc: '確認明日施工地點與人員' },
       { id: 'engineering_groups', label: '工程小組設定', icon: <UsersIcon className="w-6 h-6" />, color: 'bg-emerald-50 text-emerald-600', desc: '管理師傅、助手與車號預設' },
-      { id: 'driving_time', label: '估計行車時間', icon: <NavigationIcon className="w-6 h-6" />, color: 'bg-amber-50 text-amber-600', desc: '預估早上 8:00 路徑耗時' }, // 新增
+      { id: 'driving_time', label: '估計行車時間', icon: <NavigationIcon className="w-6 h-6" />, color: 'bg-amber-50 text-amber-600', desc: '預估早上 8:00 路徑耗時' },
     ];
 
     return (
@@ -521,7 +559,7 @@ const App: React.FC = () => {
            view === 'driving_time' ? (
             <div className="flex flex-col h-full">
               <div className="px-6 pt-4"><button onClick={() => setView('engineering_hub')} className="flex items-center gap-2 text-slate-500 hover:text-blue-600 font-bold text-xs"><ArrowLeftIcon className="w-3 h-3" /> 返回工程模組</button></div>
-              <DrivingTimeEstimator projects={projects} />
+              <DrivingTimeEstimator projects={projects} onAddToSchedule={handleAddToWeeklySchedule} globalTeamConfigs={globalTeamConfigs} />
             </div>
            ) :
            view === 'weekly_schedule' ? (
