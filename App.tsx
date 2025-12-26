@@ -14,11 +14,14 @@ import WeeklySchedule from './components/WeeklySchedule';
 import DailyDispatch from './components/DailyDispatch';
 import EngineeringGroups from './components/EngineeringGroups';
 import PurchasingManagement from './components/PurchasingManagement';
-import DrivingTimeEstimator from './components/DrivingTimeEstimator'; // 新增導入
-import { HomeIcon, UserIcon, LogOutIcon, ShieldIcon, MenuIcon, XIcon, ChevronRightIcon, WrenchIcon, UploadIcon, LoaderIcon, ClipboardListIcon, LayoutGridIcon, BoxIcon, DownloadIcon, FileTextIcon, CheckCircleIcon, AlertIcon, XCircleIcon, UsersIcon, TruckIcon, BriefcaseIcon, ArrowLeftIcon, CalendarIcon, ClockIcon, NavigationIcon } from './components/Icons';
+import DrivingTimeEstimator from './components/DrivingTimeEstimator';
+import { HomeIcon, UserIcon, LogOutIcon, ShieldIcon, MenuIcon, XIcon, ChevronRightIcon, WrenchIcon, UploadIcon, LoaderIcon, ClipboardListIcon, LayoutGridIcon, BoxIcon, DownloadIcon, FileTextIcon, CheckCircleIcon, AlertIcon, XCircleIcon, UsersIcon, TruckIcon, BriefcaseIcon, ArrowLeftIcon, CalendarIcon, ClockIcon, NavigationIcon, SparklesIcon } from './components/Icons';
 import { getDirectoryHandle, saveDbToLocal, loadDbFromLocal, getHandleFromIdb, clearHandleFromIdb, saveAppStateToIdb, loadAppStateFromIdb } from './utils/fileSystem';
 import { downloadBlob } from './utils/fileHelpers';
 import ExcelJS from 'exceljs';
+
+// Fix: Remove conflicting local Window type declaration as it causes errors with the environment's existing AIStudio type.
+// Instead, use (window as any).aistudio to safely access the injected API key management object.
 
 export const generateId = () => {
   try {
@@ -80,6 +83,7 @@ const App: React.FC = () => {
   const [dirPermission, setDirPermission] = useState<'granted' | 'prompt' | 'denied'>('prompt');
   const [isWorkspaceLoading, setIsWorkspaceLoading] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
+  const [hasAiKey, setHasAiKey] = useState(false);
   
   const excelInputRef = useRef<HTMLInputElement>(null);
 
@@ -91,6 +95,19 @@ const App: React.FC = () => {
       return String(dateA).localeCompare(String(dateB));
     });
   };
+
+  // 初始化檢查金鑰狀態
+  useEffect(() => {
+    const checkKey = async () => {
+        // Fix: Use any cast for window to avoid declaration conflicts with pre-defined AIStudio type.
+        const aistudio = (window as any).aistudio;
+        if (aistudio) {
+            const hasKey = await aistudio.hasSelectedApiKey();
+            setHasAiKey(hasKey);
+        }
+    };
+    checkKey();
+  }, []);
 
   useEffect(() => {
     const restoreAndLoad = async () => {
@@ -130,6 +147,15 @@ const App: React.FC = () => {
     };
     restoreAndLoad();
   }, []);
+
+  const handleSelectApiKey = async () => {
+      // Fix: Use any cast for window to avoid declaration conflicts.
+      const aistudio = (window as any).aistudio;
+      if (aistudio) {
+          await aistudio.openSelectKey();
+          setHasAiKey(true); // 根據規範，觸發後必須假設成功以繼續流程
+      }
+  };
 
   const syncToLocal = async (handle: FileSystemDirectoryHandle, data: any) => {
     try {
@@ -347,6 +373,16 @@ const App: React.FC = () => {
           {!isInitialized && <div className="px-4 py-2 text-xs text-yellow-500 animate-pulse flex items-center gap-2"><LoaderIcon className="w-3 h-3 animate-spin" /> 資料載入中...</div>}
           
           <div className="space-y-3 mb-6">
+            {!hasAiKey && (
+              <button onClick={handleSelectApiKey} className="flex items-center gap-3 px-4 py-3 rounded-xl w-full transition-all bg-amber-600 border border-amber-500 text-white shadow-lg shadow-amber-900/40 animate-pulse">
+                <SparklesIcon className="w-5 h-5" />
+                <div className="flex flex-col items-start text-left">
+                  <span className="text-sm font-black">啟動 AI 智慧功能</span>
+                  <span className="text-[10px] opacity-90">點擊以連接 AI 引擎</span>
+                </div>
+              </button>
+            )}
+
             <button onClick={connectWorkspace} className={`flex items-center gap-3 px-4 py-3 rounded-xl w-full transition-all border ${isConnected ? 'bg-green-600/10 border-green-500 text-green-400' : 'bg-red-600/10 border-red-500 text-red-400'}`}>
               {isWorkspaceLoading ? <LoaderIcon className="w-5 h-5 animate-spin" /> : isConnected ? <CheckCircleIcon className="w-5 h-5" /> : <AlertIcon className="w-5 h-5" />}
               <div className="flex flex-col items-start text-left">
@@ -363,7 +399,6 @@ const App: React.FC = () => {
             </div>
           </div>
 
-          {/* 工務工程模組 */}
           <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-2 mt-4 px-4">工務工程 (Engineering)</div>
           <button onClick={() => { setSelectedProject(null); setView('engineering'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'engineering' && !selectedProject ? 'bg-blue-600 text-white shadow-md shadow-blue-900/20' : 'text-slate-400 hover:bg-slate-800'}`}>
             <LayoutGridIcon className="w-5 h-5" /> 
@@ -374,7 +409,6 @@ const App: React.FC = () => {
             <span className="font-medium">工程模組</span>
           </button>
 
-          {/* 行政管理模組 */}
           <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-2 mt-6 px-4">行政管理 (Administration)</div>
           <button onClick={() => { setSelectedProject(null); setView('purchasing'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'purchasing' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
             <BoxIcon className="w-5 h-5" /> 
@@ -428,7 +462,7 @@ const App: React.FC = () => {
       { id: 'weekly_schedule', label: '週間工作排程', icon: <CalendarIcon className="w-6 h-6" />, color: 'bg-indigo-50 text-indigo-600', desc: '規劃本週各小組派工任務' },
       { id: 'daily_dispatch', label: '明日派工排程', icon: <ClipboardListIcon className="w-6 h-6" />, color: 'bg-blue-50 text-blue-600', desc: '確認明日施工地點與人員' },
       { id: 'engineering_groups', label: '工程小組設定', icon: <UsersIcon className="w-6 h-6" />, color: 'bg-emerald-50 text-emerald-600', desc: '管理師傅、助手與車號預設' },
-      { id: 'driving_time', label: '估計行車時間', icon: <NavigationIcon className="w-6 h-6" />, color: 'bg-amber-50 text-amber-600', desc: '預估早上 8:00 路徑耗時' }, // 新增
+      { id: 'driving_time', label: '估計行車時間', icon: <NavigationIcon className="w-6 h-6" />, color: 'bg-amber-50 text-amber-600', desc: '預估早上 8:00 路徑耗時' },
     ];
 
     return (

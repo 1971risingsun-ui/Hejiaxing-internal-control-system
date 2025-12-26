@@ -30,11 +30,9 @@ const DrivingTimeEstimator: React.FC<DrivingTimeEstimatorProps> = ({ projects })
     const hasPending = destinations.some((d, idx) => d.trim().length > 2 && results[idx] === null);
 
     if (hasPending) {
-      // 判斷是否為「立即觸發」情況：最後一個有變動的目的地如果是從選單選取的（通常長度較長或標籤存在）
       const lastInput = destinations[destinations.length - 1];
       const isLikelySelected = lastInput.length > 10 || projectLabels.some(l => l !== '');
-      
-      const delay = isLikelySelected ? 100 : 1200; // 選單選取 0.1秒，手動輸入 1.2秒
+      const delay = isLikelySelected ? 100 : 1200;
 
       debounceTimerRef.current = setTimeout(() => {
         runParallelEstimation();
@@ -47,9 +45,19 @@ const DrivingTimeEstimator: React.FC<DrivingTimeEstimatorProps> = ({ projects })
   }, [destinations, results, projectLabels]);
 
   const runParallelEstimation = async () => {
-    if (!process.env.API_KEY) return;
+    // 首先檢查全域 API_KEY
+    if (!process.env.API_KEY) {
+        // Fix: Use any cast for window to avoid declaration conflicts with pre-defined AIStudio type.
+        const aistudio = (window as any).aistudio;
+        if (aistudio) {
+            setLoadingStatus('等待 AI 引擎授權...');
+            await aistudio.openSelectKey();
+        } else {
+            alert('系統偵測不到有效 AI 憑證，請聯絡開發人員。');
+            return;
+        }
+    }
 
-    // 找出所有需要計算的索引
     const pendingIndices = destinations
       .map((d, idx) => ({ val: d.trim(), idx }))
       .filter(item => item.val.length > 2 && results[item.idx] === null)
@@ -61,12 +69,10 @@ const DrivingTimeEstimator: React.FC<DrivingTimeEstimatorProps> = ({ projects })
     setLoadingStatus('AI 並行計算中...');
 
     try {
+      // 規範：每次調用前創建新實例以確保取得最新金鑰
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
       
-      // 使用 Promise.all 同時發送所有請求
       const estimationPromises = pendingIndices.map(async (idx) => {
-        // 設定起點：第一站從總部出發，其餘站點從上一站出發
-        // 註：並列模式下，上一站使用使用者輸入的地址作為起點，雖然精確度稍降，但速度極快
         const origin = idx === 0 ? START_ADDRESS : destinations[idx - 1];
         const target = destinations[idx];
 
@@ -99,14 +105,21 @@ const DrivingTimeEstimator: React.FC<DrivingTimeEstimatorProps> = ({ projects })
           }
 
           return { idx, distance, displayAddr, success: true };
-        } catch (e) {
+        } catch (e: any) {
+          console.error(`Index ${idx} calculation error:`, e);
+          
+          // 針對「Requested entity was not found」進行處理
+          const aistudio = (window as any).aistudio;
+          if (e.message?.includes("Requested entity was not found") && aistudio) {
+              await aistudio.openSelectKey();
+          }
+          
           return { idx, distance: 0, displayAddr: target, success: false };
         }
       });
 
       const allResults = await Promise.all(estimationPromises);
 
-      // 更新狀態
       const nextResults = [...results];
       const nextNormalized = [...normalizedAddrs];
 
@@ -119,6 +132,10 @@ const DrivingTimeEstimator: React.FC<DrivingTimeEstimatorProps> = ({ projects })
       setNormalizedAddrs(nextNormalized);
     } catch (error: any) {
       console.error("Parallel estimation failed", error);
+      const aistudio = (window as any).aistudio;
+      if (error.message?.includes("Requested entity was not found") && aistudio) {
+          await aistudio.openSelectKey();
+      }
     } finally {
       setIsEstimating(false);
       setLoadingStatus('');
@@ -150,7 +167,7 @@ const DrivingTimeEstimator: React.FC<DrivingTimeEstimatorProps> = ({ projects })
     setProjectLabels(newLabels);
 
     const newRes = [...results];
-    newRes[index] = null; // 設為 null 以觸發重新計算
+    newRes[index] = null;
     setResults(newRes);
   };
 
@@ -301,7 +318,7 @@ const DrivingTimeEstimator: React.FC<DrivingTimeEstimatorProps> = ({ projects })
         </div>
         <div className="text-xs text-amber-900 leading-relaxed font-bold">
           <p className="mb-1 uppercase tracking-widest text-[9px] opacity-60">Speed Optimized</p>
-          此模式已啟用「並行計算」與「快速估算」技術。AI 會同時處理所有地點，並在網路延遲時採用地理行政區進行快速預估。數值包含 1.3 倍的行車緩衝。
+          此模式已啟用「並行計算」與「快速估算」技術。若計算失效，請點擊側邊欄「啟動 AI 智慧功能」連結您的 Google Cloud 專案。
         </div>
       </div>
     </div>
