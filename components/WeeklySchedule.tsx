@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { Project, WeeklySchedule as WeeklyScheduleType, GlobalTeamConfigs, TeamConfig } from '../types';
-import { ChevronRightIcon, CalendarIcon, UserIcon, PlusIcon, XIcon, TruckIcon } from './Icons';
+import { ChevronRightIcon, CalendarIcon, UserIcon, PlusIcon, XIcon, TruckIcon, HomeIcon } from './Icons';
 
 interface WeeklyScheduleProps {
   projects: Project[];
@@ -33,6 +33,18 @@ const WeeklySchedule: React.FC<WeeklyScheduleProps> = ({ projects, weeklySchedul
     return dates;
   }, [currentWeekStart]);
 
+  // 自動整理各日期的預約專案
+  const projectsByDate = useMemo(() => {
+    const map: Record<string, Project[]> = {};
+    projects.forEach(p => {
+      if (p.appointmentDate) {
+        if (!map[p.appointmentDate]) map[p.appointmentDate] = [];
+        map[p.appointmentDate].push(p);
+      }
+    });
+    return map;
+  }, [projects]);
+
   const currentSchedule = useMemo(() => {
     return weeklySchedules.find(s => s.weekStartDate === currentWeekStart) || {
       weekStartDate: currentWeekStart,
@@ -53,7 +65,6 @@ const WeeklySchedule: React.FC<WeeklyScheduleProps> = ({ projects, weeklySchedul
     const week = { ...newWeeklySchedules[weekIdx] };
     if (!week.teamConfigs) week.teamConfigs = {};
     if (!week.teamConfigs[teamId]) {
-      // 覆寫時先以全域配置為基準
       const global = globalTeamConfigs[teamId] || { master: '', assistant: '', carNumber: '' };
       week.teamConfigs[teamId] = { ...global };
     }
@@ -130,7 +141,7 @@ const WeeklySchedule: React.FC<WeeklyScheduleProps> = ({ projects, weeklySchedul
         <table className="w-full border-collapse table-fixed min-w-[1700px]">
           <thead>
             <tr className="bg-slate-50 text-slate-500 text-[11px] uppercase font-bold tracking-wider divide-x divide-slate-200">
-              <th className="w-28 p-2 sticky left-0 z-20 bg-slate-50 text-center">組別 / 人員</th>
+              <th className="w-32 p-2 sticky left-0 z-20 bg-slate-50 text-center">日期 / 預約案件</th>
               {teams.map(teamId => {
                 const config = currentSchedule.teamConfigs?.[teamId] || globalTeamConfigs[teamId] || { master: '', assistant: '', carNumber: '' };
                 const isOverridden = !!currentSchedule.teamConfigs?.[teamId];
@@ -180,57 +191,77 @@ const WeeklySchedule: React.FC<WeeklyScheduleProps> = ({ projects, weeklySchedul
               })}
             </tr>
             <tr className="bg-slate-100 text-slate-400 text-[10px] uppercase font-bold tracking-widest border-t border-slate-200">
-              <th className="p-1 sticky left-0 z-20 bg-slate-100 text-center">日期</th>
+              <th className="p-1 sticky left-0 z-20 bg-slate-100 text-center">日期資訊</th>
               {teams.map(t => <th key={`task-header-${t}`} className="p-1 border-l border-slate-200 text-center">施作內容</th>)}
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-200">
-            {weekDays.map(date => (
-              <tr key={date} className={`${(new Date(date).getDay() === 0 || ROC_HOLIDAYS.includes(date.substring(5))) ? 'bg-red-50/20' : 'hover:bg-slate-50/30'}`}>
-                <td className={`p-2 sticky left-0 z-10 font-bold text-center border-r border-slate-200 bg-white text-slate-700`}>
-                  <div className="text-[10px] opacity-60">{date.substring(5)}</div>
-                  <div className="text-xs">{['週日','週一','週二','週三','週四','週五','週六'][new Date(date).getDay()]}</div>
-                </td>
-                {teams.map(teamId => {
-                  const assignment = currentSchedule.days[date]?.teams[teamId] || { tasks: [] };
-                  return (
-                    <td key={teamId} className="p-1.5 border-r border-slate-200 align-top min-h-[80px]">
-                      <div className="flex flex-col gap-1.5">
-                        <div className="flex flex-wrap gap-1">
-                          {assignment.tasks.map((t, idx) => (
-                            <div key={`${t}-${idx}`} className="flex items-center gap-1 bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded border border-indigo-100 text-[10px] font-bold">
-                              <span className="truncate max-w-[100px]">{t}</span>
-                              <button onClick={() => handleRemoveTask(date, teamId, t)} className="text-indigo-300 hover:text-indigo-600"><XIcon className="w-2.5 h-2.5" /></button>
+            {weekDays.map(date => {
+              const dayProjects = projectsByDate[date] || [];
+              const isHoliday = new Date(date).getDay() === 0 || ROC_HOLIDAYS.includes(date.substring(5));
+              
+              return (
+                <tr key={date} className={`${isHoliday ? 'bg-red-50/20' : 'hover:bg-slate-50/30'}`}>
+                  <td className={`p-2 sticky left-0 z-10 font-bold border-r border-slate-200 bg-white text-slate-700 align-top`}>
+                    <div className="text-center mb-2">
+                        <div className="text-[10px] opacity-60">{date.substring(5)}</div>
+                        <div className="text-xs">{['週日','週一','週二','週三','週四','週五','週六'][new Date(date).getDay()]}</div>
+                    </div>
+                    
+                    {dayProjects.length > 0 && (
+                        <div className="space-y-1">
+                            <div className="text-[9px] text-blue-500 font-bold uppercase tracking-tighter border-b border-blue-100 pb-0.5 mb-1 flex items-center gap-1">
+                                <HomeIcon className="w-2 h-2" /> 預約案件
                             </div>
-                          ))}
+                            {dayProjects.map(p => (
+                                <div key={p.id} className="bg-blue-600 text-white px-1.5 py-0.5 rounded text-[9px] truncate shadow-sm border border-blue-700" title={p.name}>
+                                    {p.name}
+                                </div>
+                            ))}
                         </div>
-                        <div className="relative">
-                          <input 
-                            list={`projects-list-${teamId}-${date}`}
-                            placeholder="代入案件..." 
-                            className="w-full text-[11px] outline-none px-2 py-1 bg-slate-50 border border-slate-200 rounded text-slate-600"
-                            onKeyPress={(e) => {
-                              if (e.key === 'Enter') {
-                                handleAddTask(date, teamId, (e.target as HTMLInputElement).value);
-                                (e.target as HTMLInputElement).value = '';
-                              }
-                            }}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              if (projects.some(p => p.name === val)) {
-                                handleAddTask(date, teamId, val);
-                                e.target.value = '';
-                              }
-                            }}
-                          />
-                          <datalist id={`projects-list-${teamId}-${date}`}>{projects.map(p => <option key={p.id} value={p.name} />)}</datalist>
+                    )}
+                  </td>
+                  {teams.map(teamId => {
+                    const assignment = currentSchedule.days[date]?.teams[teamId] || { tasks: [] };
+                    return (
+                      <td key={teamId} className="p-1.5 border-r border-slate-200 align-top min-h-[80px]">
+                        <div className="flex flex-col gap-1.5">
+                          <div className="flex flex-wrap gap-1">
+                            {assignment.tasks.map((t, idx) => (
+                              <div key={`${t}-${idx}`} className="flex items-center gap-1 bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded border border-indigo-100 text-[10px] font-bold">
+                                <span className="truncate max-w-[100px]">{t}</span>
+                                <button onClick={() => handleRemoveTask(date, teamId, t)} className="text-indigo-300 hover:text-indigo-600"><XIcon className="w-2.5 h-2.5" /></button>
+                              </div>
+                            ))}
+                          </div>
+                          <div className="relative">
+                            <input 
+                              list={`projects-list-${teamId}-${date}`}
+                              placeholder="代入案件..." 
+                              className="w-full text-[11px] outline-none px-2 py-1 bg-slate-50 border border-slate-200 rounded text-slate-600"
+                              onKeyPress={(e) => {
+                                if (e.key === 'Enter') {
+                                  handleAddTask(date, teamId, (e.target as HTMLInputElement).value);
+                                  (e.target as HTMLInputElement).value = '';
+                                }
+                              }}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                if (projects.some(p => p.name === val)) {
+                                  handleAddTask(date, teamId, val);
+                                  e.target.value = '';
+                                }
+                              }}
+                            />
+                            <datalist id={`projects-list-${teamId}-${date}`}>{projects.map(p => <option key={p.id} value={p.name} />)}</datalist>
+                          </div>
                         </div>
-                      </div>
-                    </td>
-                  );
-                })}
-              </tr>
-            ))}
+                      </td>
+                    );
+                  })}
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>

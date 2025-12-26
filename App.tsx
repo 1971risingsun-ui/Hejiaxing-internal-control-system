@@ -308,7 +308,7 @@ const App: React.FC = () => {
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [view, setView] = useState<'engineering' | 'weekly_schedule' | 'daily_dispatch' | 'engineering_groups' | 'construction' | 'modular_house' | 'maintenance' | 'purchasing' | 'hr' | 'equipment' | 'report' | 'materials' | 'users'>('engineering');
+  const [view, setView] = useState<'engineering' | 'engineering_hub' | 'weekly_schedule' | 'daily_dispatch' | 'engineering_groups' | 'construction' | 'modular_house' | 'maintenance' | 'purchasing' | 'hr' | 'equipment' | 'report' | 'materials' | 'users'>('engineering');
   const [equipmentSubView, setEquipmentSubView] = useState<string | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
@@ -361,14 +361,31 @@ const App: React.FC = () => {
             </div>
           </div>
 
-          <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-2 mt-4 px-4">主要模組</div>
-          <button onClick={() => { setSelectedProject(null); setView('engineering'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'engineering' && !selectedProject ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}><LayoutGridIcon className="w-5 h-5" /> <span className="font-medium">工務</span></button>
-          <button onClick={() => { setSelectedProject(null); setView('weekly_schedule'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'weekly_schedule' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}><CalendarIcon className="w-5 h-5" /> <span className="font-medium">週間工作</span></button>
-          <button onClick={() => { setSelectedProject(null); setView('daily_dispatch'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'daily_dispatch' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}><ClipboardListIcon className="w-5 h-5" /> <span className="font-medium">明日排程</span></button>
-          <button onClick={() => { setSelectedProject(null); setView('engineering_groups'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'engineering_groups' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}><UsersIcon className="w-5 h-5" /> <span className="font-medium">工程小組</span></button>
-          <button onClick={() => { setSelectedProject(null); setView('purchasing'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'purchasing' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}><BoxIcon className="w-5 h-5" /> <span className="font-medium">採購</span></button>
-          <button onClick={() => { setSelectedProject(null); setView('hr'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'hr' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}><UsersIcon className="w-5 h-5" /> <span className="font-medium">人事</span></button>
-          <button onClick={() => { setSelectedProject(null); setView('equipment'); setEquipmentSubView(null); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'equipment' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}><WrenchIcon className="w-5 h-5" /> <span className="font-medium">設備／工具</span></button>
+          {/* 工務工程模組 */}
+          <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-2 mt-4 px-4">工務工程 (Engineering)</div>
+          <button onClick={() => { setSelectedProject(null); setView('engineering'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'engineering' && !selectedProject ? 'bg-blue-600 text-white shadow-md shadow-blue-900/20' : 'text-slate-400 hover:bg-slate-800'}`}>
+            <LayoutGridIcon className="w-5 h-5" /> 
+            <span className="font-medium">工務總覽</span>
+          </button>
+          <button onClick={() => { setSelectedProject(null); setView('engineering_hub'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'engineering_hub' || view === 'weekly_schedule' || view === 'daily_dispatch' || view === 'engineering_groups' ? 'bg-blue-600 text-white shadow-md shadow-blue-900/20' : 'text-slate-400 hover:bg-slate-800'}`}>
+            <BriefcaseIcon className="w-5 h-5" /> 
+            <span className="font-medium">工程模組</span>
+          </button>
+
+          {/* 行政管理模組 */}
+          <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-2 mt-6 px-4">行政管理 (Administration)</div>
+          <button onClick={() => { setSelectedProject(null); setView('purchasing'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'purchasing' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
+            <BoxIcon className="w-5 h-5" /> 
+            <span className="font-medium">採購</span>
+          </button>
+          <button onClick={() => { setSelectedProject(null); setView('hr'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'hr' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
+            <UsersIcon className="w-5 h-5" /> 
+            <span className="font-medium">人事</span>
+          </button>
+          <button onClick={() => { setSelectedProject(null); setView('equipment'); setEquipmentSubView(null); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'equipment' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
+            <WrenchIcon className="w-5 h-5" /> 
+            <span className="font-medium">設備／工具</span>
+          </button>
 
           <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-2 mt-6 px-4">快速捷徑</div>
           <button onClick={() => { setSelectedProject(null); setView('construction'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'construction' && !selectedProject ? 'bg-slate-800 text-blue-400' : 'text-slate-500 hover:bg-slate-800'}`}><HomeIcon className="w-5 h-5" /> <span className="font-medium text-xs">圍籬總覽</span></button>
@@ -386,6 +403,7 @@ const App: React.FC = () => {
   const getTitle = () => {
     switch(view) {
       case 'engineering': return '工務總覽';
+      case 'engineering_hub': return '工程管理入口';
       case 'weekly_schedule': return '週間工作排程';
       case 'daily_dispatch': return '每日派工排程';
       case 'engineering_groups': return '工程小組管理';
@@ -400,6 +418,35 @@ const App: React.FC = () => {
       case 'users': return '權限管理';
       default: return '合家興管理系統';
     }
+  };
+
+  const renderEngineeringHub = () => {
+    const categories = [
+      { id: 'weekly_schedule', label: '週間工作排程', icon: <CalendarIcon className="w-6 h-6" />, color: 'bg-indigo-50 text-indigo-600', desc: '規劃本週各小組派工任務' },
+      { id: 'daily_dispatch', label: '明日派工排程', icon: <ClipboardListIcon className="w-6 h-6" />, color: 'bg-blue-50 text-blue-600', desc: '確認明日施工地點與人員' },
+      { id: 'engineering_groups', label: '工程小組設定', icon: <UsersIcon className="w-6 h-6" />, color: 'bg-emerald-50 text-emerald-600', desc: '管理師傅、助手與車號預設' },
+    ];
+
+    return (
+      <div className="p-6 max-w-5xl mx-auto h-full animate-fade-in">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          {categories.map(cat => (
+            <button
+              key={cat.id}
+              onClick={() => setView(cat.id as any)}
+              className="bg-white p-8 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md hover:border-blue-500 transition-all group flex flex-col items-center text-center gap-4"
+            >
+              <div className={`p-4 rounded-xl ${cat.color} group-hover:scale-110 transition-transform`}>
+                {cat.icon}
+              </div>
+              <div className="font-bold text-slate-800 text-lg">{cat.label}</div>
+              <p className="text-xs text-slate-400 font-medium">{cat.desc}</p>
+              <p className="text-[10px] text-slate-300 font-bold uppercase tracking-widest mt-2">Engineering Hub</p>
+            </button>
+          ))}
+        </div>
+      </div>
+    );
   };
 
   const renderEquipmentView = () => {
@@ -466,9 +513,25 @@ const App: React.FC = () => {
         <main className="flex-1 overflow-auto bg-[#f8fafc] pb-safe">
           {view === 'users' ? (<UserManagement users={allUsers} onUpdateUsers={setAllUsers} auditLogs={auditLogs} onLogAction={(action, details) => setAuditLogs(prev => [{ id: generateId(), userId: currentUser.id, userName: currentUser.name, action, details, timestamp: Date.now() }, ...prev])} importUrl={importUrl} onUpdateImportUrl={(url) => { setImportUrl(url); localStorage.setItem('hjx_import_url', url); }} projects={projects} onRestoreData={(data) => { setProjects(data.projects); setAllUsers(data.users); setAuditLogs(data.auditLogs); }} />) : 
            view === 'report' ? (<GlobalWorkReport projects={projects} currentUser={currentUser} onUpdateProject={handleUpdateProject} />) : 
-           view === 'weekly_schedule' ? (<WeeklySchedule projects={projects} weeklySchedules={weeklySchedules} globalTeamConfigs={globalTeamConfigs} onUpdateWeeklySchedules={setWeeklySchedules} />) :
-           view === 'daily_dispatch' ? (<DailyDispatch projects={projects} weeklySchedules={weeklySchedules} dailyDispatches={dailyDispatches} globalTeamConfigs={globalTeamConfigs} onUpdateDailyDispatches={setDailyDispatches} />) :
-           view === 'engineering_groups' ? (<EngineeringGroups globalTeamConfigs={globalTeamConfigs} onUpdateGlobalTeamConfigs={setGlobalTeamConfigs} />) :
+           view === 'engineering_hub' ? renderEngineeringHub() :
+           view === 'weekly_schedule' ? (
+             <div className="flex flex-col h-full">
+               <div className="px-6 pt-4"><button onClick={() => setView('engineering_hub')} className="flex items-center gap-2 text-slate-500 hover:text-blue-600 font-bold text-xs"><ArrowLeftIcon className="w-3 h-3" /> 返回工程模組</button></div>
+               <WeeklySchedule projects={projects} weeklySchedules={weeklySchedules} globalTeamConfigs={globalTeamConfigs} onUpdateWeeklySchedules={setWeeklySchedules} />
+             </div>
+           ) :
+           view === 'daily_dispatch' ? (
+            <div className="flex flex-col h-full">
+              <div className="px-6 pt-4"><button onClick={() => setView('engineering_hub')} className="flex items-center gap-2 text-slate-500 hover:text-blue-600 font-bold text-xs"><ArrowLeftIcon className="w-3 h-3" /> 返回工程模組</button></div>
+              <DailyDispatch projects={projects} weeklySchedules={weeklySchedules} dailyDispatches={dailyDispatches} globalTeamConfigs={globalTeamConfigs} onUpdateDailyDispatches={setDailyDispatches} />
+            </div>
+           ) :
+           view === 'engineering_groups' ? (
+            <div className="flex flex-col h-full">
+              <div className="px-6 pt-4"><button onClick={() => setView('engineering_hub')} className="flex items-center gap-2 text-slate-500 hover:text-blue-600 font-bold text-xs"><ArrowLeftIcon className="w-3 h-3" /> 返回工程模組</button></div>
+              <EngineeringGroups globalTeamConfigs={globalTeamConfigs} onUpdateGlobalTeamConfigs={setGlobalTeamConfigs} />
+            </div>
+           ) :
            view === 'materials' ? (<GlobalMaterials projects={projects} onSelectProject={setSelectedProject} />) : 
            view === 'purchasing' ? (<div className="flex flex-col items-center justify-center h-full text-slate-400 gap-4"><BoxIcon className="w-16 h-16 opacity-20" /><div className="text-lg font-bold">採購模組建設中...</div></div>) :
            view === 'hr' ? (<div className="flex flex-col items-center justify-center h-full text-slate-400 gap-4"><UsersIcon className="w-16 h-16 opacity-20" /><div className="text-lg font-bold">人事模組建設中...</div></div>) :
