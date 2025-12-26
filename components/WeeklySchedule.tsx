@@ -33,7 +33,6 @@ const WeeklySchedule: React.FC<WeeklyScheduleProps> = ({ projects, weeklySchedul
     return dates;
   }, [currentWeekStart]);
 
-  // 自動整理各日期的預約專案
   const projectsByDate = useMemo(() => {
     const map: Record<string, Project[]> = {};
     projects.forEach(p => {
@@ -45,13 +44,14 @@ const WeeklySchedule: React.FC<WeeklyScheduleProps> = ({ projects, weeklySchedul
     return map;
   }, [projects]);
 
+  // 修正：加入 globalTeamConfigs 作為依賴，確保全域變更時週間排程會刷新
   const currentSchedule = useMemo(() => {
     return weeklySchedules.find(s => s.weekStartDate === currentWeekStart) || {
       weekStartDate: currentWeekStart,
       teamConfigs: {},
       days: {}
     };
-  }, [weeklySchedules, currentWeekStart]);
+  }, [weeklySchedules, currentWeekStart, globalTeamConfigs]);
 
   const handleUpdateTeamConfig = (teamId: number, field: keyof TeamConfig, value: string) => {
     const newWeeklySchedules = [...weeklySchedules];
@@ -65,8 +65,8 @@ const WeeklySchedule: React.FC<WeeklyScheduleProps> = ({ projects, weeklySchedul
     const week = { ...newWeeklySchedules[weekIdx] };
     if (!week.teamConfigs) week.teamConfigs = {};
     if (!week.teamConfigs[teamId]) {
-      const global = globalTeamConfigs[teamId] || { master: '', assistant: '', carNumber: '' };
-      week.teamConfigs[teamId] = { ...global };
+      // 初始時僅建立空物件，以便區分哪些是本週手動修改的
+      week.teamConfigs[teamId] = { master: '', assistant: '', carNumber: '' };
     }
     
     week.teamConfigs[teamId] = { ...week.teamConfigs[teamId], [field]: value };
@@ -143,45 +143,53 @@ const WeeklySchedule: React.FC<WeeklyScheduleProps> = ({ projects, weeklySchedul
             <tr className="bg-slate-50 text-slate-500 text-[11px] uppercase font-bold tracking-wider divide-x divide-slate-200">
               <th className="w-32 p-2 sticky left-0 z-20 bg-slate-50 text-center">日期 / 預約案件</th>
               {teams.map(teamId => {
-                const config = currentSchedule.teamConfigs?.[teamId] || globalTeamConfigs[teamId] || { master: '', assistant: '', carNumber: '' };
-                const isOverridden = !!currentSchedule.teamConfigs?.[teamId];
+                const global = globalTeamConfigs[teamId] || { master: '', assistant: '', carNumber: '' };
+                const weekOverride = currentSchedule.teamConfigs?.[teamId];
+                
+                // 優先顯示本週修改，若無則顯示全域預設
+                const displayMaster = weekOverride?.master || global.master || '';
+                const displayAssistant = weekOverride?.assistant || global.assistant || '';
+                const displayCar = weekOverride?.carNumber || global.carNumber || '';
+                
+                const isOverridden = !!(weekOverride?.master || weekOverride?.assistant || weekOverride?.carNumber);
+
                 return (
-                  <th key={`head-${teamId}`} className={`p-2 ${isOverridden ? 'bg-amber-50/20' : 'bg-indigo-50/20'}`}>
+                  <th key={`head-${teamId}`} className={`p-2 ${isOverridden ? 'bg-amber-50/30' : 'bg-indigo-50/20'}`}>
                     <div className="flex flex-col gap-1.5">
                       <div className="flex justify-between items-center px-1">
                          <div className={`text-[10px] font-black ${isOverridden ? 'text-amber-600' : 'text-indigo-600'}`}>
-                           第 {teamId} 組 {isOverridden && '(週調整)'}
+                           第 {teamId} 組 {isOverridden && '(本週微調)'}
                          </div>
-                         <div className="flex items-center gap-1 bg-white px-1.5 py-0.5 rounded border border-slate-200 shadow-sm">
+                         <div className={`flex items-center gap-1 bg-white px-1.5 py-0.5 rounded border shadow-sm ${weekOverride?.carNumber ? 'border-amber-300' : 'border-slate-200'}`}>
                             <TruckIcon className="w-2.5 h-2.5 text-slate-400" />
                             <input 
                               type="text" 
-                              placeholder="車號" 
-                              value={config.carNumber}
+                              placeholder={global.carNumber || "車號"}
+                              value={weekOverride?.carNumber || ''}
                               onChange={(e) => handleUpdateTeamConfig(teamId, 'carNumber', e.target.value)}
-                              className="w-10 text-[9px] outline-none bg-transparent font-bold text-slate-600"
+                              className={`w-10 text-[9px] outline-none bg-transparent font-bold ${weekOverride?.carNumber ? 'text-amber-700' : 'text-slate-400'}`}
                             />
                          </div>
                       </div>
                       <div className="flex gap-1">
-                        <div className="flex-1 flex items-center gap-1 px-1.5 py-0.5 bg-white border border-slate-200 rounded shadow-sm">
+                        <div className={`flex-1 flex items-center gap-1 px-1.5 py-0.5 bg-white border rounded shadow-sm ${weekOverride?.master ? 'border-amber-300' : 'border-slate-200'}`}>
                           <UserIcon className="w-2.5 h-2.5 text-slate-300" />
                           <input 
                             type="text" 
-                            placeholder="師傅" 
-                            value={config.master}
+                            placeholder={global.master || "師傅"}
+                            value={weekOverride?.master || ''}
                             onChange={(e) => handleUpdateTeamConfig(teamId, 'master', e.target.value)}
-                            className="w-full text-[10px] outline-none bg-transparent font-bold text-slate-700"
+                            className={`w-full text-[10px] outline-none bg-transparent font-bold ${weekOverride?.master ? 'text-slate-800' : 'text-slate-400'}`}
                           />
                         </div>
-                        <div className="flex-1 flex items-center gap-1 px-1.5 py-0.5 bg-white border border-slate-200 rounded shadow-sm">
+                        <div className={`flex-1 flex items-center gap-1 px-1.5 py-0.5 bg-white border rounded shadow-sm ${weekOverride?.assistant ? 'border-amber-300' : 'border-slate-200'}`}>
                           <div className="w-2 h-2 border border-slate-200 rounded-full bg-slate-50" />
                           <input 
                             type="text" 
-                            placeholder="助手" 
-                            value={config.assistant}
+                            placeholder={global.assistant || "助手"}
+                            value={weekOverride?.assistant || ''}
                             onChange={(e) => handleUpdateTeamConfig(teamId, 'assistant', e.target.value)}
-                            className="w-full text-[10px] outline-none bg-transparent text-slate-500"
+                            className={`w-full text-[10px] outline-none bg-transparent font-bold ${weekOverride?.assistant ? 'text-slate-600' : 'text-slate-400'}`}
                           />
                         </div>
                       </div>
@@ -211,7 +219,7 @@ const WeeklySchedule: React.FC<WeeklyScheduleProps> = ({ projects, weeklySchedul
                     {dayProjects.length > 0 && (
                         <div className="space-y-1">
                             <div className="text-[9px] text-blue-500 font-bold uppercase tracking-tighter border-b border-blue-100 pb-0.5 mb-1 flex items-center gap-1">
-                                <HomeIcon className="w-2 h-2" /> 預約案件
+                                <HomeIcon className="w-2.5 h-2.5" /> 預約案件
                             </div>
                             {dayProjects.map(p => (
                                 <div key={p.id} className="bg-blue-600 text-white px-1.5 py-0.5 rounded text-[9px] truncate shadow-sm border border-blue-700" title={p.name}>
