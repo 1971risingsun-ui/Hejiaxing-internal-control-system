@@ -1,0 +1,486 @@
+
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { App as CapacitorApp } from '@capacitor/app';
+import { Project, ProjectStatus, User, UserRole, MaterialStatus, AuditLog, ProjectType, Attachment, WeeklySchedule as WeeklyScheduleType, DailyDispatch as DailyDispatchType, GlobalTeamConfigs } from './types';
+import ProjectList from './components/ProjectList';
+import ProjectDetail from './components/ProjectDetail';
+import UserManagement from './components/UserManagement';
+import AddProjectModal from './components/AddProjectModal';
+import EditProjectModal from './components/EditProjectModal';
+import LoginScreen from './components/LoginScreen';
+import GlobalWorkReport from './components/GlobalWorkReport';
+import GlobalMaterials from './components/GlobalMaterials';
+import WeeklySchedule from './components/WeeklySchedule';
+import DailyDispatch from './components/DailyDispatch';
+import EngineeringGroups from './components/EngineeringGroups';
+import { HomeIcon, UserIcon, LogOutIcon, ShieldIcon, MenuIcon, XIcon, ChevronRightIcon, WrenchIcon, UploadIcon, LoaderIcon, ClipboardListIcon, LayoutGridIcon, BoxIcon, DownloadIcon, FileTextIcon, CheckCircleIcon, AlertIcon, XCircleIcon, UsersIcon, TruckIcon, BriefcaseIcon, ArrowLeftIcon, CalendarIcon } from './components/Icons';
+import { getDirectoryHandle, saveDbToLocal, loadDbFromLocal, getHandleFromIdb, clearHandleFromIdb, saveAppStateToIdb, loadAppStateFromIdb } from './utils/fileSystem';
+import { downloadBlob } from './utils/fileHelpers';
+import ExcelJS from 'exceljs';
+
+export const generateId = () => {
+  try {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+      return crypto.randomUUID();
+    }
+  } catch (e) {}
+  return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+};
+
+const bufferToBase64 = (buffer: ArrayBuffer, mimeType: string): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const blob = new Blob([buffer], { type: mimeType });
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+};
+
+const parseExcelDate = (val: any): string => {
+  if (val === null || val === undefined || val === '') return '';
+  if (val instanceof Date) {
+    if (isNaN(val.getTime())) return '';
+    try {
+      return val.toISOString().split('T')[0];
+    } catch (e) { return ''; }
+  }
+  const str = String(val).trim();
+  if (!str) return '';
+  const dateMatch = str.match(/^(\d{1,4})[/-](\d{1,2})[/-](\d{1,4})$/);
+  if (dateMatch) {
+    let [_, p1, p2, p3] = dateMatch;
+    if (p1.length === 4) return `${p1}-${p2.padStart(2, '0')}-${p3.padStart(2, '0')}`;
+    if (p3.length === 4) return `${p3}-${p1.padStart(2, '0')}-${p2.padStart(2, '0')}`;
+  }
+  if (!isNaN(Number(str)) && Number(str) > 30000) {
+    try {
+      const date = new Date(Math.round((Number(str) - 25569) * 86400 * 1000));
+      if (!isNaN(date.getTime())) return date.toISOString().split('T')[0];
+    } catch (e) {}
+  }
+  return str;
+};
+
+const App: React.FC = () => {
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [allUsers, setAllUsers] = useState<User[]>([
+    { id: 'u-1', name: 'Admin User', email: 'admin@hejiaxing.ai', role: UserRole.ADMIN, avatar: '' },
+  ]);
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
+  const [weeklySchedules, setWeeklySchedules] = useState<WeeklyScheduleType[]>([]);
+  const [dailyDispatches, setDailyDispatches] = useState<DailyDispatchType[]>([]);
+  const [globalTeamConfigs, setGlobalTeamConfigs] = useState<GlobalTeamConfigs>({});
+  const [importUrl, setImportUrl] = useState(() => localStorage.getItem('hjx_import_url') || '\\\\HJXSERVER\\App test\\上傳排程表.xlsx');
+  
+  const [dirHandle, setDirHandle] = useState<FileSystemDirectoryHandle | null>(null);
+  const [dirPermission, setDirPermission] = useState<'granted' | 'prompt' | 'denied'>('prompt');
+  const [isWorkspaceLoading, setIsWorkspaceLoading] = useState(false);
+  const [isInitialized, setIsInitialized] = useState(false);
+  
+  const excelInputRef = useRef<HTMLInputElement>(null);
+
+  const sortProjects = (list: Project[]) => {
+    if (!Array.isArray(list)) return [];
+    return [...list].sort((a, b) => {
+      const dateA = a.appointmentDate || a.reportDate || '9999-12-31';
+      const dateB = b.appointmentDate || b.reportDate || '9999-12-31';
+      return String(dateA).localeCompare(String(dateB));
+    });
+  };
+
+  useEffect(() => {
+    const restoreAndLoad = async () => {
+      try {
+        const cachedState = await loadAppStateFromIdb();
+        if (cachedState) {
+          if (Array.isArray(cachedState.projects)) setProjects(sortProjects(cachedState.projects));
+          if (Array.isArray(cachedState.users)) setAllUsers(cachedState.users);
+          if (Array.isArray(cachedState.auditLogs)) setAuditLogs(cachedState.auditLogs);
+          if (Array.isArray(cachedState.weeklySchedules)) setWeeklySchedules(cachedState.weeklySchedules);
+          if (Array.isArray(cachedState.dailyDispatches)) setDailyDispatches(cachedState.dailyDispatches);
+          if (cachedState.globalTeamConfigs) setGlobalTeamConfigs(cachedState.globalTeamConfigs);
+        }
+        const savedHandle = await getHandleFromIdb();
+        if (savedHandle) {
+          setDirHandle(savedHandle);
+          const status = await (savedHandle as any).queryPermission({ mode: 'readwrite' });
+          setDirPermission(status);
+          if (status === 'granted') {
+            const savedData = await loadDbFromLocal(savedHandle);
+            if (savedData) {
+               const dbProjects = Array.isArray(savedData.projects) ? savedData.projects : [];
+               setProjects(sortProjects(dbProjects));
+               if (Array.isArray(savedData.users)) setAllUsers(savedData.users);
+               if (Array.isArray(savedData.auditLogs)) setAuditLogs(savedData.auditLogs);
+               if (Array.isArray(savedData.weeklySchedules)) setWeeklySchedules(savedData.weeklySchedules);
+               if (Array.isArray(savedData.dailyDispatches)) setDailyDispatches(savedData.dailyDispatches);
+               if (savedData.globalTeamConfigs) setGlobalTeamConfigs(savedData.globalTeamConfigs);
+            }
+          }
+        }
+      } catch (e) {
+        console.error('資料恢復過程失敗', e);
+      } finally {
+        setIsInitialized(true);
+      }
+    };
+    restoreAndLoad();
+  }, []);
+
+  const syncToLocal = async (handle: FileSystemDirectoryHandle, data: any) => {
+    try {
+      const payload = { ...data, lastSaved: new Date().toISOString() };
+      await saveDbToLocal(handle, payload);
+    } catch (e) {
+      console.error('同步至電腦資料夾失敗', e);
+    }
+  };
+
+  const connectWorkspace = async () => {
+    setIsWorkspaceLoading(true);
+    try {
+      let handle = dirHandle;
+      if (!handle || dirPermission === 'denied') {
+        handle = await getDirectoryHandle();
+        setDirHandle(handle);
+      }
+      const status = await (handle as any).requestPermission({ mode: 'readwrite' });
+      setDirPermission(status);
+      if (status === 'granted') {
+        const savedData = await loadDbFromLocal(handle);
+        if (savedData) {
+          const mergedProjects = [...projects];
+          let addedFromDbCount = 0;
+          (savedData.projects || []).forEach((fp: Project) => {
+            const exists = mergedProjects.some(lp => lp.id === fp.id);
+            if (!exists) {
+              mergedProjects.push(fp);
+              addedFromDbCount++;
+            }
+          });
+          const sorted = sortProjects(mergedProjects);
+          setProjects(sorted);
+          if (savedData.users) setAllUsers(savedData.users);
+          if (savedData.auditLogs) setAuditLogs(savedData.auditLogs);
+          if (savedData.weeklySchedules) setWeeklySchedules(savedData.weeklySchedules);
+          if (savedData.dailyDispatches) setDailyDispatches(savedData.dailyDispatches);
+          if (savedData.globalTeamConfigs) setGlobalTeamConfigs(savedData.globalTeamConfigs);
+          await syncToLocal(handle, { projects: sorted, users: savedData.users || allUsers, auditLogs: savedData.auditLogs || auditLogs, weeklySchedules: savedData.weeklySchedules || weeklySchedules, dailyDispatches: savedData.dailyDispatches || dailyDispatches, globalTeamConfigs: savedData.globalTeamConfigs || globalTeamConfigs });
+          if (addedFromDbCount > 0) alert(`已從資料夾同步 ${addedFromDbCount} 筆新案件。`);
+        } else {
+          await syncToLocal(handle, { projects, users: allUsers, auditLogs, weeklySchedules, dailyDispatches, globalTeamConfigs });
+        }
+      }
+    } catch (e: any) {
+      alert(e.message);
+    } finally {
+      setIsWorkspaceLoading(false);
+    }
+  };
+
+  const handleImportExcel = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsWorkspaceLoading(true);
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const workbook = new ExcelJS.Workbook();
+      await workbook.xlsx.load(arrayBuffer);
+      const worksheet = workbook.getWorksheet(1);
+      if (!worksheet) throw new Error('找不到工作表。');
+      const currentProjects = [...projects];
+      let newCount = 0;
+      let updateCount = 0;
+      const headers: Record<string, number> = {};
+      worksheet.getRow(1).eachCell((cell: any, colNumber: number) => {
+        const headerText = cell.value?.toString().trim();
+        if (headerText) headers[headerText] = colNumber;
+      });
+      if (!headers['客戶'] || !headers['類別']) throw new Error('缺少必要欄位：「客戶」或「類別」。');
+      const excelImages = worksheet.getImages();
+      const imagesByRow: Record<number, any[]> = {};
+      excelImages.forEach((imgMeta: any) => {
+        const rowIdx = Math.floor(imgMeta.range.tl.row) + 1;
+        if (!imagesByRow[rowIdx]) imagesByRow[rowIdx] = [];
+        imagesByRow[rowIdx].push(imgMeta);
+      });
+      const rows = worksheet.getRows(2, worksheet.rowCount - 1) || [];
+      for (const row of rows) {
+        const rowNumber = row.number;
+        const rawName = row.getCell(headers['客戶']).value?.toString().trim() || '';
+        if (!rawName) continue;
+        const categoryStr = row.getCell(headers['類別']).value?.toString() || '';
+        let projectType = ProjectType.CONSTRUCTION;
+        if (categoryStr.includes('維修')) projectType = ProjectType.MAINTENANCE;
+        else if (categoryStr.includes('組合屋')) projectType = ProjectType.MODULAR_HOUSE;
+        const clientName = rawName.includes('-') ? rawName.split('-')[0].trim() : rawName;
+        const existingIdx = currentProjects.findIndex(p => p.name === rawName);
+        const rowImages = imagesByRow[rowNumber] || [];
+        const newAttachments: Attachment[] = [];
+        for (const [idx, imgMeta] of rowImages.entries()) {
+          try {
+            const img = workbook.getImage(imgMeta.imageId);
+            if (img && img.buffer && img.buffer.byteLength < 2000000) {
+              const mimeType = `image/${img.extension}`;
+              const base64 = await bufferToBase64(img.buffer, mimeType);
+              newAttachments.push({
+                id: `excel-img-${rowNumber}-${idx}-${Date.now()}`,
+                name: `匯入圖片_${rowNumber}_${idx}.${img.extension}`,
+                size: img.buffer.byteLength,
+                type: mimeType,
+                url: base64
+              });
+            }
+          } catch (e) {
+            console.warn('圖片處理失敗', e);
+          }
+        }
+        const projectUpdateData: Partial<Project> = {
+          name: rawName,
+          type: projectType,
+          clientName: clientName,
+          clientContact: row.getCell(headers['聯絡人'] || 0).value?.toString() || '',
+          clientPhone: row.getCell(headers['電話'] || 0).value?.toString() || '',
+          address: row.getCell(headers['地址'] || 0).value?.toString() || '',
+          appointmentDate: parseExcelDate(row.getCell(headers['預約日期'] || 0).value),
+          reportDate: parseExcelDate(row.getCell(headers['報修日期'] || 0).value),
+          description: row.getCell(headers['工程'] || 0).value?.toString() || '',
+          remarks: row.getCell(headers['備註'] || 0).value?.toString() || '',
+        };
+        if (existingIdx !== -1) {
+          const existingProject = currentProjects[existingIdx];
+          const mergedAttachments = [...(existingProject.attachments || [])];
+          newAttachments.forEach(na => {
+              if (!mergedAttachments.some(ma => ma.name === na.name && ma.size === na.size)) {
+                  mergedAttachments.push(na);
+              }
+          });
+          currentProjects[existingIdx] = { ...existingProject, ...projectUpdateData, attachments: mergedAttachments };
+          updateCount++;
+        } else {
+          currentProjects.push({
+            id: generateId(),
+            status: ProjectStatus.PLANNING,
+            progress: 0,
+            milestones: [],
+            photos: [],
+            materials: [],
+            reports: [],
+            constructionItems: [],
+            constructionSignatures: [],
+            completionReports: [],
+            attachments: newAttachments,
+            ...(projectUpdateData as Project)
+          });
+          newCount++;
+        }
+        if (rowNumber % 20 === 0) await new Promise(r => setTimeout(r, 0));
+      }
+      setProjects(sortProjects(currentProjects));
+      alert(`匯入完成！\n新增：${newCount} 筆\n更新：${updateCount} 筆`);
+      setAuditLogs(prev => [{ id: generateId(), userId: currentUser?.id || 'system', userName: currentUser?.name || '系統', action: 'IMPORT_EXCEL', details: `匯入 Excel: ${file.name}, 新增 ${newCount}, 更新 ${updateCount}`, timestamp: Date.now() }, ...prev]);
+    } catch (error: any) {
+      alert('Excel 匯入失敗: ' + error.message);
+    } finally {
+      setIsWorkspaceLoading(false);
+      if (excelInputRef.current) excelInputRef.current.value = '';
+    }
+  };
+
+  useEffect(() => {
+    if (!isInitialized) return;
+    const saveAll = async () => {
+        try {
+            await saveAppStateToIdb({ projects, users: allUsers, auditLogs, weeklySchedules, dailyDispatches, globalTeamConfigs, lastSaved: new Date().toISOString() });
+            if (dirHandle && dirPermission === 'granted') {
+                syncToLocal(dirHandle, { projects, users: allUsers, auditLogs, weeklySchedules, dailyDispatches, globalTeamConfigs });
+            }
+        } catch (e) {
+            console.error('自動儲存失敗', e);
+        }
+    };
+    const timer = setTimeout(saveAll, 500);
+    return () => clearTimeout(timer);
+  }, [projects, allUsers, auditLogs, weeklySchedules, dailyDispatches, globalTeamConfigs, dirHandle, dirPermission, isInitialized]);
+
+  const [selectedProject, setSelectedProject] = useState<Project | null>(null);
+  const [editingProject, setEditingProject] = useState<Project | null>(null);
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [view, setView] = useState<'engineering' | 'weekly_schedule' | 'daily_dispatch' | 'engineering_groups' | 'construction' | 'modular_house' | 'maintenance' | 'purchasing' | 'hr' | 'equipment' | 'report' | 'materials' | 'users'>('engineering');
+  const [equipmentSubView, setEquipmentSubView] = useState<string | null>(null);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
+  const handleLogin = (user: User) => { setCurrentUser(user); setView('engineering'); };
+  const handleLogout = () => { setCurrentUser(null); setIsSidebarOpen(false); };
+  const handleDeleteProject = (id: string) => {
+    if (window.confirm('確定要刪除此案件嗎？')) setProjects(sortProjects(projects.filter(p => p.id !== id)));
+  };
+  const handleUpdateProject = (updatedProject: Project) => {
+    setProjects(prev => sortProjects(prev.map(p => p.id === updatedProject.id ? updatedProject : p)));
+    if (selectedProject?.id === updatedProject.id) setSelectedProject(updatedProject);
+  };
+
+  if (!currentUser) return <LoginScreen onLogin={handleLogin} />;
+  
+  const currentViewProjects = projects.filter(p => {
+    if (view === 'engineering') return true;
+    if (view === 'construction') return p.type === ProjectType.CONSTRUCTION;
+    if (view === 'modular_house') return p.type === ProjectType.MODULAR_HOUSE;
+    if (view === 'maintenance') return p.type === ProjectType.MAINTENANCE;
+    return false;
+  });
+
+  const renderSidebarContent = () => {
+    const isConnected = dirHandle && dirPermission === 'granted';
+    return (
+      <>
+        <div className="flex items-center justify-center w-full px-2 py-6 mb-2">
+           <h1 className="text-xl font-bold text-white tracking-wider border-b-2 border-yellow-500 pb-1">
+             合家興<span className="text-yellow-500 text-base ml-1">管理系統</span>
+           </h1>
+        </div>
+        <nav className="flex-1 px-4 space-y-2 overflow-y-auto no-scrollbar">
+          {!isInitialized && <div className="px-4 py-2 text-xs text-yellow-500 animate-pulse flex items-center gap-2"><LoaderIcon className="w-3 h-3 animate-spin" /> 資料載入中...</div>}
+          
+          <div className="space-y-3 mb-6">
+            <button onClick={connectWorkspace} className={`flex items-center gap-3 px-4 py-3 rounded-xl w-full transition-all border ${isConnected ? 'bg-green-600/10 border-green-500 text-green-400' : 'bg-red-600/10 border-red-500 text-red-400'}`}>
+              {isWorkspaceLoading ? <LoaderIcon className="w-5 h-5 animate-spin" /> : isConnected ? <CheckCircleIcon className="w-5 h-5" /> : <AlertIcon className="w-5 h-5" />}
+              <div className="flex flex-col items-start text-left">
+                <span className="text-sm font-bold">{isConnected ? '電腦同步已開啟' : '未連結電腦目錄'}</span>
+                <span className="text-[10px] opacity-70">db.json 自動備份</span>
+              </div>
+            </button>
+            <div className="px-1 pt-2">
+              <input type="file" accept=".xlsx, .xls" ref={excelInputRef} className="hidden" onChange={handleImportExcel} />
+              <button onClick={() => excelInputRef.current?.click()} disabled={isWorkspaceLoading || !isInitialized} className="flex items-center gap-3 px-4 py-3 rounded-xl w-full transition-all bg-indigo-600/10 border border-indigo-500/30 text-indigo-400 hover:bg-indigo-600 hover:text-white group disabled:opacity-50">
+                <FileTextIcon className="w-5 h-5" />
+                <span className="text-sm font-bold">匯入排程表</span>
+              </button>
+            </div>
+          </div>
+
+          <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-2 mt-4 px-4">主要模組</div>
+          <button onClick={() => { setSelectedProject(null); setView('engineering'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'engineering' && !selectedProject ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}><LayoutGridIcon className="w-5 h-5" /> <span className="font-medium">工務</span></button>
+          <button onClick={() => { setSelectedProject(null); setView('weekly_schedule'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'weekly_schedule' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}><CalendarIcon className="w-5 h-5" /> <span className="font-medium">週間工作</span></button>
+          <button onClick={() => { setSelectedProject(null); setView('daily_dispatch'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'daily_dispatch' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}><ClipboardListIcon className="w-5 h-5" /> <span className="font-medium">明日排程</span></button>
+          <button onClick={() => { setSelectedProject(null); setView('engineering_groups'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'engineering_groups' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}><UsersIcon className="w-5 h-5" /> <span className="font-medium">工程小組</span></button>
+          <button onClick={() => { setSelectedProject(null); setView('purchasing'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'purchasing' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}><BoxIcon className="w-5 h-5" /> <span className="font-medium">採購</span></button>
+          <button onClick={() => { setSelectedProject(null); setView('hr'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'hr' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}><UsersIcon className="w-5 h-5" /> <span className="font-medium">人事</span></button>
+          <button onClick={() => { setSelectedProject(null); setView('equipment'); setEquipmentSubView(null); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'equipment' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}><WrenchIcon className="w-5 h-5" /> <span className="font-medium">設備／工具</span></button>
+
+          <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-2 mt-6 px-4">快速捷徑</div>
+          <button onClick={() => { setSelectedProject(null); setView('construction'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'construction' && !selectedProject ? 'bg-slate-800 text-blue-400' : 'text-slate-500 hover:bg-slate-800'}`}><HomeIcon className="w-5 h-5" /> <span className="font-medium text-xs">圍籬總覽</span></button>
+          <button onClick={() => { setSelectedProject(null); setView('modular_house'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'modular_house' && !selectedProject ? 'bg-slate-800 text-blue-400' : 'text-slate-500 hover:bg-slate-800'}`}><LayoutGridIcon className="w-5 h-5" /> <span className="font-medium text-xs">組合屋總覽</span></button>
+          <button onClick={() => { setSelectedProject(null); setView('maintenance'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'maintenance' && !selectedProject ? 'bg-slate-800 text-blue-400' : 'text-slate-500 hover:bg-slate-800'}`}><WrenchIcon className="w-5 h-5" /> <span className="font-medium text-xs">維修總覽</span></button>
+          <button onClick={() => { setSelectedProject(null); setView('report'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'report' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}><ClipboardListIcon className="w-5 h-5" /> <span className="font-medium">工作回報</span></button>
+          <button onClick={() => { setSelectedProject(null); setView('materials'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'materials' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}><BoxIcon className="w-5 h-5" /> <span className="font-medium">材料請購</span></button>
+          {currentUser.role === UserRole.ADMIN && (<button onClick={() => { setView('users'); setSelectedProject(null); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'users' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}><ShieldIcon className="w-4 h-4" /> <span className="font-medium">系統權限</span></button>)}
+        </nav>
+        <div className="p-4 border-t border-slate-800 w-full mt-auto mb-safe"><button onClick={handleLogout} className="flex w-full items-center justify-center gap-2 px-4 py-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors text-sm"><LogOutIcon className="w-4 h-4" /> 登出</button></div>
+      </>
+    );
+  };
+
+  const getTitle = () => {
+    switch(view) {
+      case 'engineering': return '工務總覽';
+      case 'weekly_schedule': return '週間工作排程';
+      case 'daily_dispatch': return '每日派工排程';
+      case 'engineering_groups': return '工程小組管理';
+      case 'purchasing': return '採購模組';
+      case 'hr': return '人事模組';
+      case 'equipment': return equipmentSubView ? `設備／工具 - ${equipmentSubView}` : '設備／工具模組';
+      case 'construction': return '圍籬案件';
+      case 'modular_house': return '組合屋案件';
+      case 'maintenance': return '維修案件';
+      case 'report': return '工作回報';
+      case 'materials': return '材料請購';
+      case 'users': return '權限管理';
+      default: return '合家興管理系統';
+    }
+  };
+
+  const renderEquipmentView = () => {
+    if (equipmentSubView) {
+      return (
+        <div className="flex flex-col h-full p-6 animate-fade-in">
+          <button onClick={() => setEquipmentSubView(null)} className="flex items-center gap-2 text-slate-500 hover:text-blue-600 mb-8 font-bold transition-colors">
+            <ArrowLeftIcon className="w-4 h-4" /> 返回清單
+          </button>
+          <div className="flex-1 flex flex-col items-center justify-center text-slate-400 gap-4">
+            <WrenchIcon className="w-16 h-16 opacity-20" />
+            <div className="text-lg font-bold">{equipmentSubView} 模組建設中...</div>
+          </div>
+        </div>
+      );
+    }
+
+    const categories = [
+      { id: '報修清單', icon: <AlertIcon className="w-6 h-6" />, color: 'bg-red-50 text-red-600' },
+      { id: '個人工具', icon: <WrenchIcon className="w-6 h-6" />, color: 'bg-blue-50 text-blue-600' },
+      { id: '隨車器材', icon: <BoxIcon className="w-6 h-6" />, color: 'bg-emerald-50 text-emerald-600' },
+      { id: '廠內設備', icon: <HomeIcon className="w-6 h-6" />, color: 'bg-indigo-50 text-indigo-600' },
+      { id: '車輛管理', icon: <TruckIcon className="w-6 h-6" />, color: 'bg-orange-50 text-orange-600' },
+      { id: '辦公室資材', icon: <BriefcaseIcon className="w-6 h-6" />, color: 'bg-slate-50 text-slate-600' },
+    ];
+
+    return (
+      <div className="p-6 max-w-5xl mx-auto h-full animate-fade-in">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          {categories.map(cat => (
+            <button
+              key={cat.id}
+              onClick={() => setEquipmentSubView(cat.id)}
+              className="bg-white p-8 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md hover:border-blue-500 transition-all group flex flex-col items-center text-center gap-4"
+            >
+              <div className={`p-4 rounded-xl ${cat.color} group-hover:scale-110 transition-transform`}>
+                {cat.icon}
+              </div>
+              <div className="font-bold text-slate-800 text-lg">{cat.id}</div>
+              <p className="text-xs text-slate-400 font-medium uppercase tracking-widest">Management</p>
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className="flex h-screen bg-[#f8fafc] overflow-hidden">
+      <div className={`fixed inset-0 z-[100] md:hidden transition-opacity duration-300 ${isSidebarOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+        <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setIsSidebarOpen(false)} />
+        <aside className={`absolute left-0 top-0 bottom-0 w-64 bg-slate-900 text-white flex flex-col transform transition-transform duration-300 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>{renderSidebarContent()}</aside>
+      </div>
+      <aside className="hidden md:flex w-64 flex-col bg-slate-900 text-white flex-shrink-0">{renderSidebarContent()}</aside>
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
+        <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 md:px-6 shadow-sm z-20">
+          <button onClick={() => setIsSidebarOpen(true)} className="md:hidden text-slate-500 p-2"><MenuIcon className="w-6 h-6" /></button>
+          <div className="text-sm font-bold text-slate-700">{selectedProject ? selectedProject.name : getTitle()}</div>
+          <div className="flex items-center gap-3">
+            <div className="text-sm font-bold text-slate-700 hidden sm:block">{currentUser.name}</div>
+            <div className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center"><UserIcon className="w-5 h-5 text-slate-400" /></div>
+          </div>
+        </header>
+        <main className="flex-1 overflow-auto bg-[#f8fafc] pb-safe">
+          {view === 'users' ? (<UserManagement users={allUsers} onUpdateUsers={setAllUsers} auditLogs={auditLogs} onLogAction={(action, details) => setAuditLogs(prev => [{ id: generateId(), userId: currentUser.id, userName: currentUser.name, action, details, timestamp: Date.now() }, ...prev])} importUrl={importUrl} onUpdateImportUrl={(url) => { setImportUrl(url); localStorage.setItem('hjx_import_url', url); }} projects={projects} onRestoreData={(data) => { setProjects(data.projects); setAllUsers(data.users); setAuditLogs(data.auditLogs); }} />) : 
+           view === 'report' ? (<GlobalWorkReport projects={projects} currentUser={currentUser} onUpdateProject={handleUpdateProject} />) : 
+           view === 'weekly_schedule' ? (<WeeklySchedule projects={projects} weeklySchedules={weeklySchedules} globalTeamConfigs={globalTeamConfigs} onUpdateWeeklySchedules={setWeeklySchedules} />) :
+           view === 'daily_dispatch' ? (<DailyDispatch projects={projects} weeklySchedules={weeklySchedules} dailyDispatches={dailyDispatches} globalTeamConfigs={globalTeamConfigs} onUpdateDailyDispatches={setDailyDispatches} />) :
+           view === 'engineering_groups' ? (<EngineeringGroups globalTeamConfigs={globalTeamConfigs} onUpdateGlobalTeamConfigs={setGlobalTeamConfigs} />) :
+           view === 'materials' ? (<GlobalMaterials projects={projects} onSelectProject={setSelectedProject} />) : 
+           view === 'purchasing' ? (<div className="flex flex-col items-center justify-center h-full text-slate-400 gap-4"><BoxIcon className="w-16 h-16 opacity-20" /><div className="text-lg font-bold">採購模組建設中...</div></div>) :
+           view === 'hr' ? (<div className="flex flex-col items-center justify-center h-full text-slate-400 gap-4"><UsersIcon className="w-16 h-16 opacity-20" /><div className="text-lg font-bold">人事模組建設中...</div></div>) :
+           view === 'equipment' ? renderEquipmentView() :
+           selectedProject ? (<ProjectDetail project={selectedProject} currentUser={currentUser} onBack={() => setSelectedProject(null)} onUpdateProject={handleUpdateProject} onEditProject={setEditingProject} />) : 
+           (<ProjectList title={getTitle()} projects={currentViewProjects} currentUser={currentUser} onSelectProject={setSelectedProject} onAddProject={() => setIsAddModalOpen(true)} onDeleteProject={handleDeleteProject} onDuplicateProject={()=>{}} onEditProject={setEditingProject} />)}
+        </main>
+      </div>
+      {isAddModalOpen && <AddProjectModal onClose={() => setIsAddModalOpen(false)} onAdd={(p) => { setProjects(sortProjects([p, ...projects])); setIsAddModalOpen(false); }} defaultType={view === 'maintenance' ? ProjectType.MAINTENANCE : view === 'modular_house' ? ProjectType.MODULAR_HOUSE : ProjectType.CONSTRUCTION} />}
+      {editingProject && <EditProjectModal project={editingProject} onClose={() => setEditingProject(null)} onSave={handleUpdateProject} />}
+    </div>
+  );
+};
+
+export default App;
