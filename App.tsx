@@ -13,8 +13,9 @@ import GlobalMaterials from './components/GlobalMaterials';
 import WeeklySchedule from './components/WeeklySchedule';
 import DailyDispatch from './components/DailyDispatch';
 import EngineeringGroups from './components/EngineeringGroups';
-import PurchasingManagement from './components/PurchasingManagement'; // 新增導入
-import { HomeIcon, UserIcon, LogOutIcon, ShieldIcon, MenuIcon, XIcon, ChevronRightIcon, WrenchIcon, UploadIcon, LoaderIcon, ClipboardListIcon, LayoutGridIcon, BoxIcon, DownloadIcon, FileTextIcon, CheckCircleIcon, AlertIcon, XCircleIcon, UsersIcon, TruckIcon, BriefcaseIcon, ArrowLeftIcon, CalendarIcon } from './components/Icons';
+import PurchasingManagement from './components/PurchasingManagement';
+import DrivingTimeEstimator from './components/DrivingTimeEstimator'; // 新增導入
+import { HomeIcon, UserIcon, LogOutIcon, ShieldIcon, MenuIcon, XIcon, ChevronRightIcon, WrenchIcon, UploadIcon, LoaderIcon, ClipboardListIcon, LayoutGridIcon, BoxIcon, DownloadIcon, FileTextIcon, CheckCircleIcon, AlertIcon, XCircleIcon, UsersIcon, TruckIcon, BriefcaseIcon, ArrowLeftIcon, CalendarIcon, ClockIcon, NavigationIcon } from './components/Icons';
 import { getDirectoryHandle, saveDbToLocal, loadDbFromLocal, getHandleFromIdb, clearHandleFromIdb, saveAppStateToIdb, loadAppStateFromIdb } from './utils/fileSystem';
 import { downloadBlob } from './utils/fileHelpers';
 import ExcelJS from 'exceljs';
@@ -309,7 +310,7 @@ const App: React.FC = () => {
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [view, setView] = useState<'engineering' | 'engineering_hub' | 'weekly_schedule' | 'daily_dispatch' | 'engineering_groups' | 'construction' | 'modular_house' | 'maintenance' | 'purchasing' | 'hr' | 'equipment' | 'report' | 'materials' | 'users'>('engineering');
+  const [view, setView] = useState<'engineering' | 'engineering_hub' | 'driving_time' | 'weekly_schedule' | 'daily_dispatch' | 'engineering_groups' | 'construction' | 'modular_house' | 'maintenance' | 'purchasing' | 'hr' | 'equipment' | 'report' | 'materials' | 'users'>('engineering');
   const [equipmentSubView, setEquipmentSubView] = useState<string | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
@@ -368,7 +369,7 @@ const App: React.FC = () => {
             <LayoutGridIcon className="w-5 h-5" /> 
             <span className="font-medium">工務總覽</span>
           </button>
-          <button onClick={() => { setSelectedProject(null); setView('engineering_hub'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'engineering_hub' || view === 'weekly_schedule' || view === 'daily_dispatch' || view === 'engineering_groups' ? 'bg-blue-600 text-white shadow-md shadow-blue-900/20' : 'text-slate-400 hover:bg-slate-800'}`}>
+          <button onClick={() => { setSelectedProject(null); setView('engineering_hub'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'engineering_hub' || view === 'weekly_schedule' || view === 'daily_dispatch' || view === 'engineering_groups' || view === 'driving_time' ? 'bg-blue-600 text-white shadow-md shadow-blue-900/20' : 'text-slate-400 hover:bg-slate-800'}`}>
             <BriefcaseIcon className="w-5 h-5" /> 
             <span className="font-medium">工程模組</span>
           </button>
@@ -405,6 +406,7 @@ const App: React.FC = () => {
     switch(view) {
       case 'engineering': return '工務總覽';
       case 'engineering_hub': return '工程管理入口';
+      case 'driving_time': return '估計行車時間';
       case 'weekly_schedule': return '週間工作排程';
       case 'daily_dispatch': return '每日派工排程';
       case 'engineering_groups': return '工程小組管理';
@@ -426,6 +428,7 @@ const App: React.FC = () => {
       { id: 'weekly_schedule', label: '週間工作排程', icon: <CalendarIcon className="w-6 h-6" />, color: 'bg-indigo-50 text-indigo-600', desc: '規劃本週各小組派工任務' },
       { id: 'daily_dispatch', label: '明日派工排程', icon: <ClipboardListIcon className="w-6 h-6" />, color: 'bg-blue-50 text-blue-600', desc: '確認明日施工地點與人員' },
       { id: 'engineering_groups', label: '工程小組設定', icon: <UsersIcon className="w-6 h-6" />, color: 'bg-emerald-50 text-emerald-600', desc: '管理師傅、助手與車號預設' },
+      { id: 'driving_time', label: '估計行車時間', icon: <NavigationIcon className="w-6 h-6" />, color: 'bg-amber-50 text-amber-600', desc: '預估早上 8:00 路徑耗時' }, // 新增
     ];
 
     return (
@@ -515,6 +518,12 @@ const App: React.FC = () => {
           {view === 'users' ? (<UserManagement users={allUsers} onUpdateUsers={setAllUsers} auditLogs={auditLogs} onLogAction={(action, details) => setAuditLogs(prev => [{ id: generateId(), userId: currentUser.id, userName: currentUser.name, action, details, timestamp: Date.now() }, ...prev])} importUrl={importUrl} onUpdateImportUrl={(url) => { setImportUrl(url); localStorage.setItem('hjx_import_url', url); }} projects={projects} onRestoreData={(data) => { setProjects(data.projects); setAllUsers(data.users); setAuditLogs(data.auditLogs); }} />) : 
            view === 'report' ? (<GlobalWorkReport projects={projects} currentUser={currentUser} onUpdateProject={handleUpdateProject} />) : 
            view === 'engineering_hub' ? renderEngineeringHub() :
+           view === 'driving_time' ? (
+            <div className="flex flex-col h-full">
+              <div className="px-6 pt-4"><button onClick={() => setView('engineering_hub')} className="flex items-center gap-2 text-slate-500 hover:text-blue-600 font-bold text-xs"><ArrowLeftIcon className="w-3 h-3" /> 返回工程模組</button></div>
+              <DrivingTimeEstimator projects={projects} />
+            </div>
+           ) :
            view === 'weekly_schedule' ? (
              <div className="flex flex-col h-full">
                <div className="px-6 pt-4"><button onClick={() => setView('engineering_hub')} className="flex items-center gap-2 text-slate-500 hover:text-blue-600 font-bold text-xs"><ArrowLeftIcon className="w-3 h-3" /> 返回工程模組</button></div>
@@ -534,7 +543,7 @@ const App: React.FC = () => {
             </div>
            ) :
            view === 'materials' ? (<GlobalMaterials projects={projects} onSelectProject={setSelectedProject} />) : 
-           view === 'purchasing' ? (<PurchasingManagement projects={projects} currentUser={currentUser} onUpdateProject={handleUpdateProject} />) : // 更新這裡
+           view === 'purchasing' ? (<PurchasingManagement projects={projects} currentUser={currentUser} onUpdateProject={handleUpdateProject} />) : 
            view === 'hr' ? (<div className="flex flex-col items-center justify-center h-full text-slate-400 gap-4"><UsersIcon className="w-16 h-16 opacity-20" /><div className="text-lg font-bold">人事模組建設中...</div></div>) :
            view === 'equipment' ? renderEquipmentView() :
            selectedProject ? (<ProjectDetail project={selectedProject} currentUser={currentUser} onBack={() => setSelectedProject(null)} onUpdateProject={handleUpdateProject} onEditProject={setEditingProject} />) : 
