@@ -1,4 +1,3 @@
-
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
@@ -20,8 +19,8 @@ export default defineConfig(({ mode }) => {
           background_color: '#f8fafc',
           display: 'standalone',
           orientation: 'portrait',
-          scope: '/Hejiaxing-system-app/',
-          start_url: '/Hejiaxing-system-app/',
+          scope: './',
+          start_url: './',
           icons: [
             {
               src: 'https://ui-avatars.com/api/?name=HJX&background=0f172a&color=fff&size=192',
@@ -66,7 +65,7 @@ export default defineConfig(({ mode }) => {
         }
       })
     ],
-    base: '/Hejiaxing-system-app/',
+    base: './',
     define: {
       'process.env.API_KEY': JSON.stringify(env.API_KEY),
     },
