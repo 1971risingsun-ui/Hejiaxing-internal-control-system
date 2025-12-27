@@ -324,7 +324,6 @@ const App: React.FC = () => {
     if (selectedProject?.id === updatedProject.id) setSelectedProject(updatedProject);
   };
 
-  // 修正：使用函式型更新 (Functional Update) 確保批次處理時資料不會遺失
   const handleAddToWeeklySchedule = (date: string, teamId: number, taskName: string) => {
     let wasAdded = false;
     setWeeklySchedules(prevSchedules => {
@@ -349,7 +348,6 @@ const App: React.FC = () => {
       if (!teams[teamId]) teams[teamId] = { tasks: [] };
       
       const teamTasks = [...teams[teamId].tasks];
-      // 批次匯入時允許重複案件，因為同一個案件可能在不同路徑站點出現
       teamTasks.push(taskName);
       wasAdded = true;
       
@@ -380,7 +378,7 @@ const App: React.FC = () => {
       <>
         <div className="flex items-center justify-center w-full px-2 py-6 mb-2">
            <h1 className="text-xl font-bold text-white tracking-wider border-b-2 border-yellow-500 pb-1">
-             合家興<span className="text-yellow-500 text-base ml-1">管理系統</span>
+             合家興<span className="text-yellow-500 text-base ml-1">行政管理系統</span>
            </h1>
         </div>
         <nav className="flex-1 px-4 space-y-2 overflow-y-auto no-scrollbar">
@@ -446,7 +444,7 @@ const App: React.FC = () => {
       case 'engineering_hub': return '工程管理入口';
       case 'driving_time': return '估計行車時間';
       case 'weekly_schedule': return '週間工作排程';
-      case 'daily_dispatch': return '每日派工排程';
+      case 'daily_dispatch': return '明日工作排程';
       case 'engineering_groups': return '工程小組管理';
       case 'purchasing': return '採購管理';
       case 'hr': return '人事模組';
@@ -457,21 +455,22 @@ const App: React.FC = () => {
       case 'report': return '工作回報';
       case 'materials': return '材料請購';
       case 'users': return '權限管理';
-      default: return '合家興管理系統';
+      default: return '合家興行政管理系統';
     }
   };
 
   const renderEngineeringHub = () => {
+    // 調整後順序：明日工作排程、估計行車時間、週間工作排程、工程小組設定
     const categories = [
-      { id: 'weekly_schedule', label: '週間工作排程', icon: <CalendarIcon className="w-6 h-6" />, color: 'bg-indigo-50 text-indigo-600', desc: '規劃本週各小組派工任務' },
-      { id: 'daily_dispatch', label: '明日派工排程', icon: <ClipboardListIcon className="w-6 h-6" />, color: 'bg-blue-50 text-blue-600', desc: '確認明日施工地點與人員' },
-      { id: 'engineering_groups', label: '工程小組設定', icon: <UsersIcon className="w-6 h-6" />, color: 'bg-emerald-50 text-emerald-600', desc: '管理師傅、助手與車號預設' },
+      { id: 'daily_dispatch', label: '明日工作排程', icon: <ClipboardListIcon className="w-6 h-6" />, color: 'bg-blue-50 text-blue-600', desc: '確認明日施工地點與人員' },
       { id: 'driving_time', label: '估計行車時間', icon: <NavigationIcon className="w-6 h-6" />, color: 'bg-amber-50 text-amber-600', desc: '預估早上 8:00 路徑耗時' },
+      { id: 'weekly_schedule', label: '週間工作排程', icon: <CalendarIcon className="w-6 h-6" />, color: 'bg-indigo-50 text-indigo-600', desc: '規劃本週各小組派工任務' },
+      { id: 'engineering_groups', label: '工程小組設定', icon: <UsersIcon className="w-6 h-6" />, color: 'bg-emerald-50 text-emerald-600', desc: '管理師傅、助手與車號預設' },
     ];
 
     return (
       <div className="p-6 max-w-5xl mx-auto h-full animate-fade-in">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-6">
           {categories.map(cat => (
             <button
               key={cat.id}
@@ -552,40 +551,40 @@ const App: React.FC = () => {
             <div className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center"><UserIcon className="w-5 h-5 text-slate-400" /></div>
           </div>
         </header>
-        <main className="flex-1 overflow-auto bg-[#f8fafc] pb-safe">
+        <main className="flex-1 flex flex-col min-h-0 bg-[#f8fafc] pb-safe">
           {view === 'users' ? (<UserManagement users={allUsers} onUpdateUsers={setAllUsers} auditLogs={auditLogs} onLogAction={(action, details) => setAuditLogs(prev => [{ id: generateId(), userId: currentUser.id, userName: currentUser.name, action, details, timestamp: Date.now() }, ...prev])} importUrl={importUrl} onUpdateImportUrl={(url) => { setImportUrl(url); localStorage.setItem('hjx_import_url', url); }} projects={projects} onRestoreData={(data) => { setProjects(data.projects); setAllUsers(data.users); setAuditLogs(data.auditLogs); }} />) : 
-           view === 'report' ? (<GlobalWorkReport projects={projects} currentUser={currentUser} onUpdateProject={handleUpdateProject} />) : 
-           view === 'engineering_hub' ? renderEngineeringHub() :
+           view === 'report' ? (<div className="flex-1 overflow-auto"><GlobalWorkReport projects={projects} currentUser={currentUser} onUpdateProject={handleUpdateProject} /></div>) : 
+           view === 'engineering_hub' ? (<div className="flex-1 overflow-auto">{renderEngineeringHub()}</div>) :
            view === 'driving_time' ? (
-            <div className="flex flex-col h-full">
+            <div className="flex flex-col flex-1 min-h-0">
               <div className="px-6 pt-4"><button onClick={() => setView('engineering_hub')} className="flex items-center gap-2 text-slate-500 hover:text-blue-600 font-bold text-xs"><ArrowLeftIcon className="w-3 h-3" /> 返回工程模組</button></div>
-              <DrivingTimeEstimator projects={projects} onAddToSchedule={handleAddToWeeklySchedule} globalTeamConfigs={globalTeamConfigs} />
+              <div className="flex-1 overflow-auto"><DrivingTimeEstimator projects={projects} onAddToSchedule={handleAddToWeeklySchedule} globalTeamConfigs={globalTeamConfigs} /></div>
             </div>
            ) :
            view === 'weekly_schedule' ? (
-             <div className="flex flex-col h-full">
+             <div className="flex flex-col flex-1 min-h-0">
                <div className="px-6 pt-4"><button onClick={() => setView('engineering_hub')} className="flex items-center gap-2 text-slate-500 hover:text-blue-600 font-bold text-xs"><ArrowLeftIcon className="w-3 h-3" /> 返回工程模組</button></div>
-               <WeeklySchedule projects={projects} weeklySchedules={weeklySchedules} globalTeamConfigs={globalTeamConfigs} onUpdateWeeklySchedules={setWeeklySchedules} />
+               <div className="flex-1 overflow-hidden"><WeeklySchedule projects={projects} weeklySchedules={weeklySchedules} globalTeamConfigs={globalTeamConfigs} onUpdateWeeklySchedules={setWeeklySchedules} /></div>
              </div>
            ) :
            view === 'daily_dispatch' ? (
-            <div className="flex flex-col h-full">
+            <div className="flex flex-col flex-1 min-h-0">
               <div className="px-6 pt-4"><button onClick={() => setView('engineering_hub')} className="flex items-center gap-2 text-slate-500 hover:text-blue-600 font-bold text-xs"><ArrowLeftIcon className="w-3 h-3" /> 返回工程模組</button></div>
-              <DailyDispatch projects={projects} weeklySchedules={weeklySchedules} dailyDispatches={dailyDispatches} globalTeamConfigs={globalTeamConfigs} onUpdateDailyDispatches={setDailyDispatches} />
+              <div className="flex-1 overflow-hidden"><DailyDispatch projects={projects} weeklySchedules={weeklySchedules} dailyDispatches={dailyDispatches} globalTeamConfigs={globalTeamConfigs} onUpdateDailyDispatches={setDailyDispatches} /></div>
             </div>
            ) :
            view === 'engineering_groups' ? (
-            <div className="flex flex-col h-full">
+            <div className="flex flex-col flex-1 min-h-0">
               <div className="px-6 pt-4"><button onClick={() => setView('engineering_hub')} className="flex items-center gap-2 text-slate-500 hover:text-blue-600 font-bold text-xs"><ArrowLeftIcon className="w-3 h-3" /> 返回工程模組</button></div>
-              <EngineeringGroups globalTeamConfigs={globalTeamConfigs} onUpdateGlobalTeamConfigs={setGlobalTeamConfigs} />
+              <div className="flex-1 overflow-auto"><EngineeringGroups globalTeamConfigs={globalTeamConfigs} onUpdateGlobalTeamConfigs={setGlobalTeamConfigs} /></div>
             </div>
            ) :
-           view === 'materials' ? (<GlobalMaterials projects={projects} onSelectProject={setSelectedProject} />) : 
-           view === 'purchasing' ? (<PurchasingManagement projects={projects} currentUser={currentUser} onUpdateProject={handleUpdateProject} />) : 
-           view === 'hr' ? (<div className="flex flex-col items-center justify-center h-full text-slate-400 gap-4"><UsersIcon className="w-16 h-16 opacity-20" /><div className="text-lg font-bold">人事模組建設中...</div></div>) :
-           view === 'equipment' ? renderEquipmentView() :
-           selectedProject ? (<ProjectDetail project={selectedProject} currentUser={currentUser} onBack={() => setSelectedProject(null)} onUpdateProject={handleUpdateProject} onEditProject={setEditingProject} />) : 
-           (<ProjectList title={getTitle()} projects={currentViewProjects} currentUser={currentUser} onSelectProject={setSelectedProject} onAddProject={() => setIsAddModalOpen(true)} onDeleteProject={handleDeleteProject} onDuplicateProject={()=>{}} onEditProject={setEditingProject} />)}
+           view === 'materials' ? (<div className="flex-1 overflow-auto"><GlobalMaterials projects={projects} onSelectProject={setSelectedProject} /></div>) : 
+           view === 'purchasing' ? (<div className="flex-1 overflow-auto"><PurchasingManagement projects={projects} currentUser={currentUser} onUpdateProject={handleUpdateProject} /></div>) : 
+           view === 'hr' ? (<div className="flex-1 flex flex-col items-center justify-center text-slate-400 gap-4"><UsersIcon className="w-16 h-16 opacity-20" /><div className="text-lg font-bold">人事模組建設中...</div></div>) :
+           view === 'equipment' ? (<div className="flex-1 overflow-auto">{renderEquipmentView()}</div>) :
+           selectedProject ? (<div className="flex-1 overflow-hidden"><ProjectDetail project={selectedProject} currentUser={currentUser} onBack={() => setSelectedProject(null)} onUpdateProject={handleUpdateProject} onEditProject={setEditingProject} /></div>) : 
+           (<div className="flex-1 overflow-auto"><ProjectList title={getTitle()} projects={currentViewProjects} currentUser={currentUser} onSelectProject={setSelectedProject} onAddProject={() => setIsAddModalOpen(true)} onDeleteProject={handleDeleteProject} onDuplicateProject={()=>{}} onEditProject={setEditingProject} /></div>)}
         </main>
       </div>
       {isAddModalOpen && <AddProjectModal onClose={() => setIsAddModalOpen(false)} onAdd={(p) => { setProjects(sortProjects([p, ...projects])); setIsAddModalOpen(false); }} defaultType={view === 'maintenance' ? ProjectType.MAINTENANCE : view === 'modular_house' ? ProjectType.MODULAR_HOUSE : ProjectType.CONSTRUCTION} />}

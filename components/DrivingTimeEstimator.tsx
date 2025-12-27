@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Project, ProjectType, GlobalTeamConfigs } from '../types';
-import { MapPinIcon, NavigationIcon, PlusIcon, TrashIcon, HomeIcon, SparklesIcon, BriefcaseIcon, SearchIcon, XIcon, CalendarIcon, UsersIcon, CheckCircleIcon, ClipboardListIcon, LoaderIcon } from './Icons';
+import { MapPinIcon, NavigationIcon, PlusIcon, TrashIcon, HomeIcon, SparklesIcon, BriefcaseIcon, SearchIcon, XIcon, CalendarIcon, UsersIcon, CheckCircleIcon, ClipboardListIcon, LoaderIcon, ClockIcon } from './Icons';
 
 interface DrivingTimeEstimatorProps {
   projects: Project[];
@@ -9,11 +9,21 @@ interface DrivingTimeEstimatorProps {
   globalTeamConfigs: GlobalTeamConfigs;
 }
 
-// 總部座標
 const START_ADDRESS = "桃園市龜山區文化三路620巷80弄118-1號";
 const START_COORDS = { lat: 25.047, lng: 121.371 }; 
 
-// 台灣主要地區座標快取
+// 使用具體色值以確保在動態渲染時顏色百分之百正確
+const STOP_COLOR_MAP = [
+    { name: 'emerald', hex: '#10b981', light: '#ecfdf5', text: '#047857' },
+    { name: 'rose', hex: '#f43f5e', light: '#fff1f2', text: '#be123c' },
+    { name: 'amber', hex: '#f59e0b', light: '#fffbeb', text: '#b45309' },
+    { name: 'cyan', hex: '#06b6d4', light: '#ecfeff', text: '#0e7490' },
+    { name: 'purple', hex: '#a855f7', light: '#faf5ff', text: '#7e22ce' },
+    { name: 'orange', hex: '#f97316', light: '#fff7ed', text: '#c2410c' },
+    { name: 'teal', hex: '#14b8a6', light: '#f0fdfa', text: '#0f766e' },
+    { name: 'indigo', hex: '#6366f1', light: '#eef2ff', text: '#4338ca' }
+];
+
 const DISTRICT_COORDS: Record<string, { lat: number; lng: number }> = {
   "龜山": { lat: 25.021, lng: 121.362 },
   "中壢": { lat: 24.968, lng: 121.224 },
@@ -47,7 +57,6 @@ const DrivingTimeEstimator: React.FC<DrivingTimeEstimatorProps> = ({ projects, o
   const [results, setResults] = useState<(number | null)[]>([null]);
   const [activeIdx, setActiveIdx] = useState<number | null>(null);
   
-  // 統一排程狀態
   const [batchDate, setBatchDate] = useState(new Date().toISOString().split('T')[0]);
   const [batchTeam, setBatchTeam] = useState(1);
   const [isBatchPasting, setIsBatchPasting] = useState(false);
@@ -141,19 +150,12 @@ const DrivingTimeEstimator: React.FC<DrivingTimeEstimatorProps> = ({ projects, o
     }
 
     setIsBatchPasting(true);
-    
-    // 依序匯入所有案件
-    // 在 App.tsx 修正後，這組呼叫會正確累加
     for (const projectName of validProjects) {
        onAddToSchedule(batchDate, batchTeam, projectName);
     }
-
     setIsBatchPasting(false);
     setPastedDone(true);
-    
-    setTimeout(() => {
-      setPastedDone(false);
-    }, 3000);
+    setTimeout(() => { setPastedDone(false); }, 3000);
   };
 
   const getProjectTypeLabel = (type: ProjectType) => {
@@ -189,7 +191,7 @@ const DrivingTimeEstimator: React.FC<DrivingTimeEstimatorProps> = ({ projects, o
               <div className="w-10 h-10 rounded-full bg-indigo-600 flex items-center justify-center text-white z-10 shadow-lg border-4 border-white">
                 <HomeIcon className="w-5 h-5" />
               </div>
-              <div className="w-0.5 h-14 bg-slate-100 border-l-2 border-dashed border-slate-200"></div>
+              <div className="w-0.5 h-12 bg-slate-100 border-l-2 border-dashed border-slate-200"></div>
             </div>
             <div className="flex-1 pt-1.5">
               <div className="text-[10px] font-black text-indigo-500 uppercase mb-1 tracking-widest opacity-60">START</div>
@@ -198,123 +200,139 @@ const DrivingTimeEstimator: React.FC<DrivingTimeEstimatorProps> = ({ projects, o
             </div>
           </div>
 
-          {destinations.map((dest, idx) => (
-            <React.Fragment key={idx}>
-              <div className="flex items-center gap-4 ml-[19px] -my-2 relative h-16">
-                <div className="w-0.5 h-full bg-slate-100 border-l-2 border-dashed border-slate-200"></div>
-                
-                {results[idx] !== null && (
-                  <div className="absolute left-6 top-1/2 -translate-y-1/2 flex items-center gap-2.5 bg-emerald-50 px-4 py-1.5 rounded-full border border-emerald-100 shadow-sm animate-scale-in z-20">
-                    <div className="flex items-center gap-1.5 text-emerald-700 font-black">
-                      <NavigationIcon className="w-3.5 h-3.5" />
-                      <span className="text-sm font-mono">{results[idx]?.toFixed(1)} <span className="text-[10px] font-bold opacity-60">km</span></span>
+          {destinations.map((dest, idx) => {
+            const color = STOP_COLOR_MAP[idx % STOP_COLOR_MAP.length];
+            return (
+              <React.Fragment key={idx}>
+                {/* 縮短連接線空間約 40% (h-20 -> h-12) */}
+                <div className="flex items-center gap-4 ml-[19px] -my-2 relative h-12">
+                  <div className="w-0.5 h-full bg-slate-100 border-l-2 border-dashed border-slate-200"></div>
+                  
+                  {results[idx] !== null && (
+                    <div 
+                      style={{ borderColor: color.hex, backgroundColor: 'white' }}
+                      className="absolute left-6 top-1/2 -translate-y-1/2 flex items-center gap-4 px-6 py-3 rounded-2xl border-2 shadow-xl animate-scale-in z-20 whitespace-nowrap"
+                    >
+                      <div style={{ color: color.text }} className="flex items-center gap-2 font-black text-xl">
+                          <NavigationIcon className="w-5 h-5" />
+                          <span className="font-mono">{(results[idx] || 0).toFixed(1)} <span className="text-sm font-bold opacity-60">km</span></span>
+                      </div>
+                      <div className="w-px h-6 bg-slate-200"></div>
+                      <div style={{ color: color.text }} className="text-sm font-bold flex items-center gap-1.5">
+                          <ClockIcon className="w-4 h-4" /> 預估 {Math.round((results[idx] || 0) * 1.8)} 分鐘
+                      </div>
                     </div>
-                  </div>
-                )}
-              </div>
-
-              <div className="flex items-start gap-4 relative">
-                <div className="flex flex-col items-center">
-                  <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white z-10 shadow-lg border-4 border-white transition-all duration-300 ${results[idx] !== null ? 'bg-emerald-500' : 'bg-slate-300'}`}>
-                    <MapPinIcon className="w-5 h-5" />
-                  </div>
-                  {idx < destinations.length - 1 && (
-                    <div className="w-0.5 h-24 bg-slate-100 border-l-2 border-dashed border-slate-200"></div>
                   )}
                 </div>
-                <div className="flex-1 pt-1.5">
-                  <div className="flex items-center justify-between gap-2 mb-2">
-                    <div className="flex items-center gap-2">
-                        <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">STOP {idx + 1}</div>
-                        {projectLabels[idx] && (
-                            <div className="bg-slate-800 text-white text-[9px] font-bold px-2 py-0.5 rounded-md flex items-center gap-1 animate-fade-in">
-                                <BriefcaseIcon className="w-2.5 h-2.5" /> {projectLabels[idx]}
-                            </div>
-                        )}
+
+                <div className="flex items-start gap-4 relative">
+                  <div className="flex flex-col items-center">
+                    <div 
+                      style={{ backgroundColor: results[idx] !== null ? color.hex : '#cbd5e1' }}
+                      className="w-10 h-10 rounded-full flex items-center justify-center text-white z-10 shadow-lg border-4 border-white transition-all duration-300"
+                    >
+                      <MapPinIcon className="w-5 h-5" />
                     </div>
-                    {destinations.length > 1 && (
-                      <button onClick={() => handleRemoveDestination(idx)} className="text-slate-300 hover:text-red-500 transition-colors p-1">
-                        <TrashIcon className="w-4 h-4" />
-                      </button>
+                    {/* 縮短內部連接線空間 (h-28 -> h-16) */}
+                    {idx < destinations.length - 1 && (
+                      <div className="w-0.5 h-16 bg-slate-100 border-l-2 border-dashed border-slate-200"></div>
                     )}
                   </div>
-                  
-                  <div className="relative">
-                    <div className="relative">
-                      <input 
-                        value={dest}
-                        onFocus={() => setActiveIdx(idx)}
-                        onChange={(e) => {
-                            const val = e.target.value;
-                            handleUpdateDestination(idx, val);
-                        }}
-                        placeholder="選取案件或手動輸入地址"
-                        className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-bold text-slate-700 pr-10"
-                      />
-                      <div className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 pointer-events-none">
-                        <SearchIcon className="w-4 h-4" />
-                      </div>
-                    </div>
-
-                    {/* 自訂搜尋選單 */}
-                    {activeIdx === idx && (
-                      <div className="absolute left-0 right-0 top-full mt-2 bg-white border border-slate-200 rounded-2xl shadow-2xl z-[100] max-h-[320px] overflow-y-auto no-scrollbar animate-scale-in">
-                        {projects
-                          .filter(p => 
-                            p.name.toLowerCase().includes(dest.toLowerCase()) || 
-                            p.address.toLowerCase().includes(dest.toLowerCase())
-                          )
-                          .map(p => {
-                            const typeTag = getProjectTypeLabel(p.type);
-                            return (
-                              <button
-                                key={p.id}
-                                onClick={() => {
-                                  handleUpdateDestination(idx, p.address, p.name);
-                                  setActiveIdx(null);
-                                }}
-                                className="w-full text-left px-5 py-4 hover:bg-indigo-50 transition-colors border-b border-slate-50 last:border-none flex flex-col gap-1"
+                  <div className="flex-1 pt-1.5">
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                      <div className="flex items-center gap-2">
+                          <div className={`text-[10px] font-black uppercase tracking-widest ${results[idx] !== null ? 'text-slate-800' : 'text-slate-400'}`}>STOP {idx + 1}</div>
+                          {projectLabels[idx] && (
+                              <div 
+                                style={{ backgroundColor: color.hex }}
+                                className="text-white text-[9px] font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1 animate-fade-in shadow-sm"
                               >
-                                <div className="flex items-center justify-between gap-2">
-                                  <div className="text-base font-black text-slate-800 leading-tight truncate">
-                                    {p.name}
-                                  </div>
-                                  <span className={`flex-shrink-0 px-2 py-0.5 rounded text-[10px] font-bold ${typeTag.class}`}>
-                                    {typeTag.text}
-                                  </span>
-                                </div>
-                                <div className="text-[11px] font-bold text-slate-400 truncate">
-                                  {p.address}
-                                </div>
-                              </button>
-                            );
-                          })
-                        }
-                        {projects.filter(p => p.name.toLowerCase().includes(dest.toLowerCase()) || p.address.toLowerCase().includes(dest.toLowerCase())).length === 0 && (
-                          <div className="px-5 py-8 text-center text-slate-400 text-xs font-bold italic">
-                            找不到匹配的案件，您可以繼續手動輸入
-                          </div>
-                        )}
+                                  <BriefcaseIcon className="w-2.5 h-2.5" /> {projectLabels[idx]}
+                              </div>
+                          )}
                       </div>
-                    )}
+                      {destinations.length > 1 && (
+                        <button onClick={() => handleRemoveDestination(idx)} className="text-slate-300 hover:text-red-500 transition-colors p-1">
+                          <TrashIcon className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                    
+                    <div className="relative">
+                      <div className="relative">
+                        <input 
+                          value={dest}
+                          onFocus={() => setActiveIdx(idx)}
+                          onChange={(e) => {
+                              const val = e.target.value;
+                              handleUpdateDestination(idx, val);
+                          }}
+                          placeholder="選取案件或手動輸入地址"
+                          className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-bold text-slate-700 pr-10 shadow-inner"
+                        />
+                        <div className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 pointer-events-none">
+                          <SearchIcon className="w-4 h-4" />
+                        </div>
+                      </div>
+
+                      {activeIdx === idx && (
+                        <div className="absolute left-0 right-0 top-full mt-2 bg-white border border-slate-200 rounded-3xl shadow-2xl z-[100] max-h-[320px] overflow-y-auto no-scrollbar animate-scale-in p-1">
+                          {projects
+                            .filter(p => 
+                              p.name.toLowerCase().includes(dest.toLowerCase()) || 
+                              p.address.toLowerCase().includes(dest.toLowerCase())
+                            )
+                            .map(p => {
+                              const typeTag = getProjectTypeLabel(p.type);
+                              return (
+                                <button
+                                  key={p.id}
+                                  onClick={() => {
+                                    handleUpdateDestination(idx, p.address, p.name);
+                                    setActiveIdx(null);
+                                  }}
+                                  className="w-full text-left px-5 py-4 hover:bg-slate-50 transition-colors rounded-2xl flex flex-col gap-1"
+                                >
+                                  <div className="flex items-center justify-between gap-2">
+                                    <div className="text-base font-black text-slate-800 leading-tight truncate">
+                                      {p.name}
+                                    </div>
+                                    <span className={`flex-shrink-0 px-2 py-0.5 rounded text-[10px] font-bold ${typeTag.class}`}>
+                                      {typeTag.text}
+                                    </span>
+                                  </div>
+                                  <div className="text-[11px] font-bold text-slate-400 truncate">
+                                    {p.address}
+                                  </div>
+                                </button>
+                              );
+                            })
+                          }
+                          {projects.filter(p => p.name.toLowerCase().includes(dest.toLowerCase()) || p.address.toLowerCase().includes(dest.toLowerCase())).length === 0 && (
+                            <div className="px-5 py-10 text-center text-slate-400 text-xs font-bold italic">
+                              找不到匹配的案件，您可以繼續手動輸入
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
-            </React.Fragment>
-          ))}
+              </React.Fragment>
+            );
+          })}
         </div>
 
         <div className="mt-8 pt-8 border-t border-slate-100">
            <button 
              onClick={handleAddDestination}
-             className="flex items-center gap-2 px-6 py-2.5 bg-white border border-slate-200 rounded-xl text-indigo-600 font-black text-xs hover:bg-indigo-50 transition-all shadow-sm active:scale-95 uppercase tracking-widest mb-10"
+             className="flex items-center gap-2 px-6 py-3 bg-white border border-slate-200 rounded-2xl text-indigo-600 font-black text-xs hover:bg-slate-50 transition-all shadow-sm active:scale-95 uppercase tracking-widest mb-10"
            >
              <PlusIcon className="w-4 h-4" /> 新增路段
            </button>
 
-           {/* 批次排程控制區 */}
            <div className="bg-slate-50 rounded-[32px] p-5 border border-slate-200 mb-6 flex flex-wrap items-center gap-4">
-              <div className="flex items-center gap-2 px-4 py-2 bg-white rounded-2xl border border-slate-200 flex-1 min-w-[150px]">
+              <div className="flex items-center gap-2 px-4 py-2.5 bg-white rounded-2xl border border-slate-200 flex-1 min-w-[150px]">
                 <CalendarIcon className="w-4 h-4 text-indigo-500" />
                 <input 
                   type="date" 
@@ -323,7 +341,7 @@ const DrivingTimeEstimator: React.FC<DrivingTimeEstimatorProps> = ({ projects, o
                   className="bg-transparent text-xs font-bold text-slate-600 outline-none w-full"
                 />
               </div>
-              <div className="flex items-center gap-2 px-4 py-2 bg-white rounded-2xl border border-slate-200 flex-1 min-w-[150px]">
+              <div className="flex items-center gap-2 px-4 py-2.5 bg-white rounded-2xl border border-slate-200 flex-1 min-w-[150px]">
                 <UsersIcon className="w-4 h-4 text-indigo-500" />
                 <select 
                   value={batchTeam}
@@ -343,7 +361,7 @@ const DrivingTimeEstimator: React.FC<DrivingTimeEstimatorProps> = ({ projects, o
               <button 
                 onClick={handleBatchPaste}
                 disabled={isBatchPasting || selectedCount === 0}
-                className={`flex-1 min-w-[200px] flex items-center justify-center gap-2 px-6 py-3 rounded-2xl text-xs font-black transition-all shadow-lg active:scale-95 disabled:opacity-50 disabled:grayscale ${pastedDone ? 'bg-emerald-500 text-white' : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}
+                className={`flex-1 min-w-[200px] flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl text-xs font-black transition-all shadow-lg active:scale-95 disabled:opacity-50 disabled:grayscale ${pastedDone ? 'bg-emerald-500 text-white' : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}
               >
                 {isBatchPasting ? <LoaderIcon className="w-4 h-4 animate-spin" /> : pastedDone ? <CheckCircleIcon className="w-4 h-4" /> : <ClipboardListIcon className="w-4 h-4" />}
                 {isBatchPasting ? '處理中...' : pastedDone ? '已成功貼上排程' : `將全部案件 (${selectedCount}) 依序貼上排程`}
@@ -356,14 +374,14 @@ const DrivingTimeEstimator: React.FC<DrivingTimeEstimatorProps> = ({ projects, o
                     <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-1">Total Distance</span>
                     <span className="text-3xl font-black text-white leading-none tracking-tight">{totalKm.toFixed(1)} <span className="text-sm font-bold text-indigo-400">km</span></span>
                   </div>
-                  <div className="w-px h-10 bg-white/10 mx-2 relative z-10"></div>
+                  <div className="w-px h-10 bg-white/10 mx-4 relative z-10"></div>
                   <div className="flex flex-col relative z-10">
                     <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-1">Drive Time</span>
                     <span className="text-3xl font-black text-emerald-400 leading-none tracking-tight">
                       {Math.round(totalKm * 1.8)} <span className="text-sm font-bold opacity-60 text-emerald-500/70">min</span>
                     </span>
                   </div>
-                  <NavigationIcon className="absolute -right-2 -bottom-2 w-20 h-20 text-white/5 rotate-12" />
+                  <NavigationIcon className="absolute -right-2 -bottom-2 w-24 h-24 text-white/5 rotate-12" />
               </div>
               <div className="text-right hidden md:block">
                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Route Intelligence</p>
@@ -373,13 +391,13 @@ const DrivingTimeEstimator: React.FC<DrivingTimeEstimatorProps> = ({ projects, o
         </div>
       </div>
 
-      <div className="bg-indigo-50 border border-indigo-100 p-6 rounded-3xl flex items-start gap-4 shadow-sm border-l-4 border-l-indigo-500">
-        <div className="bg-indigo-500 p-2 rounded-xl text-white shadow-md flex-shrink-0">
-            <SparklesIcon className="w-5 h-5" />
+      <div className="bg-indigo-50 border border-indigo-100 p-6 rounded-[32px] flex items-start gap-4 shadow-sm border-l-8 border-l-indigo-500">
+        <div className="bg-indigo-500 p-2.5 rounded-xl text-white shadow-md flex-shrink-0">
+            <SparklesIcon className="w-6 h-6" />
         </div>
         <div className="text-xs text-indigo-900 leading-relaxed font-bold">
-          <p className="mb-1 uppercase tracking-widest text-[9px] opacity-60">Smart Batching</p>
-          您可以一次規劃多個停靠點，確認路徑無誤後，使用下方的「批次貼上」按鈕，即可一次將所有案件依序排入指定日期的施工組別。選單已更新顯示預設師傅姓名。
+          <p className="mb-1 uppercase tracking-widest text-[9px] opacity-60">Visual Pathfinding</p>
+          您可以一次規劃多個停靠點，路徑中會自動顯示各段距離與預估時間（並列顯示）。每個站點都有獨特的顏色標註，方便您與地圖進行對照。
         </div>
       </div>
     </div>

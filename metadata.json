@@ -1,5 +1,5 @@
 {
-  "name": "合家興 system",
+  "name": "合家興行政管理系統",
   "description": "A smart construction project management tool with AI-powered scheduling and site safety analysis.",
   "requestFramePermissions": [
     "camera"

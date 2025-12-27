@@ -12,9 +12,9 @@ export default defineConfig(({ mode }) => {
         registerType: 'autoUpdate',
         includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
         manifest: {
-          name: '合家興 AI - 智慧建築專案管理',
-          short_name: '合家興 AI',
-          description: '智慧建築專案管理與 AI 施工分析系統',
+          name: '合家興行政管理系統',
+          short_name: '合家興行政',
+          description: '合家興行政管理系統',
           theme_color: '#0f172a',
           background_color: '#f8fafc',
           display: 'standalone',
