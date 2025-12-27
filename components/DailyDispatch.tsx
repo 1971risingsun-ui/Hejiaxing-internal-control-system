@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo } from 'react';
 import { Project, WeeklySchedule, DailyDispatch as DailyDispatchType, GlobalTeamConfigs } from '../types';
 import { CalendarIcon, UserIcon, PlusIcon, XIcon, BriefcaseIcon, FileTextIcon, HomeIcon, LayoutGridIcon, TruckIcon, HistoryIcon, CheckCircleIcon } from './Icons';
@@ -18,6 +19,7 @@ const DailyDispatch: React.FC<DailyDispatchProps> = ({ projects, weeklySchedules
   });
 
   const [filterTeam, setFilterTeam] = useState<number | null>(null);
+  const [newAssistantNames, setNewAssistantNames] = useState<Record<number, string>>({});
   const teams = [1, 2, 3, 4, 5, 6, 7, 8];
 
   const weekSchedule = useMemo(() => {
@@ -53,8 +55,10 @@ const DailyDispatch: React.FC<DailyDispatchProps> = ({ projects, weeklySchedules
     handleUpdateDispatch(newDispatch);
   };
 
-  const addAssistant = (teamId: number, name: string) => {
-    if (!name.trim()) return;
+  const addAssistant = (teamId: number) => {
+    const name = newAssistantNames[teamId]?.trim();
+    if (!name) return;
+
     const teamData = dispatchRecord.teams[teamId];
     const weekCfg = weekSchedule?.teamConfigs?.[teamId] || globalTeamConfigs[teamId];
     const currentAssistants = teamData?.assistants || (weekCfg?.assistant ? [weekCfg.assistant] : []);
@@ -62,6 +66,8 @@ const DailyDispatch: React.FC<DailyDispatchProps> = ({ projects, weeklySchedules
     if (!currentAssistants.includes(name)) {
         updateTeamField(teamId, 'assistants', [...currentAssistants, name]);
     }
+    
+    setNewAssistantNames(prev => ({ ...prev, [teamId]: '' }));
   };
 
   const removeAssistant = (teamId: number, index: number) => {
@@ -192,10 +198,14 @@ const DailyDispatch: React.FC<DailyDispatchProps> = ({ projects, weeklySchedules
                           type="text" 
                           list="employee-nicknames-list"
                           placeholder="追加助手..." 
+                          value={newAssistantNames[t] || ''}
+                          onChange={(e) => setNewAssistantNames(prev => ({ ...prev, [t]: e.target.value }))}
                           className="w-full pl-3 pr-8 py-1.5 bg-slate-50 border border-slate-100 rounded-lg text-xs outline-none focus:bg-white focus:border-indigo-300 transition-all" 
-                          onKeyPress={(e) => { if (e.key === 'Enter') { addAssistant(t, (e.target as HTMLInputElement).value); (e.target as HTMLInputElement).value = ''; } }} 
+                          onKeyPress={(e) => { if (e.key === 'Enter') addAssistant(t); }} 
                         />
-                        <button className="absolute right-2 top-1.5 text-slate-300 hover:text-indigo-500 transition-colors"><PlusIcon className="w-4 h-4" /></button>
+                        <button onClick={() => addAssistant(t)} className="absolute right-2 top-1.5 text-slate-300 hover:text-indigo-500 transition-colors">
+                          <PlusIcon className="w-4 h-4" />
+                        </button>
                       </div>
                     </div>
                   </div>

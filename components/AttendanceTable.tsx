@@ -19,6 +19,12 @@ const AttendanceTable: React.FC<AttendanceTableProps> = ({
   selectedMonth, employees, attendance, monthRemarks, dailyDispatches, onUpdateAttendance, onUpdateMonthRemarks 
 }) => {
   const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
+  const tomorrowStr = useMemo(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    return d.toISOString().split('T')[0];
+  }, []);
+  
   const yesterdayStr = useMemo(() => {
     const d = new Date();
     d.setDate(d.getDate() - 1);
@@ -41,16 +47,15 @@ const AttendanceTable: React.FC<AttendanceTableProps> = ({
   }, [selectedMonth, yesterdayStr]);
 
   const updateAttendance = (date: string, employeeId: string, status: string) => {
-    // 移除現有紀錄
     let newList = attendance.filter(a => !(a.date === date && a.employeeId === employeeId));
     
     const dayOfWeek = new Date(date).getDay();
     const isSunday = dayOfWeek === 0;
     const isToday = date === todayStr;
+    const isTomorrow = date === tomorrowStr;
 
-    // 關鍵修正：如果是星期日或當日，即使 status 是空字串也要存入紀錄
-    // 這樣在下次渲染時，find() 就會抓到這個空紀錄，而不會觸發預載邏輯
-    if (status !== '' || isSunday || isToday) {
+    // 關鍵修正：如果是星期日、今日或明日，即使 status 是空字串也要存入紀錄
+    if (status !== '' || isSunday || isToday || isTomorrow) {
         newList.push({ date, employeeId, status });
     }
     
@@ -92,12 +97,11 @@ const AttendanceTable: React.FC<AttendanceTableProps> = ({
                   
                   if (record) {
                     status = record.status;
-                  } else if (day.dateStr === todayStr) {
-                    // --- 派工單連動邏輯 ---
-                    const dispatch = dailyDispatches.find(d => d.date === todayStr);
+                  } else if (day.dateStr === tomorrowStr) {
+                    // --- 明日派工單連動邏輯 ---
+                    const dispatch = dailyDispatches.find(d => d.date === tomorrowStr);
                     if (dispatch) {
                       const empNick = emp.nickname || emp.name;
-                      // 尋找此人在派工單中是否擔任助手
                       for (const teamId in dispatch.teams) {
                         const team = dispatch.teams[teamId];
                         if (team.assistants.includes(empNick)) {
