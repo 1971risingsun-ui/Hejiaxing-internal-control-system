@@ -381,6 +381,10 @@ const App: React.FC = () => {
     return wasAdded;
   };
 
+  const employeeNicknames = useMemo(() => {
+    return employees.map(e => e.nickname || e.name);
+  }, [employees]);
+
   if (!currentUser) return <LoginScreen onLogin={handleLogin} />;
   
   const currentViewProjects = projects.filter(p => {
@@ -522,6 +526,9 @@ const App: React.FC = () => {
 
   return (
     <div className="flex h-screen bg-[#f8fafc] overflow-hidden">
+      <datalist id="employee-nicknames-list">
+        {employeeNicknames.map((name, i) => <option key={i} value={name} />)}
+      </datalist>
       <div className={`fixed inset-0 z-[100] md:hidden transition-opacity duration-300 ${isSidebarOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
         <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setIsSidebarOpen(false)} />
         <aside className={`absolute left-0 top-0 bottom-0 w-64 bg-slate-900 text-white flex flex-col transform transition-transform duration-300 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>{renderSidebarContent()}</aside>

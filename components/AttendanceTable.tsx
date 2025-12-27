@@ -16,6 +16,12 @@ const ATTENDANCE_OPTIONS = ['排休', '請假', '病假', '臨時請假', '廠�
 const AttendanceTable: React.FC<AttendanceTableProps> = ({ 
   selectedMonth, employees, attendance, monthRemarks, onUpdateAttendance, onUpdateMonthRemarks 
 }) => {
+  const yesterdayStr = useMemo(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 1);
+    return d.toISOString().split('T')[0];
+  }, []);
+
   const monthDays = useMemo(() => {
     const [year, month] = selectedMonth.split('-').map(Number);
     const date = new Date(year, month, 0);
@@ -26,9 +32,10 @@ const AttendanceTable: React.FC<AttendanceTableProps> = ({
       const dayOfWeek = new Date(year, month - 1, d).getDay(); 
       const isSunday = dayOfWeek === 0;
       const isHoliday = ROC_HOLIDAYS.includes(dateStr.slice(5));
-      return { day: d, dateStr, isSunday, isHoliday };
+      const isYesterday = dateStr === yesterdayStr;
+      return { day: d, dateStr, isSunday, isHoliday, isYesterday };
     });
-  }, [selectedMonth]);
+  }, [selectedMonth, yesterdayStr]);
 
   const updateAttendance = (date: string, employeeId: string, status: string) => {
     const newList = [...attendance.filter(a => !(a.date === date && a.employeeId === employeeId))];
@@ -45,12 +52,15 @@ const AttendanceTable: React.FC<AttendanceTableProps> = ({
   return (
     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm h-full flex flex-col overflow-hidden">
       <div className="overflow-auto flex-1 custom-scrollbar">
-        <table className="w-full border-collapse text-[11px] min-w-[1200px]">
+        <table className="w-full border-collapse text-[11px] min-w-[1500px]">
           <thead className="sticky top-0 z-20 bg-slate-50 border-b border-slate-200">
             <tr>
               <th className="w-24 p-2 border-r bg-slate-50 sticky left-0 z-30 shadow-[1px_0_0_0_#e2e8f0]">姓名</th>
               {monthDays.map(day => (
-                <th key={day.day} className={`w-10 p-1 border-r ${day.isSunday || day.isHoliday ? 'bg-red-50 text-red-600' : ''}`}>
+                <th 
+                  key={day.day} 
+                  className={`w-16 p-1 border-r ${day.isSunday || day.isHoliday ? 'bg-red-50 text-red-600' : ''} ${day.isYesterday ? 'ring-2 ring-inset ring-slate-900 z-10 bg-slate-100 shadow-lg' : ''}`}
+                >
                   <div>{day.day}</div>
                   <div className="scale-75 opacity-60 font-medium">{['日','一','二','三','四','五','六'][new Date(day.dateStr).getDay()]}</div>
                 </th>
@@ -61,18 +71,18 @@ const AttendanceTable: React.FC<AttendanceTableProps> = ({
           <tbody className="divide-y divide-slate-100">
             {employees.map(emp => (
               <tr key={emp.id} className="hover:bg-slate-50/50 group">
-                <td className="p-2 font-bold text-slate-700 border-r sticky left-0 z-10 bg-white group-hover:bg-slate-50 shadow-[1px_0_0_0_#e2e8f0]">{emp.name}</td>
+                <td className="p-2 font-bold text-slate-700 border-r sticky left-0 z-10 bg-white group-hover:bg-slate-50 shadow-[1px_0_0_0_#e2e8f0] truncate">{emp.name}</td>
                 {monthDays.map(day => {
                   let status = attendance.find(a => a.date === day.dateStr && a.employeeId === emp.id)?.status;
                   // 星期日自動顯示排休，除非已有特定紀錄
-                  if (!status && day.isSunday) {
+                  if (status === undefined && day.isSunday) {
                     status = '排休';
                   } else {
                     status = status || '';
                   }
                   
                   return (
-                    <td key={day.day} className={`p-0 border-r ${day.isSunday || day.isHoliday ? 'bg-red-50/20' : ''}`}>
+                    <td key={day.day} className={`p-0 border-r relative ${day.isSunday || day.isHoliday ? 'bg-red-50/20' : ''} ${day.isYesterday ? 'ring-2 ring-inset ring-slate-900 z-10' : ''}`}>
                       <input 
                         list="att-options"
                         className={`w-full h-8 text-center bg-transparent outline-none focus:bg-white focus:ring-1 focus:ring-blue-500 font-medium ${status ? 'text-blue-700 font-bold' : ''}`}

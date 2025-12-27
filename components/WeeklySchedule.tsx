@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo } from 'react';
 import { Project, WeeklySchedule as WeeklyScheduleType, GlobalTeamConfigs, TeamConfig } from '../types';
 import { ChevronRightIcon, CalendarIcon, UserIcon, PlusIcon, XIcon, TruckIcon, HomeIcon } from './Icons';
@@ -176,6 +175,7 @@ const WeeklySchedule: React.FC<WeeklyScheduleProps> = ({ projects, weeklySchedul
                           <UserIcon className="w-2.5 h-2.5 text-slate-300" />
                           <input 
                             type="text" 
+                            list="employee-nicknames-list"
                             placeholder={global.master || "師傅"}
                             value={weekOverride?.master || ''}
                             onChange={(e) => handleUpdateTeamConfig(teamId, 'master', e.target.value)}
@@ -186,6 +186,7 @@ const WeeklySchedule: React.FC<WeeklyScheduleProps> = ({ projects, weeklySchedul
                           <div className="w-2 h-2 border border-slate-200 rounded-full bg-slate-50" />
                           <input 
                             type="text" 
+                            list="employee-nicknames-list"
                             placeholder={global.assistant || "助手"}
                             value={weekOverride?.assistant || ''}
                             onChange={(e) => handleUpdateTeamConfig(teamId, 'assistant', e.target.value)}

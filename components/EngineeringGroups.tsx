@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { GlobalTeamConfigs, TeamConfig } from '../types';
 import { UsersIcon, UserIcon, TruckIcon } from './Icons';
@@ -67,6 +66,7 @@ const EngineeringGroups: React.FC<EngineeringGroupsProps> = ({ globalTeamConfigs
                           <UserIcon className="w-4 h-4 text-blue-400" />
                           <input 
                             type="text" 
+                            list="employee-nicknames-list"
                             value={config.master}
                             onChange={(e) => handleUpdateConfig(teamId, 'master', e.target.value)}
                             placeholder="姓名"
@@ -81,6 +81,7 @@ const EngineeringGroups: React.FC<EngineeringGroupsProps> = ({ globalTeamConfigs
                           <div className="w-4 h-4 rounded-full border-2 border-slate-200 bg-slate-100" />
                           <input 
                             type="text" 
+                            list="employee-nicknames-list"
                             value={config.assistant}
                             onChange={(e) => handleUpdateConfig(teamId, 'assistant', e.target.value)}
                             placeholder="姓名"

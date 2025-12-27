@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Project, User, ProjectType, DailyReport, SitePhoto } from '../types';
 import { ClipboardListIcon, BoxIcon, CalendarIcon, XIcon, ChevronRightIcon, PlusIcon, TrashIcon, CheckCircleIcon, SunIcon, CloudIcon, RainIcon, CameraIcon, LoaderIcon, XCircleIcon } from './Icons';
@@ -273,7 +272,14 @@ const GlobalWorkReport: React.FC<GlobalWorkReportProps> = ({ projects, currentUs
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                     <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">師傅 (Thợ chính)</label>
-                    <input type="text" value={formBuffer.worker} onChange={(e) => handleFieldChange('worker', e.target.value)} placeholder="輸入姓名" className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none" />
+                    <input 
+                      type="text" 
+                      list="employee-nicknames-list"
+                      value={formBuffer.worker} 
+                      onChange={(e) => handleFieldChange('worker', e.target.value)} 
+                      placeholder="輸入姓名" 
+                      className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none" 
+                    />
                 </div>
                 <div>
                     <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">助手清單 (Phụ việc)</label>
@@ -285,7 +291,15 @@ const GlobalWorkReport: React.FC<GlobalWorkReportProps> = ({ projects, currentUs
                         ))}
                     </div>
                     <div className="flex items-center gap-2">
-                        <input type="text" value={pendingAssistantName} onChange={(e) => setPendingAssistantName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleAddAssistant()} placeholder="輸入姓名" className="flex-1 px-4 py-3 border border-slate-200 rounded-xl text-sm outline-none" />
+                        <input 
+                          type="text" 
+                          list="employee-nicknames-list"
+                          value={pendingAssistantName} 
+                          onChange={(e) => setPendingAssistantName(e.target.value)} 
+                          onKeyDown={(e) => e.key === 'Enter' && handleAddAssistant()} 
+                          placeholder="輸入姓名" 
+                          className="flex-1 px-4 py-3 border border-slate-200 rounded-xl text-sm outline-none" 
+                        />
                         <div className="flex items-center gap-1.5 bg-slate-100 px-3 py-3 rounded-xl border border-slate-200">
                             <input type="checkbox" id="half-day-global-fixed" checked={isHalfDayChecked} onChange={(e) => setIsHalfDayChecked(e.target.checked)} className="w-4 h-4 text-blue-600 rounded cursor-pointer" />
                             <label htmlFor="half-day-global-fixed" className="text-xs font-bold text-slate-600 cursor-pointer whitespace-nowrap">半天</label>

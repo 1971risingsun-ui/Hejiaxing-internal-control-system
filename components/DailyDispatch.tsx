@@ -169,6 +169,7 @@ const DailyDispatch: React.FC<DailyDispatchProps> = ({ projects, weeklySchedules
                         <UserIcon className={`w-4 h-4 ${isMasterOverridden ? 'text-amber-500' : 'text-indigo-400'}`} />
                         <input 
                             type="text" 
+                            list="employee-nicknames-list"
                             placeholder={weekCfg.master || "未指定"} 
                             value={teamRecord?.master || ''} 
                             onChange={(e) => updateTeamField(t, 'master', e.target.value)} 
@@ -187,7 +188,13 @@ const DailyDispatch: React.FC<DailyDispatchProps> = ({ projects, weeklySchedules
                         ))}
                       </div>
                       <div className="relative">
-                        <input type="text" placeholder="追加助手..." className="w-full pl-3 pr-8 py-1.5 bg-slate-50 border border-slate-100 rounded-lg text-xs outline-none focus:bg-white focus:border-indigo-300 transition-all" onKeyPress={(e) => { if (e.key === 'Enter') { addAssistant(t, (e.target as HTMLInputElement).value); (e.target as HTMLInputElement).value = ''; } }} />
+                        <input 
+                          type="text" 
+                          list="employee-nicknames-list"
+                          placeholder="追加助手..." 
+                          className="w-full pl-3 pr-8 py-1.5 bg-slate-50 border border-slate-100 rounded-lg text-xs outline-none focus:bg-white focus:border-indigo-300 transition-all" 
+                          onKeyPress={(e) => { if (e.key === 'Enter') { addAssistant(t, (e.target as HTMLInputElement).value); (e.target as HTMLInputElement).value = ''; } }} 
+                        />
                         <button className="absolute right-2 top-1.5 text-slate-300 hover:text-indigo-500 transition-colors"><PlusIcon className="w-4 h-4" /></button>
                       </div>
                     </div>
