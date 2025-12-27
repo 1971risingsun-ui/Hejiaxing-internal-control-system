@@ -1,3 +1,4 @@
+
 import React, { useMemo } from 'react';
 import { Employee, AttendanceRecord, MonthSummaryRemark } from '../types';
 
@@ -38,8 +39,18 @@ const AttendanceTable: React.FC<AttendanceTableProps> = ({
   }, [selectedMonth, yesterdayStr]);
 
   const updateAttendance = (date: string, employeeId: string, status: string) => {
-    const newList = [...attendance.filter(a => !(a.date === date && a.employeeId === employeeId))];
-    if (status) newList.push({ date, employeeId, status });
+    // 移除現有紀錄
+    let newList = attendance.filter(a => !(a.date === date && a.employeeId === employeeId));
+    
+    const dayOfWeek = new Date(date).getDay();
+    const isSunday = dayOfWeek === 0;
+
+    // 關鍵修正：如果是星期日，即使 status 是空字串也要存入紀錄
+    // 這樣在下次渲染時，find() 就會抓到這個空紀錄，而不會觸發預載「排休」
+    if (status !== '' || isSunday) {
+        newList.push({ date, employeeId, status });
+    }
+    
     onUpdateAttendance(newList);
   };
 
@@ -73,14 +84,16 @@ const AttendanceTable: React.FC<AttendanceTableProps> = ({
               <tr key={emp.id} className="hover:bg-slate-50/50 group">
                 <td className="p-2 font-bold text-slate-700 border-r sticky left-0 z-10 bg-white group-hover:bg-slate-50 shadow-[1px_0_0_0_#e2e8f0] truncate">{emp.name}</td>
                 {monthDays.map(day => {
-                  let status = attendance.find(a => a.date === day.dateStr && a.employeeId === emp.id)?.status;
-                  // 星期日自動顯示排休，除非已有特定紀錄
-                  if (status === undefined && day.isSunday) {
-                    status = '排休';
-                  } else {
-                    status = status || '';
-                  }
+                  const record = attendance.find(a => a.date === day.dateStr && a.employeeId === emp.id);
+                  let status = '';
                   
+                  if (record) {
+                    status = record.status;
+                  } else if (day.isSunday) {
+                    // 如果完全沒紀錄又是星期日，才顯示預設
+                    status = '排休';
+                  }
+
                   return (
                     <td key={day.day} className={`p-0 border-r relative ${day.isSunday || day.isHoliday ? 'bg-red-50/20' : ''} ${day.isYesterday ? 'ring-2 ring-inset ring-slate-900 z-10' : ''}`}>
                       <input 

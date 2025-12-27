@@ -382,7 +382,7 @@ const App: React.FC = () => {
   };
 
   const employeeNicknames = useMemo(() => {
-    return employees.map(e => e.nickname || e.name);
+    return employees.map(e => e.nickname || e.name).filter(Boolean);
   }, [employees]);
 
   if (!currentUser) return <LoginScreen onLogin={handleLogin} />;
