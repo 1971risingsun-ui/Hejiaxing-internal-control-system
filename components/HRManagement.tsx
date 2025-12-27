@@ -1,5 +1,6 @@
+
 import React, { useState } from 'react';
-import { Employee, AttendanceRecord, OvertimeRecord, MonthSummaryRemark } from '../types';
+import { Employee, AttendanceRecord, OvertimeRecord, MonthSummaryRemark, DailyDispatch as DailyDispatchType } from '../types';
 import { CalendarIcon, ClipboardListIcon, ClockIcon, BoxIcon, UsersIcon, ArrowLeftIcon, SparklesIcon } from './Icons';
 import AttendanceTable from './AttendanceTable';
 import OvertimeTable from './OvertimeTable';
@@ -11,6 +12,7 @@ interface HRManagementProps {
   attendance: AttendanceRecord[];
   overtime: OvertimeRecord[];
   monthRemarks: MonthSummaryRemark[];
+  dailyDispatches: DailyDispatchType[];
   onUpdateEmployees: (list: Employee[]) => void;
   onUpdateAttendance: (list: AttendanceRecord[]) => void;
   onUpdateOvertime: (list: OvertimeRecord[]) => void;
@@ -18,7 +20,7 @@ interface HRManagementProps {
 }
 
 const HRManagement: React.FC<HRManagementProps> = ({ 
-  employees, attendance, overtime, monthRemarks,
+  employees, attendance, overtime, monthRemarks, dailyDispatches,
   onUpdateEmployees, onUpdateAttendance, onUpdateOvertime, onUpdateMonthRemarks 
 }) => {
   const [activeTab, setActiveTab] = useState<'menu' | 'attendance' | 'overtime' | 'salary' | 'list'>('menu');
@@ -144,6 +146,7 @@ const HRManagement: React.FC<HRManagementProps> = ({
             employees={employees}
             attendance={attendance}
             monthRemarks={monthRemarks}
+            dailyDispatches={dailyDispatches}
             onUpdateAttendance={onUpdateAttendance}
             onUpdateMonthRemarks={onUpdateMonthRemarks}
           />

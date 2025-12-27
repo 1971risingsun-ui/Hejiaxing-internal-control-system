@@ -1,12 +1,13 @@
 
 import React, { useMemo } from 'react';
-import { Employee, AttendanceRecord, MonthSummaryRemark } from '../types';
+import { Employee, AttendanceRecord, MonthSummaryRemark, DailyDispatch as DailyDispatchType } from '../types';
 
 interface AttendanceTableProps {
   selectedMonth: string;
   employees: Employee[];
   attendance: AttendanceRecord[];
   monthRemarks: MonthSummaryRemark[];
+  dailyDispatches: DailyDispatchType[];
   onUpdateAttendance: (list: AttendanceRecord[]) => void;
   onUpdateMonthRemarks: (list: MonthSummaryRemark[]) => void;
 }
@@ -15,8 +16,9 @@ const ROC_HOLIDAYS = ['01-01', '02-28', '04-04', '04-05', '05-01', '10-10'];
 const ATTENDANCE_OPTIONS = ['排休', '請假', '病假', '臨時請假', '廠內', '下午回廠'];
 
 const AttendanceTable: React.FC<AttendanceTableProps> = ({ 
-  selectedMonth, employees, attendance, monthRemarks, onUpdateAttendance, onUpdateMonthRemarks 
+  selectedMonth, employees, attendance, monthRemarks, dailyDispatches, onUpdateAttendance, onUpdateMonthRemarks 
 }) => {
+  const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
   const yesterdayStr = useMemo(() => {
     const d = new Date();
     d.setDate(d.getDate() - 1);
@@ -44,10 +46,11 @@ const AttendanceTable: React.FC<AttendanceTableProps> = ({
     
     const dayOfWeek = new Date(date).getDay();
     const isSunday = dayOfWeek === 0;
+    const isToday = date === todayStr;
 
-    // 關鍵修正：如果是星期日，即使 status 是空字串也要存入紀錄
-    // 這樣在下次渲染時，find() 就會抓到這個空紀錄，而不會觸發預載「排休」
-    if (status !== '' || isSunday) {
+    // 關鍵修正：如果是星期日或當日，即使 status 是空字串也要存入紀錄
+    // 這樣在下次渲染時，find() 就會抓到這個空紀錄，而不會觸發預載邏輯
+    if (status !== '' || isSunday || isToday) {
         newList.push({ date, employeeId, status });
     }
     
@@ -89,8 +92,24 @@ const AttendanceTable: React.FC<AttendanceTableProps> = ({
                   
                   if (record) {
                     status = record.status;
-                  } else if (day.isSunday) {
-                    // 如果完全沒紀錄又是星期日，才顯示預設
+                  } else if (day.dateStr === todayStr) {
+                    // --- 派工單連動邏輯 ---
+                    const dispatch = dailyDispatches.find(d => d.date === todayStr);
+                    if (dispatch) {
+                      const empNick = emp.nickname || emp.name;
+                      // 尋找此人在派工單中是否擔任助手
+                      for (const teamId in dispatch.teams) {
+                        const team = dispatch.teams[teamId];
+                        if (team.assistants.includes(empNick)) {
+                          status = team.master; // 填入師傅暱稱
+                          break;
+                        }
+                      }
+                    }
+                  }
+
+                  // 如果上述邏輯都沒產生狀態且是星期日，才顯示預設排休
+                  if (status === '' && !record && day.isSunday) {
                     status = '排休';
                   }
 

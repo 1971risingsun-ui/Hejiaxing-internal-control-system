@@ -554,6 +554,7 @@ const App: React.FC = () => {
                 attendance={attendance} 
                 overtime={overtime} 
                 monthRemarks={monthRemarks}
+                dailyDispatches={dailyDispatches}
                 onUpdateEmployees={setEmployees}
                 onUpdateAttendance={setAttendance}
                 onUpdateOvertime={setOvertime}
