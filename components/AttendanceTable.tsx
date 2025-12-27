@@ -63,7 +63,14 @@ const AttendanceTable: React.FC<AttendanceTableProps> = ({
               <tr key={emp.id} className="hover:bg-slate-50/50 group">
                 <td className="p-2 font-bold text-slate-700 border-r sticky left-0 z-10 bg-white group-hover:bg-slate-50 shadow-[1px_0_0_0_#e2e8f0]">{emp.name}</td>
                 {monthDays.map(day => {
-                  const status = attendance.find(a => a.date === day.dateStr && a.employeeId === emp.id)?.status || '';
+                  let status = attendance.find(a => a.date === day.dateStr && a.employeeId === emp.id)?.status;
+                  // 星期日自動顯示排休，除非已有特定紀錄
+                  if (!status && day.isSunday) {
+                    status = '排休';
+                  } else {
+                    status = status || '';
+                  }
+                  
                   return (
                     <td key={day.day} className={`p-0 border-r ${day.isSunday || day.isHoliday ? 'bg-red-50/20' : ''}`}>
                       <input 

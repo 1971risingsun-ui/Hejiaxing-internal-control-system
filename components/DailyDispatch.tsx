@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo } from 'react';
 import { Project, WeeklySchedule, DailyDispatch as DailyDispatchType, GlobalTeamConfigs } from '../types';
 import { CalendarIcon, UserIcon, PlusIcon, XIcon, BriefcaseIcon, FileTextIcon, HomeIcon, LayoutGridIcon, TruckIcon, HistoryIcon, CheckCircleIcon } from './Icons';
@@ -131,8 +130,7 @@ const DailyDispatch: React.FC<DailyDispatchProps> = ({ projects, weeklySchedules
         {teams.map(t => <button key={t} onClick={() => setFilterTeam(t)} className={`w-10 h-10 rounded-xl text-xs font-bold border transition-all flex-shrink-0 ${filterTeam === t ? 'bg-indigo-600 border-indigo-600 text-white shadow-md scale-110' : 'bg-white border-slate-200 text-slate-500'}`}>{t}</button>)}
       </div>
 
-      {/* 修正：移除 no-scrollbar 類別以恢復卷軸正常顯示，並確保內容區域能夠滾動 */}
-      <div className="flex-1 overflow-y-auto min-h-0 px-1">
+      <div className="flex-1 overflow-y-auto custom-scrollbar px-1 min-h-0 h-full">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 pb-10">
           {visibleTeams.map(t => {
             const teamRecord = dispatchRecord.teams[t];

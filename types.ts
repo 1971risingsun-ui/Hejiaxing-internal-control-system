@@ -191,6 +191,8 @@ export type EmployeeCategory = '做件' | '現場' | '廠內';
 export interface Employee {
   id: string;
   name: string;
+  nickname?: string;
+  lineId?: string;
   category: EmployeeCategory;
 }
 

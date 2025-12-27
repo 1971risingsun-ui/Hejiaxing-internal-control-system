@@ -445,9 +445,6 @@ const App: React.FC = () => {
           </button>
 
           <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-2 mt-6 px-4">快速捷徑</div>
-          <button onClick={() => { setSelectedProject(null); setView('construction'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'construction' && !selectedProject ? 'bg-slate-800 text-blue-400' : 'text-slate-500 hover:bg-slate-800'}`}><HomeIcon className="w-5 h-5" /> <span className="font-medium text-xs">圍籬總覽</span></button>
-          <button onClick={() => { setSelectedProject(null); setView('modular_house'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'modular_house' && !selectedProject ? 'bg-slate-800 text-blue-400' : 'text-slate-500 hover:bg-slate-800'}`}><LayoutGridIcon className="w-5 h-5" /> <span className="font-medium text-xs">組合屋總覽</span></button>
-          <button onClick={() => { setSelectedProject(null); setView('maintenance'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'maintenance' && !selectedProject ? 'bg-slate-800 text-blue-400' : 'text-slate-500 hover:bg-slate-800'}`}><WrenchIcon className="w-5 h-5" /> <span className="font-medium text-xs">維修總覽</span></button>
           <button onClick={() => { setSelectedProject(null); setView('report'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'report' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}><ClipboardListIcon className="w-5 h-5" /> <span className="font-medium">工作回報</span></button>
           <button onClick={() => { setSelectedProject(null); setView('materials'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'materials' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}><BoxIcon className="w-5 h-5" /> <span className="font-medium">材料請購</span></button>
           {currentUser.role === UserRole.ADMIN && (<button onClick={() => { setView('users'); setSelectedProject(null); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'users' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}><ShieldIcon className="w-4 h-4" /> <span className="font-medium">系統權限</span></button>)}
@@ -478,7 +475,6 @@ const App: React.FC = () => {
     }
   };
 
-  // Fix: Added missing renderEquipmentView function to display equipment module placeholder.
   const renderEquipmentView = () => {
     return (
       <div className="p-6 max-w-5xl mx-auto h-full animate-fade-in flex flex-col items-center justify-center text-center">
