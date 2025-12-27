@@ -184,3 +184,32 @@ export interface AuditLog {
   details: string;
   timestamp: number;
 }
+
+// HR 相關介面
+export type EmployeeCategory = '做件' | '現場' | '廠內';
+
+export interface Employee {
+  id: string;
+  name: string;
+  category: EmployeeCategory;
+}
+
+export interface AttendanceRecord {
+  date: string; // YYYY-MM-DD
+  employeeId: string;
+  status: string; // 排休, 請假, 病假, 臨時請假, 廠內, 下午回廠 或 自定義
+  remark?: string;
+}
+
+export interface OvertimeRecord {
+  date: string; // YYYY-MM-DD
+  employeeId: string;
+  hours: number;
+  remark?: string;
+}
+
+export interface MonthSummaryRemark {
+  month: string; // YYYY-MM
+  employeeId: string;
+  remark: string;
+}

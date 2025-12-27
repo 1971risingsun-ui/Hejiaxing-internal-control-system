@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { App as CapacitorApp } from '@capacitor/app';
-import { Project, ProjectStatus, User, UserRole, MaterialStatus, AuditLog, ProjectType, Attachment, WeeklySchedule as WeeklyScheduleType, DailyDispatch as DailyDispatchType, GlobalTeamConfigs } from './types';
+import { Project, ProjectStatus, User, UserRole, MaterialStatus, AuditLog, ProjectType, Attachment, WeeklySchedule as WeeklyScheduleType, DailyDispatch as DailyDispatchType, GlobalTeamConfigs, Employee, AttendanceRecord, OvertimeRecord, MonthSummaryRemark } from './types';
 import ProjectList from './components/ProjectList';
 import ProjectDetail from './components/ProjectDetail';
 import UserManagement from './components/UserManagement';
@@ -15,6 +15,7 @@ import DailyDispatch from './components/DailyDispatch';
 import EngineeringGroups from './components/EngineeringGroups';
 import PurchasingManagement from './components/PurchasingManagement';
 import DrivingTimeEstimator from './components/DrivingTimeEstimator';
+import HRManagement from './components/HRManagement';
 import { HomeIcon, UserIcon, LogOutIcon, ShieldIcon, MenuIcon, XIcon, ChevronRightIcon, WrenchIcon, UploadIcon, LoaderIcon, ClipboardListIcon, LayoutGridIcon, BoxIcon, DownloadIcon, FileTextIcon, CheckCircleIcon, AlertIcon, XCircleIcon, UsersIcon, TruckIcon, BriefcaseIcon, ArrowLeftIcon, CalendarIcon, ClockIcon, NavigationIcon } from './components/Icons';
 import { getDirectoryHandle, saveDbToLocal, loadDbFromLocal, getHandleFromIdb, clearHandleFromIdb, saveAppStateToIdb, loadAppStateFromIdb } from './utils/fileSystem';
 import { downloadBlob } from './utils/fileHelpers';
@@ -76,6 +77,12 @@ const App: React.FC = () => {
   const [globalTeamConfigs, setGlobalTeamConfigs] = useState<GlobalTeamConfigs>({});
   const [importUrl, setImportUrl] = useState(() => localStorage.getItem('hjx_import_url') || '\\\\HJXSERVER\\App test\\上傳排程表.xlsx');
   
+  // HR 相關狀態
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
+  const [overtime, setOvertime] = useState<OvertimeRecord[]>([]);
+  const [monthRemarks, setMonthRemarks] = useState<MonthSummaryRemark[]>([]);
+
   const [dirHandle, setDirHandle] = useState<FileSystemDirectoryHandle | null>(null);
   const [dirPermission, setDirPermission] = useState<'granted' | 'prompt' | 'denied'>('prompt');
   const [isWorkspaceLoading, setIsWorkspaceLoading] = useState(false);
@@ -103,6 +110,10 @@ const App: React.FC = () => {
           if (Array.isArray(cachedState.weeklySchedules)) setWeeklySchedules(cachedState.weeklySchedules);
           if (Array.isArray(cachedState.dailyDispatches)) setDailyDispatches(cachedState.dailyDispatches);
           if (cachedState.globalTeamConfigs) setGlobalTeamConfigs(cachedState.globalTeamConfigs);
+          if (cachedState.employees) setEmployees(cachedState.employees);
+          if (cachedState.attendance) setAttendance(cachedState.attendance);
+          if (cachedState.overtime) setOvertime(cachedState.overtime);
+          if (cachedState.monthRemarks) setMonthRemarks(cachedState.monthRemarks);
         }
         const savedHandle = await getHandleFromIdb();
         if (savedHandle) {
@@ -119,6 +130,10 @@ const App: React.FC = () => {
                if (Array.isArray(savedData.weeklySchedules)) setWeeklySchedules(savedData.weeklySchedules);
                if (Array.isArray(savedData.dailyDispatches)) setDailyDispatches(savedData.dailyDispatches);
                if (savedData.globalTeamConfigs) setGlobalTeamConfigs(savedData.globalTeamConfigs);
+               if (savedData.employees) setEmployees(savedData.employees);
+               if (savedData.attendance) setAttendance(savedData.attendance);
+               if (savedData.overtime) setOvertime(savedData.overtime);
+               if (savedData.monthRemarks) setMonthRemarks(savedData.monthRemarks);
             }
           }
         }
@@ -169,10 +184,14 @@ const App: React.FC = () => {
           if (savedData.weeklySchedules) setWeeklySchedules(savedData.weeklySchedules);
           if (savedData.dailyDispatches) setDailyDispatches(savedData.dailyDispatches);
           if (savedData.globalTeamConfigs) setGlobalTeamConfigs(savedData.globalTeamConfigs);
-          await syncToLocal(handle, { projects: sorted, users: savedData.users || allUsers, auditLogs: savedData.auditLogs || auditLogs, weeklySchedules: savedData.weeklySchedules || weeklySchedules, dailyDispatches: savedData.dailyDispatches || dailyDispatches, globalTeamConfigs: savedData.globalTeamConfigs || globalTeamConfigs });
+          if (savedData.employees) setEmployees(savedData.employees);
+          if (savedData.attendance) setAttendance(savedData.attendance);
+          if (savedData.overtime) setOvertime(savedData.overtime);
+          if (savedData.monthRemarks) setMonthRemarks(savedData.monthRemarks);
+          await syncToLocal(handle, { projects: sorted, users: savedData.users || allUsers, auditLogs: savedData.auditLogs || auditLogs, weeklySchedules: savedData.weeklySchedules || weeklySchedules, dailyDispatches: savedData.dailyDispatches || dailyDispatches, globalTeamConfigs: savedData.globalTeamConfigs || globalTeamConfigs, employees: savedData.employees || employees, attendance: savedData.attendance || attendance, overtime: savedData.overtime || overtime, monthRemarks: savedData.monthRemarks || monthRemarks });
           if (addedFromDbCount > 0) alert(`已從資料夾同步 ${addedFromDbCount} 筆新案件。`);
         } else {
-          await syncToLocal(handle, { projects, users: allUsers, auditLogs, weeklySchedules, dailyDispatches, globalTeamConfigs });
+          await syncToLocal(handle, { projects, users: allUsers, auditLogs, weeklySchedules, dailyDispatches, globalTeamConfigs, employees, attendance, overtime, monthRemarks });
         }
       }
     } catch (e: any) {
@@ -295,9 +314,9 @@ const App: React.FC = () => {
     if (!isInitialized) return;
     const saveAll = async () => {
         try {
-            await saveAppStateToIdb({ projects, users: allUsers, auditLogs, weeklySchedules, dailyDispatches, globalTeamConfigs, lastSaved: new Date().toISOString() });
+            await saveAppStateToIdb({ projects, users: allUsers, auditLogs, weeklySchedules, dailyDispatches, globalTeamConfigs, employees, attendance, overtime, monthRemarks, lastSaved: new Date().toISOString() });
             if (dirHandle && dirPermission === 'granted') {
-                syncToLocal(dirHandle, { projects, users: allUsers, auditLogs, weeklySchedules, dailyDispatches, globalTeamConfigs });
+                syncToLocal(dirHandle, { projects, users: allUsers, auditLogs, weeklySchedules, dailyDispatches, globalTeamConfigs, employees, attendance, overtime, monthRemarks });
             }
         } catch (e) {
             console.error('自動儲存失敗', e);
@@ -305,7 +324,7 @@ const App: React.FC = () => {
     };
     const timer = setTimeout(saveAll, 500);
     return () => clearTimeout(timer);
-  }, [projects, allUsers, auditLogs, weeklySchedules, dailyDispatches, globalTeamConfigs, dirHandle, dirPermission, isInitialized]);
+  }, [projects, allUsers, auditLogs, weeklySchedules, dailyDispatches, globalTeamConfigs, employees, attendance, overtime, monthRemarks, dirHandle, dirPermission, isInitialized]);
 
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
@@ -416,7 +435,7 @@ const App: React.FC = () => {
             <BoxIcon className="w-5 h-5" /> 
             <span className="font-medium">採購</span>
           </button>
-          <button onClick={() => { setSelectedProject(null); setView('hr'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'hr' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
+          <button onClick={() => { setSelectedProject(null); setView('hr'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'hr' ? 'bg-blue-600 text-white shadow-md shadow-blue-900/20' : 'text-slate-400 hover:bg-slate-800'}`}>
             <UsersIcon className="w-5 h-5" /> 
             <span className="font-medium">人事</span>
           </button>
@@ -447,7 +466,7 @@ const App: React.FC = () => {
       case 'daily_dispatch': return '明日工作排程';
       case 'engineering_groups': return '工程小組管理';
       case 'purchasing': return '採購管理';
-      case 'hr': return '人事模組';
+      case 'hr': return '人事管理模組';
       case 'equipment': return equipmentSubView ? `設備／工具 - ${equipmentSubView}` : '設備／工具模組';
       case 'construction': return '圍籬案件';
       case 'modular_house': return '組合屋案件';
@@ -459,8 +478,23 @@ const App: React.FC = () => {
     }
   };
 
+  // Fix: Added missing renderEquipmentView function to display equipment module placeholder.
+  const renderEquipmentView = () => {
+    return (
+      <div className="p-6 max-w-5xl mx-auto h-full animate-fade-in flex flex-col items-center justify-center text-center">
+        <div className="p-6 bg-slate-100 rounded-full mb-4">
+          <WrenchIcon className="w-12 h-12 text-slate-400" />
+        </div>
+        <h2 className="text-2xl font-bold text-slate-800 mb-2">設備與工具管理</h2>
+        <p className="text-slate-500 max-w-md">
+          此模組用於追蹤公司各式機具、車輛維護紀錄與工具借用狀態。
+          功能開發中，敬請期待。
+        </p>
+      </div>
+    );
+  };
+
   const renderEngineeringHub = () => {
-    // 調整後順序：明日工作排程、估計行車時間、週間工作排程、工程小組設定
     const categories = [
       { id: 'daily_dispatch', label: '明日工作排程', icon: <ClipboardListIcon className="w-6 h-6" />, color: 'bg-blue-50 text-blue-600', desc: '確認明日施工地點與人員' },
       { id: 'driving_time', label: '估計行車時間', icon: <NavigationIcon className="w-6 h-6" />, color: 'bg-amber-50 text-amber-600', desc: '預估早上 8:00 路徑耗時' },
@@ -490,51 +524,6 @@ const App: React.FC = () => {
     );
   };
 
-  const renderEquipmentView = () => {
-    if (equipmentSubView) {
-      return (
-        <div className="flex flex-col h-full p-6 animate-fade-in">
-          <button onClick={() => setEquipmentSubView(null)} className="flex items-center gap-2 text-slate-500 hover:text-blue-600 mb-8 font-bold transition-colors">
-            <ArrowLeftIcon className="w-4 h-4" /> 返回清單
-          </button>
-          <div className="flex-1 flex flex-col items-center justify-center text-slate-400 gap-4">
-            <WrenchIcon className="w-16 h-16 opacity-20" />
-            <div className="text-lg font-bold">{equipmentSubView} 模組建設中...</div>
-          </div>
-        </div>
-      );
-    }
-
-    const categories = [
-      { id: '報修清單', icon: <AlertIcon className="w-6 h-6" />, color: 'bg-red-50 text-red-600' },
-      { id: '個人工具', icon: <WrenchIcon className="w-6 h-6" />, color: 'bg-blue-50 text-blue-600' },
-      { id: '隨車器材', icon: <BoxIcon className="w-6 h-6" />, color: 'bg-emerald-50 text-emerald-600' },
-      { id: '廠內設備', icon: <HomeIcon className="w-6 h-6" />, color: 'bg-indigo-50 text-indigo-600' },
-      { id: '車輛管理', icon: <TruckIcon className="w-6 h-6" />, color: 'bg-orange-50 text-orange-600' },
-      { id: '辦公室資材', icon: <BriefcaseIcon className="w-6 h-6" />, color: 'bg-slate-50 text-slate-600' },
-    ];
-
-    return (
-      <div className="p-6 max-w-5xl mx-auto h-full animate-fade-in">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {categories.map(cat => (
-            <button
-              key={cat.id}
-              onClick={() => setEquipmentSubView(cat.id)}
-              className="bg-white p-8 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md hover:border-blue-500 transition-all group flex flex-col items-center text-center gap-4"
-            >
-              <div className={`p-4 rounded-xl ${cat.color} group-hover:scale-110 transition-transform`}>
-                {cat.icon}
-              </div>
-              <div className="font-bold text-slate-800 text-lg">{cat.id}</div>
-              <p className="text-xs text-slate-400 font-medium uppercase tracking-widest">Management</p>
-            </button>
-          ))}
-        </div>
-      </div>
-    );
-  };
-
   return (
     <div className="flex h-screen bg-[#f8fafc] overflow-hidden">
       <div className={`fixed inset-0 z-[100] md:hidden transition-opacity duration-300 ${isSidebarOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
@@ -555,6 +544,20 @@ const App: React.FC = () => {
           {view === 'users' ? (<UserManagement users={allUsers} onUpdateUsers={setAllUsers} auditLogs={auditLogs} onLogAction={(action, details) => setAuditLogs(prev => [{ id: generateId(), userId: currentUser.id, userName: currentUser.name, action, details, timestamp: Date.now() }, ...prev])} importUrl={importUrl} onUpdateImportUrl={(url) => { setImportUrl(url); localStorage.setItem('hjx_import_url', url); }} projects={projects} onRestoreData={(data) => { setProjects(data.projects); setAllUsers(data.users); setAuditLogs(data.auditLogs); }} />) : 
            view === 'report' ? (<div className="flex-1 overflow-auto"><GlobalWorkReport projects={projects} currentUser={currentUser} onUpdateProject={handleUpdateProject} /></div>) : 
            view === 'engineering_hub' ? (<div className="flex-1 overflow-auto">{renderEngineeringHub()}</div>) :
+           view === 'hr' ? (
+             <div className="flex-1 overflow-hidden">
+               <HRManagement 
+                employees={employees} 
+                attendance={attendance} 
+                overtime={overtime} 
+                monthRemarks={monthRemarks}
+                onUpdateEmployees={setEmployees}
+                onUpdateAttendance={setAttendance}
+                onUpdateOvertime={setOvertime}
+                onUpdateMonthRemarks={setMonthRemarks}
+               />
+             </div>
+           ) :
            view === 'driving_time' ? (
             <div className="flex flex-col flex-1 min-h-0">
               <div className="px-6 pt-4"><button onClick={() => setView('engineering_hub')} className="flex items-center gap-2 text-slate-500 hover:text-blue-600 font-bold text-xs"><ArrowLeftIcon className="w-3 h-3" /> 返回工程模組</button></div>
@@ -581,7 +584,6 @@ const App: React.FC = () => {
            ) :
            view === 'materials' ? (<div className="flex-1 overflow-auto"><GlobalMaterials projects={projects} onSelectProject={setSelectedProject} /></div>) : 
            view === 'purchasing' ? (<div className="flex-1 overflow-auto"><PurchasingManagement projects={projects} currentUser={currentUser} onUpdateProject={handleUpdateProject} /></div>) : 
-           view === 'hr' ? (<div className="flex-1 flex flex-col items-center justify-center text-slate-400 gap-4"><UsersIcon className="w-16 h-16 opacity-20" /><div className="text-lg font-bold">人事模組建設中...</div></div>) :
            view === 'equipment' ? (<div className="flex-1 overflow-auto">{renderEquipmentView()}</div>) :
            selectedProject ? (<div className="flex-1 overflow-hidden"><ProjectDetail project={selectedProject} currentUser={currentUser} onBack={() => setSelectedProject(null)} onUpdateProject={handleUpdateProject} onEditProject={setEditingProject} /></div>) : 
            (<div className="flex-1 overflow-auto"><ProjectList title={getTitle()} projects={currentViewProjects} currentUser={currentUser} onSelectProject={setSelectedProject} onAddProject={() => setIsAddModalOpen(true)} onDeleteProject={handleDeleteProject} onDuplicateProject={()=>{}} onEditProject={setEditingProject} /></div>)}
