@@ -44,9 +44,11 @@ const AttendanceTable: React.FC<AttendanceTableProps> = ({
     const dayOfWeek = new Date(date).getDay();
     const isSunday = dayOfWeek === 0;
 
+    // 儲存邏輯：若為空白且是週日，存入空紀錄以覆蓋預設的「排休」顯示
     if (status !== '' || isSunday) {
         newList.push({ date, employeeId, status });
     }
+    
     onUpdateAttendance(newList);
   };
 
@@ -83,35 +85,33 @@ const AttendanceTable: React.FC<AttendanceTableProps> = ({
                   const record = attendance.find(a => a.date === day.dateStr && a.employeeId === emp.id);
                   let status = record ? record.status : '';
                   
-                  // 如果目前狀態是空字串或「排休」，則檢查派工單連動
+                  // 檢查派工連動：如果目前狀態是空或是排休
                   if (status === '' || status === '排休') {
+                    // 尋找「明日工作排程」中該日期的紀錄
                     const dispatch = dailyDispatches.find(d => d.date === day.dateStr);
                     if (dispatch) {
                       const empNick = emp.nickname || emp.name;
+                      // 遍歷所有小組
                       for (const teamId in dispatch.teams) {
                         const team = dispatch.teams[teamId];
-                        // 檢查該組「派工項目」是否有資料
-                        if (team.tasks && team.tasks.length > 0) {
-                          if (team.assistants && team.assistants.includes(empNick)) {
-                            status = team.master; // 填入師傅暱稱並覆蓋
-                            break;
-                          }
+                        // 條件 1 & 2：派工項目有資料 且 人員在助手清單中
+                        if (team.tasks && team.tasks.length > 0 && team.assistants && team.assistants.includes(empNick)) {
+                          status = team.master; // 填入師傅暱稱
+                          break;
                         }
                       }
                     }
                   }
 
-                  // 若最終仍無狀態且是星期日，才顯示預設排休
-                  if (status === '' && !record && day.isSunday) {
-                    status = '排休';
-                  }
+                  // 預設顯示：若最終無狀態且為週日，顯示「排休」
+                  const displayStatus = (status === '' && !record && day.isSunday) ? '排休' : status;
 
                   return (
                     <td key={day.day} className={`p-0 border-r relative ${day.isSunday || day.isHoliday ? 'bg-red-50/20' : ''} ${day.isYesterday ? 'ring-2 ring-inset ring-slate-900 z-10' : ''}`}>
                       <input 
                         list="att-options"
-                        className={`w-full h-8 text-center bg-transparent outline-none focus:bg-white focus:ring-1 focus:ring-blue-500 font-medium ${status && status !== '排休' ? 'text-blue-700 font-bold' : ''}`}
-                        value={status}
+                        className={`w-full h-8 text-center bg-transparent outline-none focus:bg-white focus:ring-1 focus:ring-blue-500 font-medium ${displayStatus && displayStatus !== '排休' ? 'text-blue-700 font-bold' : ''}`}
+                        value={displayStatus}
                         onChange={(e) => updateAttendance(day.dateStr, emp.id, e.target.value)}
                       />
                     </td>
