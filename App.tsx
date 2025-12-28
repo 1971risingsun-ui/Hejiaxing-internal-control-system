@@ -444,13 +444,13 @@ const App: React.FC = () => {
           </button>
           <button onClick={() => { setSelectedProject(null); setView('engineering_hub'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'engineering_hub' || view === 'weekly_schedule' || view === 'daily_dispatch' || view === 'engineering_groups' || view === 'driving_time' ? 'bg-blue-600 text-white shadow-md shadow-blue-900/20' : 'text-slate-400 hover:bg-slate-800'}`}>
             <BriefcaseIcon className="w-5 h-5" /> 
-            <span className="font-medium">工程模組</span>
+            <span className="font-medium">工作排程</span>
           </button>
 
           <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-2 mt-6 px-4">行政管理 (Administration)</div>
           <button onClick={() => { setSelectedProject(null); setView('purchasing_hub'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view.startsWith('purchasing') ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
             <BoxIcon className="w-5 h-5" /> 
-            <span className="font-medium">採購模組</span>
+            <span className="font-medium">採購</span>
           </button>
           <button onClick={() => { setSelectedProject(null); setView('hr'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'hr' ? 'bg-blue-600 text-white shadow-md shadow-blue-900/20' : 'text-slate-400 hover:bg-slate-800'}`}>
             <UsersIcon className="w-5 h-5" /> 
@@ -473,12 +473,12 @@ const App: React.FC = () => {
   const getTitle = () => {
     switch(view) {
       case 'engineering': return '工務總覽';
-      case 'engineering_hub': return '工程管理入口';
+      case 'engineering_hub': return '工作排程入口';
       case 'driving_time': return '估計行車時間';
       case 'weekly_schedule': return '週間工作排程';
       case 'daily_dispatch': return '明日工作排程';
       case 'engineering_groups': return '工程小組管理';
-      case 'purchasing_hub': return '採購模組入口';
+      case 'purchasing_hub': return '採購入口';
       case 'purchasing_management': return '採購管理';
       case 'purchasing_materials': return '材料請購';
       case 'purchasing_suppliers': return '供應商清冊';
@@ -531,7 +531,7 @@ const App: React.FC = () => {
               </div>
               <div className="font-bold text-slate-800 text-lg">{cat.label}</div>
               <p className="text-xs text-slate-400 font-medium">{cat.desc}</p>
-              <p className="text-[10px] text-slate-300 font-bold uppercase tracking-widest mt-2">Engineering Hub</p>
+              <p className="text-[10px] text-slate-300 font-bold uppercase tracking-widest mt-2">Work Schedule Hub</p>
             </button>
           ))}
         </div>
@@ -565,25 +565,25 @@ const App: React.FC = () => {
            view === 'purchasing_hub' ? (<div className="flex-1 overflow-auto"><PurchasingModule onNavigate={setView} /></div>) :
            view === 'purchasing_management' ? (
               <div className="flex flex-col flex-1 min-h-0">
-                <div className="px-6 pt-4"><button onClick={() => setView('purchasing_hub')} className="flex items-center gap-2 text-slate-500 hover:text-blue-600 font-bold text-xs"><ArrowLeftIcon className="w-3 h-3" /> 返回採購模組</button></div>
+                <div className="px-6 pt-4"><button onClick={() => setView('purchasing_hub')} className="flex items-center gap-2 text-slate-500 hover:text-blue-600 font-bold text-xs"><ArrowLeftIcon className="w-3 h-3" /> 返回採購</button></div>
                 <div className="flex-1 overflow-auto"><PurchasingManagement projects={projects} currentUser={currentUser} onUpdateProject={handleUpdateProject} /></div>
               </div>
            ) :
            view === 'purchasing_materials' ? (
               <div className="flex flex-col flex-1 min-h-0">
-                <div className="px-6 pt-4"><button onClick={() => setView('purchasing_hub')} className="flex items-center gap-2 text-slate-500 hover:text-blue-600 font-bold text-xs"><ArrowLeftIcon className="w-3 h-3" /> 返回採購模組</button></div>
+                <div className="px-6 pt-4"><button onClick={() => setView('purchasing_hub')} className="flex items-center gap-2 text-slate-500 hover:text-blue-600 font-bold text-xs"><ArrowLeftIcon className="w-3 h-3" /> 返回採購</button></div>
                 <div className="flex-1 overflow-auto"><GlobalMaterials projects={projects} onSelectProject={setSelectedProject} /></div>
               </div>
            ) :
            view === 'purchasing_suppliers' ? (
               <div className="flex flex-col flex-1 min-h-0">
-                <div className="px-6 pt-4"><button onClick={() => setView('purchasing_hub')} className="flex items-center gap-2 text-slate-500 hover:text-blue-600 font-bold text-xs"><ArrowLeftIcon className="w-3 h-3" /> 返回採購模組</button></div>
+                <div className="px-6 pt-4"><button onClick={() => setView('purchasing_hub')} className="flex items-center gap-2 text-slate-500 hover:text-blue-600 font-bold text-xs"><ArrowLeftIcon className="w-3 h-3" /> 返回採購</button></div>
                 <div className="flex-1 overflow-hidden"><SupplierList suppliers={suppliers} onUpdateSuppliers={setSuppliers} /></div>
               </div>
            ) :
            view === 'purchasing_orders' ? (
               <div className="flex flex-col flex-1 min-h-0">
-                <div className="px-6 pt-4"><button onClick={() => setView('purchasing_hub')} className="flex items-center gap-2 text-slate-500 hover:text-blue-600 font-bold text-xs"><ArrowLeftIcon className="w-3 h-3" /> 返回採購模組</button></div>
+                <div className="px-6 pt-4"><button onClick={() => setView('purchasing_hub')} className="flex items-center gap-2 text-slate-500 hover:text-blue-600 font-bold text-xs"><ArrowLeftIcon className="w-3 h-3" /> 返回採購</button></div>
                 <div className="flex-1 overflow-hidden"><PurchaseOrders projects={projects} suppliers={suppliers} purchaseOrders={purchaseOrders} onUpdatePurchaseOrders={setPurchaseOrders} onUpdateProject={handleUpdateProject} /></div>
               </div>
            ) :
@@ -604,25 +604,25 @@ const App: React.FC = () => {
            ) :
            view === 'driving_time' ? (
             <div className="flex flex-col flex-1 min-h-0">
-              <div className="px-6 pt-4"><button onClick={() => setView('engineering_hub')} className="flex items-center gap-2 text-slate-500 hover:text-blue-600 font-bold text-xs"><ArrowLeftIcon className="w-3 h-3" /> 返回工程模組</button></div>
+              <div className="px-6 pt-4"><button onClick={() => setView('engineering_hub')} className="flex items-center gap-2 text-slate-500 hover:text-blue-600 font-bold text-xs"><ArrowLeftIcon className="w-3 h-3" /> 返回工作排程</button></div>
               <div className="flex-1 overflow-auto"><DrivingTimeEstimator projects={projects} onAddToSchedule={handleAddToWeeklySchedule} globalTeamConfigs={globalTeamConfigs} /></div>
             </div>
            ) :
            view === 'weekly_schedule' ? (
              <div className="flex flex-col flex-1 min-h-0">
-               <div className="px-6 pt-4"><button onClick={() => setView('engineering_hub')} className="flex items-center gap-2 text-slate-500 hover:text-blue-600 font-bold text-xs"><ArrowLeftIcon className="w-3 h-3" /> 返回工程模組</button></div>
+               <div className="px-6 pt-4"><button onClick={() => setView('engineering_hub')} className="flex items-center gap-2 text-slate-500 hover:text-blue-600 font-bold text-xs"><ArrowLeftIcon className="w-3 h-3" /> 返回工作排程</button></div>
                <div className="flex-1 overflow-hidden"><WeeklySchedule projects={projects} weeklySchedules={weeklySchedules} globalTeamConfigs={globalTeamConfigs} onUpdateWeeklySchedules={setWeeklySchedules} /></div>
              </div>
            ) :
            view === 'daily_dispatch' ? (
             <div className="flex flex-col flex-1 min-h-0">
-              <div className="px-6 pt-4"><button onClick={() => setView('engineering_hub')} className="flex items-center gap-2 text-slate-500 hover:text-blue-600 font-bold text-xs"><ArrowLeftIcon className="w-3 h-3" /> 返回工程模組</button></div>
+              <div className="px-6 pt-4"><button onClick={() => setView('engineering_hub')} className="flex items-center gap-2 text-slate-500 hover:text-blue-600 font-bold text-xs"><ArrowLeftIcon className="w-3 h-3" /> 返回工作排程</button></div>
               <div className="flex-1 overflow-hidden"><DailyDispatch projects={projects} weeklySchedules={weeklySchedules} dailyDispatches={dailyDispatches} globalTeamConfigs={globalTeamConfigs} onUpdateDailyDispatches={setDailyDispatches} /></div>
             </div>
            ) :
            view === 'engineering_groups' ? (
             <div className="flex flex-col flex-1 min-h-0">
-              <div className="px-6 pt-4"><button onClick={() => setView('engineering_hub')} className="flex items-center gap-2 text-slate-500 hover:text-blue-600 font-bold text-xs"><ArrowLeftIcon className="w-3 h-3" /> 返回工程模組</button></div>
+              <div className="px-6 pt-4"><button onClick={() => setView('engineering_hub')} className="flex items-center gap-2 text-slate-500 hover:text-blue-600 font-bold text-xs"><ArrowLeftIcon className="w-3 h-3" /> 返回工作排程</button></div>
               <div className="flex-1 overflow-auto"><EngineeringGroups globalTeamConfigs={globalTeamConfigs} onUpdateGlobalTeamConfigs={setGlobalTeamConfigs} /></div>
             </div>
            ) :
