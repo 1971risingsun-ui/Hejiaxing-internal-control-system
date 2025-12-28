@@ -39,6 +39,7 @@ const DailyDispatch: React.FC<DailyDispatchProps> = ({ projects, weeklySchedules
   };
 
   const updateTeamField = (teamId: number, field: string, value: any) => {
+    // 深度複製以確保狀態更新
     const newDispatch = JSON.parse(JSON.stringify(dispatchRecord));
     if (!newDispatch.teams[teamId]) {
       newDispatch.teams[teamId] = { master: '', assistants: [], carNumber: '', tasks: [] };
@@ -61,12 +62,15 @@ const DailyDispatch: React.FC<DailyDispatchProps> = ({ projects, weeklySchedules
 
     const teamData = dispatchRecord.teams[teamId];
     const weekCfg = weekSchedule?.teamConfigs?.[teamId] || globalTeamConfigs[teamId];
-    const currentAssistants = teamData?.assistants || (weekCfg?.assistant ? [weekCfg.assistant] : []);
+    
+    // 取得當前顯示的助手名單
+    const currentAssistants = [...(teamData?.assistants || (weekCfg?.assistant ? [weekCfg.assistant] : []))];
     
     if (!currentAssistants.includes(name)) {
         updateTeamField(teamId, 'assistants', [...currentAssistants, name]);
     }
     
+    // 清空該組的輸入框
     setNewAssistantNames(prev => ({ ...prev, [teamId]: '' }));
   };
 
@@ -187,7 +191,7 @@ const DailyDispatch: React.FC<DailyDispatchProps> = ({ projects, weeklySchedules
                       <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">助手人員</label>
                       <div className="flex flex-wrap gap-1.5 mb-2 min-h-[24px]">
                         {displayAssistants.map((name, idx) => (
-                            <span key={idx} className={`inline-flex items-center gap-1 px-2 py-1 bg-white border rounded-lg text-xs font-medium transition-all ${isAssistantsOverridden ? 'text-amber-700 border-amber-300 shadow-sm' : 'text-slate-500 border-slate-100'}`}>
+                            <span key={`${name}-${idx}`} className={`inline-flex items-center gap-1 px-2 py-1 bg-white border rounded-lg text-xs font-medium transition-all ${isAssistantsOverridden ? 'text-amber-700 border-amber-300 shadow-sm' : 'text-slate-500 border-slate-100'}`}>
                                 {name}
                                 <button onClick={() => removeAssistant(t, idx)} className="text-slate-300 hover:text-red-500 transition-colors"><XIcon className="w-3 h-3" /></button>
                             </span>
@@ -200,10 +204,14 @@ const DailyDispatch: React.FC<DailyDispatchProps> = ({ projects, weeklySchedules
                           placeholder="追加助手..." 
                           value={newAssistantNames[t] || ''}
                           onChange={(e) => setNewAssistantNames(prev => ({ ...prev, [t]: e.target.value }))}
+                          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addAssistant(t); } }}
                           className="w-full pl-3 pr-8 py-1.5 bg-slate-50 border border-slate-100 rounded-lg text-xs outline-none focus:bg-white focus:border-indigo-300 transition-all" 
-                          onKeyPress={(e) => { if (e.key === 'Enter') addAssistant(t); }} 
                         />
-                        <button onClick={() => addAssistant(t)} className="absolute right-2 top-1.5 text-slate-300 hover:text-indigo-500 transition-colors">
+                        <button 
+                          type="button"
+                          onClick={() => addAssistant(t)} 
+                          className="absolute right-2 top-1.5 text-slate-300 hover:text-indigo-500 transition-colors cursor-pointer"
+                        >
                           <PlusIcon className="w-4 h-4" />
                         </button>
                       </div>

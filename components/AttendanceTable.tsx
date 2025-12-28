@@ -18,13 +18,6 @@ const ATTENDANCE_OPTIONS = ['排休', '請假', '病假', '臨時請假', '廠�
 const AttendanceTable: React.FC<AttendanceTableProps> = ({ 
   selectedMonth, employees, attendance, monthRemarks, dailyDispatches, onUpdateAttendance, onUpdateMonthRemarks 
 }) => {
-  const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
-  const tomorrowStr = useMemo(() => {
-    const d = new Date();
-    d.setDate(d.getDate() + 1);
-    return d.toISOString().split('T')[0];
-  }, []);
-  
   const yesterdayStr = useMemo(() => {
     const d = new Date();
     d.setDate(d.getDate() - 1);
@@ -47,15 +40,15 @@ const AttendanceTable: React.FC<AttendanceTableProps> = ({
   }, [selectedMonth, yesterdayStr]);
 
   const updateAttendance = (date: string, employeeId: string, status: string) => {
+    // 移除現有紀錄
     let newList = attendance.filter(a => !(a.date === date && a.employeeId === employeeId));
     
     const dayOfWeek = new Date(date).getDay();
     const isSunday = dayOfWeek === 0;
-    const isToday = date === todayStr;
-    const isTomorrow = date === tomorrowStr;
 
-    // 關鍵修正：如果是星期日、今日或明日，即使 status 是空字串也要存入紀錄
-    if (status !== '' || isSunday || isToday || isTomorrow) {
+    // 關鍵修正：如果是星期日，即使 status 是空字串也要存入紀錄
+    // 這樣在下次渲染時，find() 就會抓到這個空紀錄，而不會觸發預載「排休」
+    if (status !== '' || isSunday) {
         newList.push({ date, employeeId, status });
     }
     
@@ -95,24 +88,30 @@ const AttendanceTable: React.FC<AttendanceTableProps> = ({
                   const record = attendance.find(a => a.date === day.dateStr && a.employeeId === emp.id);
                   let status = '';
                   
+                  // 第一步：讀取手動存檔
                   if (record) {
                     status = record.status;
-                  } else if (day.dateStr === tomorrowStr) {
-                    // --- 明日派工單連動邏輯 ---
-                    const dispatch = dailyDispatches.find(d => d.date === tomorrowStr);
+                  }
+
+                  // 第二步：如果目前狀態是空字串、沒紀錄，或是預載的「排休」，則檢查派工單連動
+                  // 注意：如果 record 存在且 status 為 ""，表示使用者手動清空了該欄位，
+                  // 根據需求「如內為空白...填入」，這裡會被師傅暱稱覆蓋。
+                  if (status === '' || status === '排休') {
+                    const dispatch = dailyDispatches.find(d => d.date === day.dateStr);
                     if (dispatch) {
                       const empNick = emp.nickname || emp.name;
+                      // 尋找此人在該日派工單中是否擔任助手
                       for (const teamId in dispatch.teams) {
                         const team = dispatch.teams[teamId];
-                        if (team.assistants.includes(empNick)) {
-                          status = team.master; // 填入師傅暱稱
+                        if (team.assistants && team.assistants.includes(empNick)) {
+                          status = team.master; // 自動載入師傅暱稱
                           break;
                         }
                       }
                     }
                   }
 
-                  // 如果上述邏輯都沒產生狀態且是星期日，才顯示預設排休
+                  // 第三步：如果最終還是空白，且無手動存檔紀錄且是星期日，才顯示預設「排休」
                   if (status === '' && !record && day.isSunday) {
                     status = '排休';
                   }
@@ -121,7 +120,7 @@ const AttendanceTable: React.FC<AttendanceTableProps> = ({
                     <td key={day.day} className={`p-0 border-r relative ${day.isSunday || day.isHoliday ? 'bg-red-50/20' : ''} ${day.isYesterday ? 'ring-2 ring-inset ring-slate-900 z-10' : ''}`}>
                       <input 
                         list="att-options"
-                        className={`w-full h-8 text-center bg-transparent outline-none focus:bg-white focus:ring-1 focus:ring-blue-500 font-medium ${status ? 'text-blue-700 font-bold' : ''}`}
+                        className={`w-full h-8 text-center bg-transparent outline-none focus:bg-white focus:ring-1 focus:ring-blue-500 font-medium ${status && status !== '排休' ? 'text-blue-700 font-bold' : ''}`}
                         value={status}
                         onChange={(e) => updateAttendance(day.dateStr, emp.id, e.target.value)}
                       />
