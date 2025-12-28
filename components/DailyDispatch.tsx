@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { Project, WeeklySchedule, DailyDispatch as DailyDispatchType, GlobalTeamConfigs } from '../types';
-import { CalendarIcon, UserIcon, PlusIcon, XIcon, BriefcaseIcon, FileTextIcon, HomeIcon, LayoutGridIcon, TruckIcon, HistoryIcon, CheckCircleIcon } from './Icons';
+import { CalendarIcon, UserIcon, PlusIcon, XIcon, BriefcaseIcon, FileTextIcon, HomeIcon, LayoutGridIcon, TruckIcon, HistoryIcon, CheckCircleIcon, TrashIcon } from './Icons';
 
 interface DailyDispatchProps {
   projects: Project[];
@@ -20,6 +20,7 @@ const DailyDispatch: React.FC<DailyDispatchProps> = ({ projects, weeklySchedules
 
   const [filterTeam, setFilterTeam] = useState<number | null>(null);
   const [newAssistantNames, setNewAssistantNames] = useState<Record<number, string>>({});
+  const [newTaskNames, setNewTaskNames] = useState<Record<number, string>>({});
   const teams = [1, 2, 3, 4, 5, 6, 7, 8];
 
   const weekSchedule = useMemo(() => {
@@ -60,7 +61,6 @@ const DailyDispatch: React.FC<DailyDispatchProps> = ({ projects, weeklySchedules
     if (!name) return;
 
     const teamData = dispatchRecord.teams[teamId];
-    // 助手欄位現在僅反映存檔
     const currentAssistants = [...(teamData?.assistants || [])];
     
     if (!currentAssistants.includes(name)) {
@@ -75,6 +75,28 @@ const DailyDispatch: React.FC<DailyDispatchProps> = ({ projects, weeklySchedules
     const currentAssistants = [...(teamData?.assistants || [])];
     currentAssistants.splice(index, 1);
     updateTeamField(teamId, 'assistants', currentAssistants);
+  };
+
+  const handleAddTask = (teamId: number) => {
+    const taskName = newTaskNames[teamId]?.trim();
+    if (!taskName) return;
+
+    const teamData = dispatchRecord.teams[teamId];
+    const currentTasks = [...(teamData?.tasks || [])];
+    
+    // 尋找專案以代入描述
+    const project = projects.find(p => p.name === taskName);
+    const description = project?.description || '';
+
+    updateTeamField(teamId, 'tasks', [...currentTasks, { name: taskName, description }]);
+    setNewTaskNames(prev => ({ ...prev, [teamId]: '' }));
+  };
+
+  const removeTask = (teamId: number, index: number) => {
+    const teamData = dispatchRecord.teams[teamId];
+    const currentTasks = [...(teamData?.tasks || [])];
+    currentTasks.splice(index, 1);
+    updateTeamField(teamId, 'tasks', currentTasks);
   };
 
   const updateTaskDescription = (teamId: number, taskIndex: number, newDesc: string) => {
@@ -139,7 +161,6 @@ const DailyDispatch: React.FC<DailyDispatchProps> = ({ projects, weeklySchedules
             const teamRecord = dispatchRecord.teams[t];
             const weekCfg = weekSchedule?.teamConfigs?.[t] || globalTeamConfigs[t] || { master: '', assistant: '', carNumber: '' };
             
-            // 實際顯示僅反映 teamRecord 內容
             const displayMaster = teamRecord?.master || '';
             const displayCar = teamRecord?.carNumber || '';
             const displayAssistants = teamRecord?.assistants || [];
@@ -209,12 +230,65 @@ const DailyDispatch: React.FC<DailyDispatchProps> = ({ projects, weeklySchedules
                   <div className="pt-4 border-t border-slate-100">
                     <label className="text-[10px] font-bold text-slate-400 uppercase mb-2 block">派工項目</label>
                     <div className="space-y-3">
-                      {displayTasks.length > 0 ? displayTasks.map((task, idx) => (
-                        <div key={idx} className="bg-indigo-50/30 rounded-xl p-3 border border-indigo-100/50 hover:border-indigo-200 transition-all">
-                          <div className="flex items-center gap-2 mb-2"><HomeIcon className="w-3.5 h-3.5 text-indigo-500" /><span className="text-xs font-black text-indigo-800">{task.name}</span></div>
-                          <div className="relative"><FileTextIcon className="absolute left-2 top-2 w-3 h-3 text-slate-300" /><textarea value={task.description} onChange={(e) => updateTaskDescription(t, idx, e.target.value)} className="w-full text-[11px] bg-white/60 border border-slate-200 rounded-lg pl-7 pr-2 py-1.5 min-h-[60px] outline-none focus:bg-white resize-none text-slate-600 leading-relaxed shadow-sm transition-all" placeholder="施工說明..." /></div>
+                      {displayTasks.map((task, idx) => (
+                        <div key={idx} className="bg-indigo-50/30 rounded-xl p-3 border border-indigo-100/50 hover:border-indigo-200 transition-all group/task">
+                          <div className="flex items-center justify-between gap-2 mb-2">
+                            <div className="flex items-center gap-2 overflow-hidden">
+                                <HomeIcon className="w-3.5 h-3.5 text-indigo-500 flex-shrink-0" />
+                                <span className="text-xs font-black text-indigo-800 truncate">{task.name}</span>
+                            </div>
+                            <button onClick={() => removeTask(t, idx)} className="text-slate-300 hover:text-red-500 p-1 opacity-0 group-hover/task:opacity-100 transition-opacity">
+                                <TrashIcon className="w-3 h-3" />
+                            </button>
+                          </div>
+                          <div className="relative">
+                            <FileTextIcon className="absolute left-2 top-2 w-3 h-3 text-slate-300" />
+                            <textarea 
+                                value={task.description} 
+                                onChange={(e) => updateTaskDescription(t, idx, e.target.value)} 
+                                className="w-full text-[11px] bg-white/60 border border-slate-200 rounded-lg pl-7 pr-2 py-1.5 min-h-[60px] outline-none focus:bg-white resize-none text-slate-600 leading-relaxed shadow-sm transition-all" 
+                                placeholder="施工說明..." 
+                            />
+                          </div>
                         </div>
-                      )) : <div className="text-center py-4 bg-slate-50 rounded-xl border border-dashed border-slate-200 text-[10px] text-slate-400 italic">本日無派工項目</div>}
+                      ))}
+                      
+                      <div className="bg-slate-50 border border-dashed border-slate-200 rounded-xl p-3 mt-4">
+                        <div className="flex items-center gap-2">
+                           <div className="relative flex-1">
+                               <input 
+                                 type="text" 
+                                 list="projects-datalist"
+                                 placeholder="選取或輸入案件..."
+                                 value={newTaskNames[t] || ''}
+                                 onChange={(e) => {
+                                     const val = e.target.value;
+                                     setNewTaskNames(prev => ({ ...prev, [t]: val }));
+                                     // 如果選單內已有該案件名稱，直接觸發添加
+                                     if (projects.some(p => p.name === val)) {
+                                         setTimeout(() => handleAddTask(t), 0);
+                                     }
+                                 }}
+                                 onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddTask(t); } }}
+                                 className="w-full pl-3 pr-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs outline-none focus:border-indigo-400 transition-all font-bold"
+                               />
+                               <datalist id="projects-datalist">
+                                 {projects.map(p => <option key={p.id} value={p.name} />)}
+                               </datalist>
+                           </div>
+                           <button 
+                             onClick={() => handleAddTask(t)}
+                             className="w-8 h-8 bg-indigo-600 text-white rounded-lg flex items-center justify-center hover:bg-indigo-700 transition-colors shadow-sm"
+                           >
+                             <PlusIcon className="w-4 h-4" />
+                           </button>
+                        </div>
+                        <p className="text-[9px] text-slate-400 mt-2 font-bold uppercase tracking-tighter">+ 派工項目 (選取後代入工程概要)</p>
+                      </div>
+
+                      {displayTasks.length === 0 && (
+                        <div className="text-center py-4 text-slate-300 italic text-[10px]">尚未安排派工項目</div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -226,7 +300,7 @@ const DailyDispatch: React.FC<DailyDispatchProps> = ({ projects, weeklySchedules
       
       <div className="mt-4 px-4 py-3 bg-white border border-slate-200 rounded-2xl flex items-center justify-between shadow-sm flex-shrink-0">
          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest leading-relaxed">
-            💡 系統提示：欄位僅顯示存檔資料，全域設定已轉為灰色提示字（placeholder）。
+            💡 系統提示：點擊「+ 派工項目」可選取現有案件，系統將自動從案件資料庫代入「工程概要」。
          </p>
       </div>
     </div>
