@@ -236,6 +236,8 @@ export interface PurchaseOrderItem {
   unit: string;
   price: number;
   notes?: string;
+  // Fix: Add supplierId to PurchaseOrderItem to resolve type errors in component usage.
+  supplierId: string;
 }
 
 export interface PurchaseOrder {
