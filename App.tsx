@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { App as CapacitorApp } from '@capacitor/app';
-import { Project, ProjectStatus, User, UserRole, MaterialStatus, AuditLog, ProjectType, Attachment, WeeklySchedule as WeeklyScheduleType, DailyDispatch as DailyDispatchType, GlobalTeamConfigs, Employee, AttendanceRecord, OvertimeRecord, MonthSummaryRemark } from './types';
+import { Project, ProjectStatus, User, UserRole, MaterialStatus, AuditLog, ProjectType, Attachment, WeeklySchedule as WeeklyScheduleType, DailyDispatch as DailyDispatchType, GlobalTeamConfigs, Employee, AttendanceRecord, OvertimeRecord, MonthSummaryRemark, Supplier, PurchaseOrder } from './types';
 import ProjectList from './components/ProjectList';
 import ProjectDetail from './components/ProjectDetail';
 import UserManagement from './components/UserManagement';
@@ -16,6 +16,9 @@ import EngineeringGroups from './components/EngineeringGroups';
 import PurchasingManagement from './components/PurchasingManagement';
 import DrivingTimeEstimator from './components/DrivingTimeEstimator';
 import HRManagement from './components/HRManagement';
+import PurchasingModule from './components/PurchasingModule';
+import SupplierList from './components/SupplierList';
+import PurchaseOrders from './components/PurchaseOrders';
 import { HomeIcon, UserIcon, LogOutIcon, ShieldIcon, MenuIcon, XIcon, ChevronRightIcon, WrenchIcon, UploadIcon, LoaderIcon, ClipboardListIcon, LayoutGridIcon, BoxIcon, DownloadIcon, FileTextIcon, CheckCircleIcon, AlertIcon, XCircleIcon, UsersIcon, TruckIcon, BriefcaseIcon, ArrowLeftIcon, CalendarIcon, ClockIcon, NavigationIcon } from './components/Icons';
 import { getDirectoryHandle, saveDbToLocal, loadDbFromLocal, getHandleFromIdb, clearHandleFromIdb, saveAppStateToIdb, loadAppStateFromIdb } from './utils/fileSystem';
 import { downloadBlob } from './utils/fileHelpers';
@@ -83,6 +86,10 @@ const App: React.FC = () => {
   const [overtime, setOvertime] = useState<OvertimeRecord[]>([]);
   const [monthRemarks, setMonthRemarks] = useState<MonthSummaryRemark[]>([]);
 
+  // 採購相關狀態
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>([]);
+
   const [dirHandle, setDirHandle] = useState<FileSystemDirectoryHandle | null>(null);
   const [dirPermission, setDirPermission] = useState<'granted' | 'prompt' | 'denied'>('prompt');
   const [isWorkspaceLoading, setIsWorkspaceLoading] = useState(false);
@@ -114,6 +121,8 @@ const App: React.FC = () => {
           if (cachedState.attendance) setAttendance(cachedState.attendance);
           if (cachedState.overtime) setOvertime(cachedState.overtime);
           if (cachedState.monthRemarks) setMonthRemarks(cachedState.monthRemarks);
+          if (cachedState.suppliers) setSuppliers(cachedState.suppliers);
+          if (cachedState.purchaseOrders) setPurchaseOrders(cachedState.purchaseOrders);
         }
         const savedHandle = await getHandleFromIdb();
         if (savedHandle) {
@@ -134,6 +143,8 @@ const App: React.FC = () => {
                if (savedData.attendance) setAttendance(savedData.attendance);
                if (savedData.overtime) setOvertime(savedData.overtime);
                if (savedData.monthRemarks) setMonthRemarks(savedData.monthRemarks);
+               if (savedData.suppliers) setSuppliers(savedData.suppliers);
+               if (savedData.purchaseOrders) setPurchaseOrders(savedData.purchaseOrders);
             }
           }
         }
@@ -188,10 +199,12 @@ const App: React.FC = () => {
           if (savedData.attendance) setAttendance(savedData.attendance);
           if (savedData.overtime) setOvertime(savedData.overtime);
           if (savedData.monthRemarks) setMonthRemarks(savedData.monthRemarks);
-          await syncToLocal(handle, { projects: sorted, users: savedData.users || allUsers, auditLogs: savedData.auditLogs || auditLogs, weeklySchedules: savedData.weeklySchedules || weeklySchedules, dailyDispatches: savedData.dailyDispatches || dailyDispatches, globalTeamConfigs: savedData.globalTeamConfigs || globalTeamConfigs, employees: savedData.employees || employees, attendance: savedData.attendance || attendance, overtime: savedData.overtime || overtime, monthRemarks: savedData.monthRemarks || monthRemarks });
+          if (savedData.suppliers) setSuppliers(savedData.suppliers);
+          if (savedData.purchaseOrders) setPurchaseOrders(savedData.purchaseOrders);
+          await syncToLocal(handle, { projects: sorted, users: savedData.users || allUsers, auditLogs: savedData.auditLogs || auditLogs, weeklySchedules: savedData.weeklySchedules || weeklySchedules, dailyDispatches: savedData.dailyDispatches || dailyDispatches, globalTeamConfigs: savedData.globalTeamConfigs || globalTeamConfigs, employees: savedData.employees || employees, attendance: savedData.attendance || attendance, overtime: savedData.overtime || overtime, monthRemarks: savedData.monthRemarks || monthRemarks, suppliers: savedData.suppliers || suppliers, purchaseOrders: savedData.purchaseOrders || purchaseOrders });
           if (addedFromDbCount > 0) alert(`已從資料夾同步 ${addedFromDbCount} 筆新案件。`);
         } else {
-          await syncToLocal(handle, { projects, users: allUsers, auditLogs, weeklySchedules, dailyDispatches, globalTeamConfigs, employees, attendance, overtime, monthRemarks });
+          await syncToLocal(handle, { projects, users: allUsers, auditLogs, weeklySchedules, dailyDispatches, globalTeamConfigs, employees, attendance, overtime, monthRemarks, suppliers, purchaseOrders });
         }
       }
     } catch (e: any) {
@@ -314,9 +327,9 @@ const App: React.FC = () => {
     if (!isInitialized) return;
     const saveAll = async () => {
         try {
-            await saveAppStateToIdb({ projects, users: allUsers, auditLogs, weeklySchedules, dailyDispatches, globalTeamConfigs, employees, attendance, overtime, monthRemarks, lastSaved: new Date().toISOString() });
+            await saveAppStateToIdb({ projects, users: allUsers, auditLogs, weeklySchedules, dailyDispatches, globalTeamConfigs, employees, attendance, overtime, monthRemarks, suppliers, purchaseOrders, lastSaved: new Date().toISOString() });
             if (dirHandle && dirPermission === 'granted') {
-                syncToLocal(dirHandle, { projects, users: allUsers, auditLogs, weeklySchedules, dailyDispatches, globalTeamConfigs, employees, attendance, overtime, monthRemarks });
+                syncToLocal(dirHandle, { projects, users: allUsers, auditLogs, weeklySchedules, dailyDispatches, globalTeamConfigs, employees, attendance, overtime, monthRemarks, suppliers, purchaseOrders });
             }
         } catch (e) {
             console.error('自動儲存失敗', e);
@@ -324,12 +337,12 @@ const App: React.FC = () => {
     };
     const timer = setTimeout(saveAll, 500);
     return () => clearTimeout(timer);
-  }, [projects, allUsers, auditLogs, weeklySchedules, dailyDispatches, globalTeamConfigs, employees, attendance, overtime, monthRemarks, dirHandle, dirPermission, isInitialized]);
+  }, [projects, allUsers, auditLogs, weeklySchedules, dailyDispatches, globalTeamConfigs, employees, attendance, overtime, monthRemarks, suppliers, purchaseOrders, dirHandle, dirPermission, isInitialized]);
 
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [view, setView] = useState<'engineering' | 'engineering_hub' | 'driving_time' | 'weekly_schedule' | 'daily_dispatch' | 'engineering_groups' | 'construction' | 'modular_house' | 'maintenance' | 'purchasing' | 'hr' | 'equipment' | 'report' | 'materials' | 'users'>('engineering');
+  const [view, setView] = useState<'engineering' | 'engineering_hub' | 'driving_time' | 'weekly_schedule' | 'daily_dispatch' | 'engineering_groups' | 'construction' | 'modular_house' | 'maintenance' | 'purchasing_hub' | 'purchasing_management' | 'purchasing_materials' | 'purchasing_suppliers' | 'purchasing_orders' | 'hr' | 'equipment' | 'report' | 'users'>('engineering');
   const [equipmentSubView, setEquipmentSubView] = useState<string | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
@@ -435,9 +448,9 @@ const App: React.FC = () => {
           </button>
 
           <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-2 mt-6 px-4">行政管理 (Administration)</div>
-          <button onClick={() => { setSelectedProject(null); setView('purchasing'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'purchasing' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
+          <button onClick={() => { setSelectedProject(null); setView('purchasing_hub'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view.startsWith('purchasing') ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
             <BoxIcon className="w-5 h-5" /> 
-            <span className="font-medium">採購</span>
+            <span className="font-medium">採購模組</span>
           </button>
           <button onClick={() => { setSelectedProject(null); setView('hr'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'hr' ? 'bg-blue-600 text-white shadow-md shadow-blue-900/20' : 'text-slate-400 hover:bg-slate-800'}`}>
             <UsersIcon className="w-5 h-5" /> 
@@ -450,7 +463,6 @@ const App: React.FC = () => {
 
           <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-2 mt-6 px-4">快速捷徑</div>
           <button onClick={() => { setSelectedProject(null); setView('report'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'report' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}><ClipboardListIcon className="w-5 h-5" /> <span className="font-medium">工作回報</span></button>
-          <button onClick={() => { setSelectedProject(null); setView('materials'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'materials' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}><BoxIcon className="w-5 h-5" /> <span className="font-medium">材料請購</span></button>
           {currentUser.role === UserRole.ADMIN && (<button onClick={() => { setView('users'); setSelectedProject(null); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'users' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}><ShieldIcon className="w-4 h-4" /> <span className="font-medium">系統權限</span></button>)}
         </nav>
         <div className="p-4 border-t border-slate-800 w-full mt-auto mb-safe"><button onClick={handleLogout} className="flex w-full items-center justify-center gap-2 px-4 py-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors text-sm"><LogOutIcon className="w-4 h-4" /> 登出</button></div>
@@ -466,14 +478,17 @@ const App: React.FC = () => {
       case 'weekly_schedule': return '週間工作排程';
       case 'daily_dispatch': return '明日工作排程';
       case 'engineering_groups': return '工程小組管理';
-      case 'purchasing': return '採購管理';
+      case 'purchasing_hub': return '採購模組入口';
+      case 'purchasing_management': return '採購管理';
+      case 'purchasing_materials': return '材料請購';
+      case 'purchasing_suppliers': return '供應商清冊';
+      case 'purchasing_orders': return '採購單管理';
       case 'hr': return '人事管理模組';
       case 'equipment': return equipmentSubView ? `設備／工具 - ${equipmentSubView}` : '設備／工具模組';
       case 'construction': return '圍籬案件';
       case 'modular_house': return '組合屋案件';
       case 'maintenance': return '維修案件';
       case 'report': return '工作回報';
-      case 'materials': return '材料請購';
       case 'users': return '權限管理';
       default: return '合家興行政管理系統';
     }
@@ -547,6 +562,31 @@ const App: React.FC = () => {
           {view === 'users' ? (<UserManagement users={allUsers} onUpdateUsers={setAllUsers} auditLogs={auditLogs} onLogAction={(action, details) => setAuditLogs(prev => [{ id: generateId(), userId: currentUser.id, userName: currentUser.name, action, details, timestamp: Date.now() }, ...prev])} importUrl={importUrl} onUpdateImportUrl={(url) => { setImportUrl(url); localStorage.setItem('hjx_import_url', url); }} projects={projects} onRestoreData={(data) => { setProjects(data.projects); setAllUsers(data.users); setAuditLogs(data.auditLogs); }} />) : 
            view === 'report' ? (<div className="flex-1 overflow-auto"><GlobalWorkReport projects={projects} currentUser={currentUser} onUpdateProject={handleUpdateProject} /></div>) : 
            view === 'engineering_hub' ? (<div className="flex-1 overflow-auto">{renderEngineeringHub()}</div>) :
+           view === 'purchasing_hub' ? (<div className="flex-1 overflow-auto"><PurchasingModule onNavigate={setView} /></div>) :
+           view === 'purchasing_management' ? (
+              <div className="flex flex-col flex-1 min-h-0">
+                <div className="px-6 pt-4"><button onClick={() => setView('purchasing_hub')} className="flex items-center gap-2 text-slate-500 hover:text-blue-600 font-bold text-xs"><ArrowLeftIcon className="w-3 h-3" /> 返回採購模組</button></div>
+                <div className="flex-1 overflow-auto"><PurchasingManagement projects={projects} currentUser={currentUser} onUpdateProject={handleUpdateProject} /></div>
+              </div>
+           ) :
+           view === 'purchasing_materials' ? (
+              <div className="flex flex-col flex-1 min-h-0">
+                <div className="px-6 pt-4"><button onClick={() => setView('purchasing_hub')} className="flex items-center gap-2 text-slate-500 hover:text-blue-600 font-bold text-xs"><ArrowLeftIcon className="w-3 h-3" /> 返回採購模組</button></div>
+                <div className="flex-1 overflow-auto"><GlobalMaterials projects={projects} onSelectProject={setSelectedProject} /></div>
+              </div>
+           ) :
+           view === 'purchasing_suppliers' ? (
+              <div className="flex flex-col flex-1 min-h-0">
+                <div className="px-6 pt-4"><button onClick={() => setView('purchasing_hub')} className="flex items-center gap-2 text-slate-500 hover:text-blue-600 font-bold text-xs"><ArrowLeftIcon className="w-3 h-3" /> 返回採購模組</button></div>
+                <div className="flex-1 overflow-hidden"><SupplierList suppliers={suppliers} onUpdateSuppliers={setSuppliers} /></div>
+              </div>
+           ) :
+           view === 'purchasing_orders' ? (
+              <div className="flex flex-col flex-1 min-h-0">
+                <div className="px-6 pt-4"><button onClick={() => setView('purchasing_hub')} className="flex items-center gap-2 text-slate-500 hover:text-blue-600 font-bold text-xs"><ArrowLeftIcon className="w-3 h-3" /> 返回採購模組</button></div>
+                <div className="flex-1 overflow-hidden"><PurchaseOrders projects={projects} suppliers={suppliers} purchaseOrders={purchaseOrders} onUpdatePurchaseOrders={setPurchaseOrders} onUpdateProject={handleUpdateProject} /></div>
+              </div>
+           ) :
            view === 'hr' ? (
              <div className="flex-1 overflow-hidden">
                <HRManagement 
@@ -586,8 +626,6 @@ const App: React.FC = () => {
               <div className="flex-1 overflow-auto"><EngineeringGroups globalTeamConfigs={globalTeamConfigs} onUpdateGlobalTeamConfigs={setGlobalTeamConfigs} /></div>
             </div>
            ) :
-           view === 'materials' ? (<div className="flex-1 overflow-auto"><GlobalMaterials projects={projects} onSelectProject={setSelectedProject} /></div>) : 
-           view === 'purchasing' ? (<div className="flex-1 overflow-auto"><PurchasingManagement projects={projects} currentUser={currentUser} onUpdateProject={handleUpdateProject} /></div>) : 
            view === 'equipment' ? (<div className="flex-1 overflow-auto">{renderEquipmentView()}</div>) :
            selectedProject ? (<div className="flex-1 overflow-hidden"><ProjectDetail project={selectedProject} currentUser={currentUser} onBack={() => setSelectedProject(null)} onUpdateProject={handleUpdateProject} onEditProject={setEditingProject} /></div>) : 
            (<div className="flex-1 overflow-auto"><ProjectList title={getTitle()} projects={currentViewProjects} currentUser={currentUser} onSelectProject={setSelectedProject} onAddProject={() => setIsAddModalOpen(true)} onDeleteProject={handleDeleteProject} onDuplicateProject={()=>{}} onEditProject={setEditingProject} /></div>)}

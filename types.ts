@@ -215,3 +215,43 @@ export interface MonthSummaryRemark {
   employeeId: string;
   remark: string;
 }
+
+// 供應商相關介面
+export interface Supplier {
+  id: string;
+  name: string;
+  address: string;
+  contact: string;
+  companyPhone: string;
+  mobilePhone: string;
+  lineId?: string;
+  productList: string[]; // 改為字串陣列
+}
+
+// 採購單相關介面
+export interface PurchaseOrderItem {
+  materialId: string;
+  name: string;
+  quantity: number;
+  unit: string;
+  price: number;
+  notes?: string;
+}
+
+export interface PurchaseOrder {
+  id: string;
+  poNumber: string;
+  date: string; // 填表日期
+  projectId: string;
+  projectName: string;
+  supplierId: string;
+  supplierName: string;
+  items: PurchaseOrderItem[];
+  status: 'draft' | 'sent' | 'completed';
+  totalAmount: number;
+  requisitioner?: string;
+  deliveryDate?: string;
+  deliveryLocation?: string;
+  receiver?: string;
+  remarks?: string;
+}
