@@ -13,7 +13,7 @@ interface AttendanceTableProps {
 }
 
 const ROC_HOLIDAYS = ['01-01', '02-28', '04-04', '04-05', '05-01', '10-10'];
-const ATTENDANCE_OPTIONS = ['排休', '請假', '病假', '臨時請假', '廠內', '下午回廠'];
+const ATTENDANCE_OPTIONS = ['排休', '請假', '病假', '臨時請假', '廠內', '下午回廠', '點工'];
 
 const AttendanceTable: React.FC<AttendanceTableProps> = ({ 
   selectedMonth, employees, attendance, monthRemarks, dailyDispatches, onUpdateAttendance, onUpdateMonthRemarks 
