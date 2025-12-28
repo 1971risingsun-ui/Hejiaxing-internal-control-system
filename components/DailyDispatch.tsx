@@ -39,7 +39,6 @@ const DailyDispatch: React.FC<DailyDispatchProps> = ({ projects, weeklySchedules
   };
 
   const updateTeamField = (teamId: number, field: string, value: any) => {
-    // 深度複製以確保狀態更新
     const newDispatch = JSON.parse(JSON.stringify(dispatchRecord));
     if (!newDispatch.teams[teamId]) {
       newDispatch.teams[teamId] = { master: '', assistants: [], carNumber: '', tasks: [] };
@@ -61,41 +60,34 @@ const DailyDispatch: React.FC<DailyDispatchProps> = ({ projects, weeklySchedules
     if (!name) return;
 
     const teamData = dispatchRecord.teams[teamId];
-    const weekCfg = weekSchedule?.teamConfigs?.[teamId] || globalTeamConfigs[teamId];
-    
-    // 取得當前顯示的助手名單
-    const currentAssistants = [...(teamData?.assistants || (weekCfg?.assistant ? [weekCfg.assistant] : []))];
+    const currentAssistants = [...(teamData?.assistants || [])];
     
     if (!currentAssistants.includes(name)) {
         updateTeamField(teamId, 'assistants', [...currentAssistants, name]);
     }
     
-    // 清空該組的輸入框
     setNewAssistantNames(prev => ({ ...prev, [teamId]: '' }));
   };
 
   const removeAssistant = (teamId: number, index: number) => {
     const teamData = dispatchRecord.teams[teamId];
-    const weekCfg = weekSchedule?.teamConfigs?.[teamId] || globalTeamConfigs[teamId];
-    const currentAssistants = [...(teamData?.assistants || (weekCfg?.assistant ? [weekCfg.assistant] : []))];
+    const currentAssistants = [...(teamData?.assistants || [])];
     currentAssistants.splice(index, 1);
     updateTeamField(teamId, 'assistants', currentAssistants);
   };
 
   const updateTaskDescription = (teamId: number, taskIndex: number, newDesc: string) => {
     const teamData = dispatchRecord.teams[teamId];
-    let tasks = teamData?.tasks;
-    if (!tasks || tasks.length === 0) {
-        const weekTasks = weekSchedule?.days[selectedDate]?.teams[teamId]?.tasks || [];
-        tasks = weekTasks.map(t => ({ name: t, description: projects.find(p => p.name === t)?.description || '' }));
-    }
+    let tasks = teamData?.tasks || [];
+    if (tasks.length === 0) return;
+
     const newTasks = [...tasks];
     newTasks[taskIndex].description = newDesc;
     updateTeamField(teamId, 'tasks', newTasks);
   };
 
   const handleSyncFromWeek = () => {
-    if (confirm('確定要重新從週排程同步資料嗎？這將會覆蓋掉您目前對此日期的手動修改。')) {
+    if (confirm('確定要從週間排程同步資料嗎？這將會覆蓋掉您目前對此日期的手動修改。')) {
         const newDispatch: DailyDispatchType = { date: selectedDate, teams: {} };
         teams.forEach(t => {
             const weekCfg = weekSchedule?.teamConfigs?.[t] || globalTeamConfigs[t] || { master: '', assistant: '', carNumber: '' };
@@ -144,30 +136,21 @@ const DailyDispatch: React.FC<DailyDispatchProps> = ({ projects, weeklySchedules
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 pb-10">
           {visibleTeams.map(t => {
             const teamRecord = dispatchRecord.teams[t];
-            const weekCfg = weekSchedule?.teamConfigs?.[t] || globalTeamConfigs[t] || { master: '', assistant: '', carNumber: '' };
-            const weekTasks = weekSchedule?.days[selectedDate]?.teams[t]?.tasks || [];
-
-            const displayAssistants = (teamRecord?.assistants && teamRecord.assistants.length > 0) ? teamRecord.assistants : (weekCfg.assistant ? [weekCfg.assistant] : []);
-            const displayTasks = (teamRecord?.tasks && teamRecord.tasks.length > 0) 
-                ? teamRecord.tasks 
-                : weekTasks.map(name => ({ name, description: projects.find(p => p.name === name)?.description || '' }));
-
-            const isMasterOverridden = !!teamRecord?.master;
-            const isCarOverridden = !!teamRecord?.carNumber;
-            const isAssistantsOverridden = !!teamRecord?.assistants;
+            const displayAssistants = teamRecord?.assistants || [];
+            const displayTasks = teamRecord?.tasks || [];
 
             return (
               <div key={t} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col group hover:border-indigo-300 transition-all min-h-[300px]">
-                <div className={`px-4 py-3 border-b flex justify-between items-center transition-colors ${isCarOverridden || isMasterOverridden || isAssistantsOverridden ? 'bg-amber-50/30 border-amber-100' : 'bg-slate-50 border-slate-100 group-hover:bg-indigo-50'}`}>
-                  <span className={`text-xs font-black uppercase tracking-widest ${isCarOverridden || isMasterOverridden || isAssistantsOverridden ? 'text-amber-600' : 'text-slate-400 group-hover:text-indigo-600'}`}>第 {t} 組</span>
-                  <div className={`flex items-center gap-1.5 px-2 py-0.5 bg-white border rounded-lg shadow-sm transition-all ${isCarOverridden ? 'border-amber-400 ring-2 ring-amber-100' : 'border-slate-200'}`}>
-                     <TruckIcon className={`w-3.5 h-3.5 ${isCarOverridden ? 'text-amber-500' : 'text-indigo-400'}`} />
+                <div className="px-4 py-3 border-b flex justify-between items-center transition-colors bg-slate-50 border-slate-100 group-hover:bg-indigo-50">
+                  <span className="text-xs font-black uppercase tracking-widest text-slate-400 group-hover:text-indigo-600">第 {t} 組</span>
+                  <div className={`flex items-center gap-1.5 px-2 py-0.5 bg-white border rounded-lg shadow-sm transition-all ${teamRecord?.carNumber ? 'border-indigo-400 ring-2 ring-indigo-50' : 'border-slate-200'}`}>
+                     <TruckIcon className="w-3.5 h-3.5 text-indigo-400" />
                      <input 
                         type="text" 
-                        placeholder={weekCfg.carNumber || "車號"} 
+                        placeholder="車號" 
                         value={teamRecord?.carNumber || ''} 
                         onChange={(e) => updateTeamField(t, 'carNumber', e.target.value)} 
-                        className={`bg-transparent outline-none text-[10px] font-bold w-12 ${isCarOverridden ? 'text-amber-700' : 'text-slate-400 font-medium'}`} 
+                        className="bg-transparent outline-none text-[10px] font-bold w-12 text-slate-700" 
                      />
                   </div>
                 </div>
@@ -175,15 +158,15 @@ const DailyDispatch: React.FC<DailyDispatchProps> = ({ projects, weeklySchedules
                   <div className="space-y-3">
                     <div>
                       <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">師傅</label>
-                      <div className={`flex items-center gap-2 px-3 py-2 bg-slate-50 rounded-xl border transition-all ${isMasterOverridden ? 'border-amber-400 bg-white ring-2 ring-amber-50' : 'border-slate-100'}`}>
-                        <UserIcon className={`w-4 h-4 ${isMasterOverridden ? 'text-amber-500' : 'text-indigo-400'}`} />
+                      <div className={`flex items-center gap-2 px-3 py-2 bg-slate-50 rounded-xl border transition-all ${teamRecord?.master ? 'border-indigo-400 bg-white ring-2 ring-indigo-50' : 'border-slate-100'}`}>
+                        <UserIcon className="w-4 h-4 text-indigo-400" />
                         <input 
                             type="text" 
                             list="employee-nicknames-list"
-                            placeholder={weekCfg.master || "未指定"} 
+                            placeholder="師傅" 
                             value={teamRecord?.master || ''} 
                             onChange={(e) => updateTeamField(t, 'master', e.target.value)} 
-                            className={`bg-transparent outline-none text-sm font-bold w-full ${isMasterOverridden ? 'text-slate-800' : 'text-slate-400 font-medium'}`} 
+                            className="bg-transparent outline-none text-sm font-bold w-full text-slate-800" 
                         />
                       </div>
                     </div>
@@ -191,7 +174,7 @@ const DailyDispatch: React.FC<DailyDispatchProps> = ({ projects, weeklySchedules
                       <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">助手人員</label>
                       <div className="flex flex-wrap gap-1.5 mb-2 min-h-[24px]">
                         {displayAssistants.map((name, idx) => (
-                            <span key={`${name}-${idx}`} className={`inline-flex items-center gap-1 px-2 py-1 bg-white border rounded-lg text-xs font-medium transition-all ${isAssistantsOverridden ? 'text-amber-700 border-amber-300 shadow-sm' : 'text-slate-500 border-slate-100'}`}>
+                            <span key={`${name}-${idx}`} className="inline-flex items-center gap-1 px-2 py-1 bg-white border border-indigo-200 rounded-lg text-xs font-medium transition-all text-indigo-700 shadow-sm">
                                 {name}
                                 <button onClick={() => removeAssistant(t, idx)} className="text-slate-300 hover:text-red-500 transition-colors"><XIcon className="w-3 h-3" /></button>
                             </span>
@@ -237,7 +220,7 @@ const DailyDispatch: React.FC<DailyDispatchProps> = ({ projects, weeklySchedules
       
       <div className="mt-4 px-4 py-3 bg-white border border-slate-200 rounded-2xl flex items-center justify-between shadow-sm flex-shrink-0">
          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest leading-relaxed">
-            💡 系統狀態：<span className="text-slate-500">灰色背景來自全域/週間設定</span> | <span className="text-amber-600">米黃色背景表示已手動覆寫</span>
+            💡 系統狀態：欄位僅顯示當前存檔內容。若需快速載入，請點擊上方「同步週排程」按鈕。
          </p>
       </div>
     </div>
