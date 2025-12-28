@@ -44,7 +44,6 @@ const AttendanceTable: React.FC<AttendanceTableProps> = ({
     const dayOfWeek = new Date(date).getDay();
     const isSunday = dayOfWeek === 0;
 
-    // 儲存邏輯：若為空白且是週日，存入空紀錄以覆蓋預設的「排休」顯示
     if (status !== '' || isSunday) {
         newList.push({ date, employeeId, status });
     }
@@ -85,25 +84,20 @@ const AttendanceTable: React.FC<AttendanceTableProps> = ({
                   const record = attendance.find(a => a.date === day.dateStr && a.employeeId === emp.id);
                   let status = record ? record.status : '';
                   
-                  // 檢查派工連動：如果目前狀態是空或是排休
                   if (status === '' || status === '排休') {
-                    // 尋找「明日工作排程」中該日期的紀錄
                     const dispatch = dailyDispatches.find(d => d.date === day.dateStr);
                     if (dispatch) {
                       const empNick = emp.nickname || emp.name;
-                      // 遍歷所有小組
                       for (const teamId in dispatch.teams) {
                         const team = dispatch.teams[teamId];
-                        // 條件 1 & 2：派工項目有資料 且 人員在助手清單中
                         if (team.tasks && team.tasks.length > 0 && team.assistants && team.assistants.includes(empNick)) {
-                          status = team.master; // 填入師傅暱稱
+                          status = team.master; 
                           break;
                         }
                       }
                     }
                   }
 
-                  // 預設顯示：若最終無狀態且為週日，顯示「排休」
                   const displayStatus = (status === '' && !record && day.isSunday) ? '排休' : status;
 
                   return (

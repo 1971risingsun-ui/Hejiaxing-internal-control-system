@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Employee, AttendanceRecord, OvertimeRecord, MonthSummaryRemark } from '../types';
 import { BoxIcon } from './Icons';
@@ -36,8 +37,12 @@ const SalarySummary: React.FC<SalarySummaryProps> = ({
               const empAttendance = attendance.filter(a => a.employeeId === emp.id && a.date.startsWith(selectedMonth));
               const empOvertime = overtime.filter(o => o.employeeId === emp.id && o.date.startsWith(selectedMonth));
               const totalOt = empOvertime.reduce((sum, curr) => sum + curr.hours, 0);
+              
               const statusCounts = empAttendance.reduce((acc: Record<string, number>, curr) => {
-                acc[curr.status] = (acc[curr.status] || 0) + 1;
+                const status = curr.status || (new Date(curr.date).getDay() === 0 ? '排休' : '');
+                if (status) {
+                  acc[status] = (acc[status] || 0) + 1;
+                }
                 return acc;
               }, {});
 
@@ -56,7 +61,10 @@ const SalarySummary: React.FC<SalarySummaryProps> = ({
                   <td className="px-6 py-4">
                     <div className="flex flex-wrap gap-2">
                       {Object.entries(statusCounts).map(([status, count]) => (
-                        <span key={status} className="text-[10px] font-bold bg-slate-100 text-slate-600 px-2 py-0.5 rounded border border-slate-200">
+                        <span key={status} className={`text-[10px] font-bold px-2 py-0.5 rounded border ${
+                          status === '排休' ? 'bg-slate-100 text-slate-500 border-slate-200' : 
+                          'bg-blue-50 text-blue-600 border-blue-100'
+                        }`}>
                           {status}: {count}
                         </span>
                       ))}
