@@ -143,26 +143,28 @@ const WeeklySchedule: React.FC<WeeklyScheduleProps> = ({ projects, weeklySchedul
               {teams.map(teamId => {
                 const global = globalTeamConfigs[teamId] || { master: '', assistant: '', carNumber: '' };
                 const weekOverride = currentSchedule.teamConfigs?.[teamId];
+                const isOverridden = !!(weekOverride?.master || weekOverride?.assistant || weekOverride?.carNumber);
+
                 return (
-                  <th key={`head-${teamId}`} className="p-2 bg-indigo-50/20">
+                  <th key={`head-${teamId}`} className={`p-2 ${isOverridden ? 'bg-amber-50/30' : 'bg-indigo-50/20'}`}>
                     <div className="flex flex-col gap-1.5">
                       <div className="flex justify-between items-center px-1">
-                         <div className="text-[10px] font-black text-indigo-600">
-                           第 {teamId} 組
+                         <div className={`text-[10px] font-black ${isOverridden ? 'text-amber-600' : 'text-indigo-600'}`}>
+                           第 {teamId} 組 {isOverridden && '(本週微調)'}
                          </div>
-                         <div className={`flex items-center gap-1 bg-white px-1.5 py-0.5 rounded border shadow-sm ${weekOverride?.carNumber ? 'border-indigo-300' : 'border-slate-200'}`}>
+                         <div className={`flex items-center gap-1 bg-white px-1.5 py-0.5 rounded border shadow-sm ${weekOverride?.carNumber ? 'border-amber-300' : 'border-slate-200'}`}>
                             <TruckIcon className="w-2.5 h-2.5 text-slate-400" />
                             <input 
                               type="text" 
                               placeholder={global.carNumber || "車號"}
                               value={weekOverride?.carNumber || ''}
                               onChange={(e) => handleUpdateTeamConfig(teamId, 'carNumber', e.target.value)}
-                              className="w-10 text-[9px] outline-none bg-transparent font-bold text-slate-700"
+                              className={`w-10 text-[9px] outline-none bg-transparent font-bold ${weekOverride?.carNumber ? 'text-amber-700' : 'text-slate-400'}`}
                             />
                          </div>
                       </div>
                       <div className="flex gap-1">
-                        <div className={`flex-1 flex items-center gap-1 px-1.5 py-0.5 bg-white border rounded shadow-sm ${weekOverride?.master ? 'border-indigo-300' : 'border-slate-200'}`}>
+                        <div className={`flex-1 flex items-center gap-1 px-1.5 py-0.5 bg-white border rounded shadow-sm ${weekOverride?.master ? 'border-amber-300' : 'border-slate-200'}`}>
                           <UserIcon className="w-2.5 h-2.5 text-slate-300" />
                           <input 
                             type="text" 
@@ -170,10 +172,10 @@ const WeeklySchedule: React.FC<WeeklyScheduleProps> = ({ projects, weeklySchedul
                             placeholder={global.master || "師傅"}
                             value={weekOverride?.master || ''}
                             onChange={(e) => handleUpdateTeamConfig(teamId, 'master', e.target.value)}
-                            className="w-full text-[10px] outline-none bg-transparent font-bold text-slate-800"
+                            className={`w-full text-[10px] outline-none bg-transparent font-bold ${weekOverride?.master ? 'text-slate-800' : 'text-slate-400'}`}
                           />
                         </div>
-                        <div className={`flex-1 flex items-center gap-1 px-1.5 py-0.5 bg-white border rounded shadow-sm ${weekOverride?.assistant ? 'border-indigo-300' : 'border-slate-200'}`}>
+                        <div className={`flex-1 flex items-center gap-1 px-1.5 py-0.5 bg-white border rounded shadow-sm ${weekOverride?.assistant ? 'border-amber-300' : 'border-slate-200'}`}>
                           <div className="w-2 h-2 border border-slate-200 rounded-full bg-slate-50" />
                           <input 
                             type="text" 
@@ -181,7 +183,7 @@ const WeeklySchedule: React.FC<WeeklyScheduleProps> = ({ projects, weeklySchedul
                             placeholder={global.assistant || "助手"}
                             value={weekOverride?.assistant || ''}
                             onChange={(e) => handleUpdateTeamConfig(teamId, 'assistant', e.target.value)}
-                            className="w-full text-[10px] outline-none bg-transparent font-bold text-slate-600"
+                            className={`w-full text-[10px] outline-none bg-transparent font-bold ${weekOverride?.assistant ? 'text-slate-600' : 'text-slate-400'}`}
                           />
                         </div>
                       </div>
@@ -202,7 +204,7 @@ const WeeklySchedule: React.FC<WeeklyScheduleProps> = ({ projects, weeklySchedul
               
               return (
                 <tr key={date} className={`${isHoliday ? 'bg-red-50/20' : 'hover:bg-slate-50/30'}`}>
-                  <td className="p-2 sticky left-0 z-10 font-bold border-r border-slate-200 bg-white text-slate-700 align-top">
+                  <td className={`p-2 sticky left-0 z-10 font-bold border-r border-slate-200 bg-white text-slate-700 align-top`}>
                     <div className="text-center mb-2">
                         <div className="text-[10px] opacity-60">{date.substring(5)}</div>
                         <div className="text-xs">{['週日','週一','週二','週三','週四','週五','週六'][new Date(date).getDay()]}</div>

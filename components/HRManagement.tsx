@@ -103,7 +103,6 @@ const HRManagement: React.FC<HRManagementProps> = ({
 
   return (
     <div className="flex flex-col h-full bg-slate-50 overflow-hidden animate-fade-in">
-      {/* 子頁面頂部導覽 - 固定不動 */}
       <div className="p-4 md:p-6 pb-2">
         <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
           <div className="flex items-center gap-4 w-full md:w-auto">
@@ -138,7 +137,6 @@ const HRManagement: React.FC<HRManagementProps> = ({
         </div>
       </div>
 
-      {/* 內容區域 - 獨立捲動 */}
       <div className="flex-1 min-h-0 px-4 md:px-6 pb-6 overflow-hidden">
         {activeTab === 'attendance' && (
           <AttendanceTable 
@@ -168,6 +166,7 @@ const HRManagement: React.FC<HRManagementProps> = ({
             attendance={attendance}
             overtime={overtime}
             monthRemarks={monthRemarks}
+            dailyDispatches={dailyDispatches}
           />
         )}
         {activeTab === 'list' && (

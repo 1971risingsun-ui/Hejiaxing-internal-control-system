@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Employee, AttendanceRecord, OvertimeRecord, MonthSummaryRemark } from '../types';
+import { Employee, AttendanceRecord, OvertimeRecord, MonthSummaryRemark, DailyDispatch as DailyDispatchType } from '../types';
 import { BoxIcon } from './Icons';
 
 interface SalarySummaryProps {
@@ -9,10 +9,11 @@ interface SalarySummaryProps {
   attendance: AttendanceRecord[];
   overtime: OvertimeRecord[];
   monthRemarks: MonthSummaryRemark[];
+  dailyDispatches: DailyDispatchType[];
 }
 
 const SalarySummary: React.FC<SalarySummaryProps> = ({ 
-  selectedMonth, employees, attendance, overtime, monthRemarks 
+  selectedMonth, employees, attendance, overtime, monthRemarks, dailyDispatches
 }) => {
   return (
     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm h-full flex flex-col overflow-hidden">
@@ -34,17 +35,46 @@ const SalarySummary: React.FC<SalarySummaryProps> = ({
           </thead>
           <tbody className="divide-y divide-slate-100">
             {employees.map(emp => {
-              const empAttendance = attendance.filter(a => a.employeeId === emp.id && a.date.startsWith(selectedMonth));
               const empOvertime = overtime.filter(o => o.employeeId === emp.id && o.date.startsWith(selectedMonth));
               const totalOt = empOvertime.reduce((sum, curr) => sum + curr.hours, 0);
               
-              const statusCounts = empAttendance.reduce((acc: Record<string, number>, curr) => {
-                const status = curr.status || (new Date(curr.date).getDay() === 0 ? '排休' : '');
-                if (status) {
-                  acc[status] = (acc[status] || 0) + 1;
+              // 計算當月所有天數的有效狀態
+              const [year, month] = selectedMonth.split('-').map(Number);
+              const daysInMonth = new Date(year, month, 0).getDate();
+              const statusCounts: Record<string, number> = {};
+
+              for (let d = 1; d <= daysInMonth; d++) {
+                const dateStr = `${selectedMonth}-${String(d).padStart(2, '0')}`;
+                
+                // 1. 查找手動出勤紀錄
+                const record = attendance.find(a => a.employeeId === emp.id && a.date === dateStr);
+                let status = record ? record.status : '';
+
+                // 2. 若無手動紀錄或為排休，檢查派工連動邏輯 (與 AttendanceTable 保持一致)
+                if (status === '' || status === '排休') {
+                  const dispatch = dailyDispatches.find(disp => disp.date === dateStr);
+                  if (dispatch) {
+                    const empNick = emp.nickname || emp.name;
+                    for (const teamId in dispatch.teams) {
+                      const team = dispatch.teams[teamId];
+                      if (team.tasks && team.tasks.length > 0 && team.assistants && team.assistants.includes(empNick)) {
+                        status = team.master; // 統計為師傅暱稱
+                        break;
+                      }
+                    }
+                  }
                 }
-                return acc;
-              }, {});
+
+                // 3. 若仍無狀態且為週日，預設為排休
+                if (status === '' && !record && new Date(dateStr).getDay() === 0) {
+                  status = '排休';
+                }
+
+                // 加入統計
+                if (status) {
+                  statusCounts[status] = (statusCounts[status] || 0) + 1;
+                }
+              }
 
               return (
                 <tr key={emp.id} className="hover:bg-slate-50 transition-colors">

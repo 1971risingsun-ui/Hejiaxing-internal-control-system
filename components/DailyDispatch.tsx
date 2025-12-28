@@ -84,6 +84,7 @@ const DailyDispatch: React.FC<DailyDispatchProps> = ({ projects, weeklySchedules
     const teamData = dispatchRecord.teams[teamId];
     const currentTasks = [...(teamData?.tasks || [])];
     
+    // 尋找專案以代入描述
     const project = projects.find(p => p.name === taskName);
     const description = project?.description || '';
 
@@ -263,6 +264,7 @@ const DailyDispatch: React.FC<DailyDispatchProps> = ({ projects, weeklySchedules
                                  onChange={(e) => {
                                      const val = e.target.value;
                                      setNewTaskNames(prev => ({ ...prev, [t]: val }));
+                                     // 如果選單內已有該案件名稱，直接觸發添加
                                      if (projects.some(p => p.name === val)) {
                                          setTimeout(() => handleAddTask(t), 0);
                                      }
@@ -294,6 +296,12 @@ const DailyDispatch: React.FC<DailyDispatchProps> = ({ projects, weeklySchedules
             );
           })}
         </div>
+      </div>
+      
+      <div className="mt-4 px-4 py-3 bg-white border border-slate-200 rounded-2xl flex items-center justify-between shadow-sm flex-shrink-0">
+         <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest leading-relaxed">
+            💡 系統提示：點擊「+ 派工項目」可選取現有案件，系統將自動從案件資料庫代入「工程概要」。
+         </p>
       </div>
     </div>
   );
