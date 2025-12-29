@@ -168,13 +168,26 @@ const App: React.FC = () => {
     }
   };
 
-  const connectWorkspace = async () => {
+  /**
+   * 核心連動邏輯：
+   * 1. 如果 handle 存在但沒權限，僅要求權限（不跳資料夾選取器）
+   * 2. 如果參數 force 為 true，強制開啟資料夾選取器
+   */
+  const handleDirectoryAction = async (force: boolean = false) => {
     setIsWorkspaceLoading(true);
     try {
-      let handle = await getDirectoryHandle();
-      setDirHandle(handle);
+      let handle = dirHandle;
+      
+      // 只有在強制選取或目前沒有控制項時才開啟 Picker
+      if (force || !handle) {
+        handle = await getDirectoryHandle();
+        setDirHandle(handle);
+      }
+
+      // 要求讀寫權限 (若是現有 handle，瀏覽器只會跳出「允許」按鈕，不會開資料夾視窗)
       const status = await (handle as any).requestPermission({ mode: 'readwrite' });
       setDirPermission(status);
+      
       if (status === 'granted') {
         const savedData = await loadDbFromLocal(handle);
         if (savedData) {
@@ -447,7 +460,10 @@ const App: React.FC = () => {
           {!isInitialized && <div className="px-4 py-2 text-xs text-yellow-500 animate-pulse flex items-center gap-2"><LoaderIcon className="w-3 h-3 animate-spin" /> 資料載入中...</div>}
           
           <div className="space-y-2 mb-6">
-            <button onClick={connectWorkspace} className={`flex items-center gap-3 px-4 py-3 rounded-xl w-full transition-all border ${isConnected ? 'bg-green-600/10 border-green-500 text-green-400' : 'bg-red-600/10 border-red-500 text-red-400'}`}>
+            <button 
+              onClick={() => handleDirectoryAction(false)} 
+              className={`flex items-center gap-3 px-4 py-3 rounded-xl w-full transition-all border ${isConnected ? 'bg-green-600/10 border-green-500 text-green-400' : 'bg-red-600/10 border-red-500 text-red-400'}`}
+            >
               {isWorkspaceLoading ? <LoaderIcon className="w-5 h-5 animate-spin" /> : isConnected ? <CheckCircleIcon className="w-5 h-5" /> : <AlertIcon className="w-5 h-5" />}
               <div className="flex flex-col items-start text-left">
                 <span className="text-sm font-bold">{isConnected ? '電腦同步已開啟' : '未連結電腦目錄'}</span>
@@ -602,8 +618,8 @@ const App: React.FC = () => {
               onLogAction={(action, details) => setAuditLogs(prev => [{ id: generateId(), userId: currentUser.id, userName: currentUser.name, action, details, timestamp: Date.now() }, ...prev])} 
               projects={projects} 
               onRestoreData={(data) => { setProjects(data.projects); setAllUsers(data.users); setAuditLogs(data.auditLogs); }}
-              // 傳遞 Handle 控制 Props
-              onConnectDirectory={connectWorkspace}
+              // 更新：設定頁面的按鈕強制開啟選取器
+              onConnectDirectory={() => handleDirectoryAction(true)}
               dirPermission={dirPermission}
               isWorkspaceLoading={isWorkspaceLoading}
             />
