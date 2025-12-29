@@ -53,6 +53,12 @@ const ProjectOverview: React.FC<ProjectOverviewProps> = ({ project, currentUser,
     onUpdateProject({ ...project, milestones, progress });
   };
 
+  const handleDeleteAttachment = (id: string) => {
+    if (!confirm('確定要刪除此附件嗎？')) return;
+    const updatedAttachments = (project.attachments || []).filter(a => a.id !== id);
+    onUpdateProject({ ...project, attachments: updatedAttachments });
+  };
+
   const formatDate = (dateStr: string) => {
     if (!dateStr || typeof dateStr !== 'string') return '';
     const parts = dateStr.split('-');
@@ -207,9 +213,20 @@ const ProjectOverview: React.FC<ProjectOverviewProps> = ({ project, currentUser,
                                  <div className="text-xs font-bold text-slate-700 truncate">{att.name}</div>
                                  <div className="text-[10px] text-slate-400">{(att.size / 1024).toFixed(1)} KB</div>
                               </div>
-                              <a href={att.url} download={att.name} className="text-slate-400 hover:text-blue-600 p-1.5" onClick={(e) => e.stopPropagation()}>
-                                 <DownloadIcon className="w-4 h-4" />
-                              </a>
+                              <div className="flex items-center gap-1">
+                                <a href={att.url} download={att.name} className="text-slate-400 hover:text-blue-600 p-1.5" onClick={(e) => e.stopPropagation()}>
+                                   <DownloadIcon className="w-4 h-4" />
+                                </a>
+                                {canEdit && (
+                                  <button 
+                                    onClick={(e) => { e.stopPropagation(); handleDeleteAttachment(att.id); }} 
+                                    className="text-slate-400 hover:text-red-500 p-1.5"
+                                    title="刪除附件"
+                                  >
+                                    <TrashIcon className="w-4 h-4" />
+                                  </button>
+                                )}
+                              </div>
                            </div>
                         </div>
                      );
