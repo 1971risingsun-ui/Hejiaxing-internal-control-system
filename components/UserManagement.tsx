@@ -1,7 +1,7 @@
 
 import React, { useState, useRef } from 'react';
 import { User, UserRole, AuditLog, Project } from '../types';
-import { PlusIcon, TrashIcon, ShieldIcon, UserIcon, HistoryIcon, DownloadIcon, UploadIcon, BoxIcon, SettingsIcon, CheckCircleIcon } from './Icons';
+import { PlusIcon, TrashIcon, ShieldIcon, UserIcon, HistoryIcon, DownloadIcon, UploadIcon, BoxIcon, SettingsIcon, CheckCircleIcon, LoaderIcon, AlertIcon } from './Icons';
 import { downloadBlob } from '../utils/fileHelpers';
 
 interface UserManagementProps {
@@ -11,15 +11,19 @@ interface UserManagementProps {
   onLogAction: (action: string, details: string) => void;
   projects?: Project[];
   onRestoreData?: (data: { projects: Project[], users: User[], auditLogs: AuditLog[] }) => void;
-  importUrl: string;
-  onUpdateImportUrl: (url: string) => void;
+  // 更新 Props 以支援目錄授權連動
+  onConnectDirectory?: () => Promise<void>;
+  dirPermission?: 'granted' | 'prompt' | 'denied';
+  isWorkspaceLoading?: boolean;
 }
 
-const UserManagement: React.FC<UserManagementProps> = ({ users, onUpdateUsers, auditLogs, onLogAction, projects = [], onRestoreData, importUrl, onUpdateImportUrl }) => {
+const UserManagement: React.FC<UserManagementProps> = ({ 
+  users, onUpdateUsers, auditLogs, onLogAction, projects = [], onRestoreData,
+  onConnectDirectory, dirPermission, isWorkspaceLoading
+}) => {
   const [activeTab, setActiveTab] = useState<'users' | 'logs' | 'data' | 'settings'>('users');
   const [isAdding, setIsAdding] = useState(false);
   const [newUser, setNewUser] = useState({ name: '', email: '', role: UserRole.WORKER });
-  const [localImportUrl, setLocalImportUrl] = useState(importUrl);
   const importFileRef = useRef<HTMLInputElement>(null);
 
   const handleAddUser = () => {
@@ -99,17 +103,6 @@ const UserManagement: React.FC<UserManagementProps> = ({ users, onUpdateUsers, a
     };
     reader.readAsText(file);
     if (importFileRef.current) importFileRef.current.value = '';
-  };
-
-  const handleSaveSettings = () => {
-    onUpdateImportUrl(localImportUrl);
-    onLogAction('UPDATE_SETTINGS', `Updated auto-backup path to: ${localImportUrl}`);
-    alert('設定已儲存');
-  };
-
-  const handleResetImportUrl = () => {
-      const defaultUrl = '\\\\HJXSERVER\\App test\\db_backup';
-      setLocalImportUrl(defaultUrl);
   };
 
   return (
@@ -301,32 +294,44 @@ const UserManagement: React.FC<UserManagementProps> = ({ users, onUpdateUsers, a
            
            <div className="space-y-6">
               <div>
-                <label className="block text-sm font-bold text-slate-700 mb-2">自動備份 db.json 位置</label>
-                <p className="text-xs text-slate-500 mb-3">設定系統自動同步 db.json 檔案的備份路徑（支援網路共用路徑或本地服務路徑）。</p>
-                <div className="flex flex-col sm:flex-row gap-2">
-                  <input 
-                    type="text" 
-                    value={localImportUrl}
-                    onChange={(e) => setLocalImportUrl(e.target.value)}
-                    placeholder="例如: \\HJXSERVER\App test\db_backup"
-                    className="flex-1 px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all text-sm font-mono"
-                  />
+                <label className="block text-sm font-bold text-slate-700 mb-2">自動備份 db.json 權限設定</label>
+                <p className="text-xs text-slate-500 mb-4">
+                  授權瀏覽器存取電腦特定的實體資料夾。選定後，系統將在每次更動時自動於該目錄寫入 db.json 進行即時同步。
+                </p>
+                
+                <div className="mt-4">
                   <button 
-                    onClick={handleResetImportUrl}
-                    className="px-4 py-2 bg-slate-100 text-slate-600 rounded-lg hover:bg-slate-200 text-sm font-medium transition-colors"
+                    onClick={onConnectDirectory}
+                    disabled={isWorkspaceLoading}
+                    className={`flex items-center gap-4 px-6 py-5 rounded-2xl w-full transition-all border-2 ${
+                      dirPermission === 'granted' 
+                        ? 'bg-green-50 border-green-500 text-green-700' 
+                        : 'bg-blue-50 border-blue-500 text-blue-700'
+                    } hover:shadow-md active:scale-[0.99]`}
                   >
-                    重設預設
+                    <div className={`p-3 rounded-xl ${dirPermission === 'granted' ? 'bg-green-600' : 'bg-blue-600'} text-white`}>
+                      {isWorkspaceLoading ? <LoaderIcon className="w-6 h-6 animate-spin" /> : <BoxIcon className="w-6 h-6" />}
+                    </div>
+                    <div className="flex flex-col items-start text-left flex-1 min-w-0">
+                      <span className="text-lg font-black tracking-tight">
+                        {dirPermission === 'granted' ? '電腦同步已開啟' : '連結電腦自動備份目錄'}
+                      </span>
+                      <span className="text-xs opacity-70 font-bold">
+                        {dirPermission === 'granted' ? '點擊可更換儲存資料夾' : '選取資料夾以開啟即時備份功能'}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {dirPermission === 'granted' ? <CheckCircleIcon className="w-6 h-6" /> : <AlertIcon className="w-6 h-6" />}
+                    </div>
                   </button>
+                  
+                  {dirPermission === 'granted' && (
+                    <div className="mt-4 p-4 bg-slate-50 rounded-xl border border-slate-200 flex items-center gap-3">
+                      <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
+                      <span className="text-xs font-bold text-slate-600">系統目前正在同步您的資料夾根目錄下的 db.json</span>
+                    </div>
+                  )}
                 </div>
-              </div>
-
-              <div className="pt-4 border-t border-slate-100 flex justify-end">
-                <button 
-                  onClick={handleSaveSettings}
-                  className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-2 rounded-lg shadow-md font-bold transition-all flex items-center gap-2"
-                >
-                  <CheckCircleIcon className="w-4 h-4" /> 儲存設定
-                </button>
               </div>
            </div>
         </div>

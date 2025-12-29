@@ -78,7 +78,6 @@ const App: React.FC = () => {
   const [weeklySchedules, setWeeklySchedules] = useState<WeeklyScheduleType[]>([]);
   const [dailyDispatches, setDailyDispatches] = useState<DailyDispatchType[]>([]);
   const [globalTeamConfigs, setGlobalTeamConfigs] = useState<GlobalTeamConfigs>({});
-  const [backupPath, setBackupPath] = useState(() => localStorage.getItem('hjx_backup_path') || '\\\\HJXSERVER\\App test\\db_backup');
   
   // HR 相關狀態
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -172,11 +171,8 @@ const App: React.FC = () => {
   const connectWorkspace = async () => {
     setIsWorkspaceLoading(true);
     try {
-      let handle = dirHandle;
-      if (!handle || dirPermission === 'denied') {
-        handle = await getDirectoryHandle();
-        setDirHandle(handle);
-      }
+      let handle = await getDirectoryHandle();
+      setDirHandle(handle);
       const status = await (handle as any).requestPermission({ mode: 'readwrite' });
       setDirPermission(status);
       if (status === 'granted') {
@@ -211,7 +207,7 @@ const App: React.FC = () => {
         }
       }
     } catch (e: any) {
-      alert(e.message);
+      if (e.message !== '已取消選擇') alert(e.message);
     } finally {
       setIsWorkspaceLoading(false);
     }
@@ -598,7 +594,20 @@ const App: React.FC = () => {
           </div>
         </header>
         <main className="flex-1 flex flex-col min-h-0 bg-[#f8fafc] pb-safe">
-          {view === 'users' ? (<UserManagement users={allUsers} onUpdateUsers={setAllUsers} auditLogs={auditLogs} onLogAction={(action, details) => setAuditLogs(prev => [{ id: generateId(), userId: currentUser.id, userName: currentUser.name, action, details, timestamp: Date.now() }, ...prev])} importUrl={backupPath} onUpdateImportUrl={(url) => { setBackupPath(url); localStorage.setItem('hjx_backup_path', url); }} projects={projects} onRestoreData={(data) => { setProjects(data.projects); setAllUsers(data.users); setAuditLogs(data.auditLogs); }} />) : 
+          {view === 'users' ? (
+            <UserManagement 
+              users={allUsers} 
+              onUpdateUsers={setAllUsers} 
+              auditLogs={auditLogs} 
+              onLogAction={(action, details) => setAuditLogs(prev => [{ id: generateId(), userId: currentUser.id, userName: currentUser.name, action, details, timestamp: Date.now() }, ...prev])} 
+              projects={projects} 
+              onRestoreData={(data) => { setProjects(data.projects); setAllUsers(data.users); setAuditLogs(data.auditLogs); }}
+              // 傳遞 Handle 控制 Props
+              onConnectDirectory={connectWorkspace}
+              dirPermission={dirPermission}
+              isWorkspaceLoading={isWorkspaceLoading}
+            />
+          ) : 
            view === 'report' ? (<div className="flex-1 overflow-auto"><GlobalWorkReport projects={projects} currentUser={currentUser} onUpdateProject={handleUpdateProject} /></div>) : 
            view === 'engineering_hub' ? (<div className="flex-1 overflow-auto">{renderEngineeringHub()}</div>) :
            view === 'purchasing_hub' ? (<div className="flex-1 overflow-auto"><PurchasingModule onNavigate={setView} /></div>) :
