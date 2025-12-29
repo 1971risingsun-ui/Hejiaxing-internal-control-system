@@ -103,12 +103,12 @@ const UserManagement: React.FC<UserManagementProps> = ({ users, onUpdateUsers, a
 
   const handleSaveSettings = () => {
     onUpdateImportUrl(localImportUrl);
-    onLogAction('UPDATE_SETTINGS', `Updated import URL to: ${localImportUrl}`);
+    onLogAction('UPDATE_SETTINGS', `Updated auto-backup path to: ${localImportUrl}`);
     alert('設定已儲存');
   };
 
   const handleResetImportUrl = () => {
-      const defaultUrl = '\\\\HJXSERVER\\App test\\上傳排程表.xlsx';
+      const defaultUrl = '\\\\HJXSERVER\\App test\\db_backup';
       setLocalImportUrl(defaultUrl);
   };
 
@@ -301,14 +301,14 @@ const UserManagement: React.FC<UserManagementProps> = ({ users, onUpdateUsers, a
            
            <div className="space-y-6">
               <div>
-                <label className="block text-sm font-bold text-slate-700 mb-2">匯入排程表 URL 路徑</label>
-                <p className="text-xs text-slate-500 mb-3">設定點擊側邊欄「匯入排程表」時所存取的 Excel 檔案路徑（支援網路路徑或本地服務 URL）。</p>
+                <label className="block text-sm font-bold text-slate-700 mb-2">自動備份 db.json 位置</label>
+                <p className="text-xs text-slate-500 mb-3">設定系統自動同步 db.json 檔案的備份路徑（支援網路共用路徑或本地服務路徑）。</p>
                 <div className="flex flex-col sm:flex-row gap-2">
                   <input 
                     type="text" 
                     value={localImportUrl}
                     onChange={(e) => setLocalImportUrl(e.target.value)}
-                    placeholder="例如: \\HJXSERVER\App test\上傳排程表.xlsx"
+                    placeholder="例如: \\HJXSERVER\App test\db_backup"
                     className="flex-1 px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all text-sm font-mono"
                   />
                   <button 

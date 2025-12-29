@@ -19,7 +19,7 @@ import HRManagement from './components/HRManagement';
 import PurchasingModule from './components/PurchasingModule';
 import SupplierList from './components/SupplierList';
 import PurchaseOrders from './components/PurchaseOrders';
-import { HomeIcon, UserIcon, LogOutIcon, ShieldIcon, MenuIcon, XIcon, ChevronRightIcon, WrenchIcon, UploadIcon, LoaderIcon, ClipboardListIcon, LayoutGridIcon, BoxIcon, DownloadIcon, FileTextIcon, CheckCircleIcon, AlertIcon, XCircleIcon, UsersIcon, TruckIcon, BriefcaseIcon, ArrowLeftIcon, CalendarIcon, ClockIcon, NavigationIcon } from './components/Icons';
+import { HomeIcon, UserIcon, LogOutIcon, ShieldIcon, MenuIcon, XIcon, ChevronRightIcon, WrenchIcon, UploadIcon, LoaderIcon, ClipboardListIcon, LayoutGridIcon, BoxIcon, DownloadIcon, FileTextIcon, CheckCircleIcon, AlertIcon, XCircleIcon, UsersIcon, TruckIcon, BriefcaseIcon, ArrowLeftIcon, CalendarIcon, ClockIcon, NavigationIcon, SaveIcon } from './components/Icons';
 import { getDirectoryHandle, saveDbToLocal, loadDbFromLocal, getHandleFromIdb, clearHandleFromIdb, saveAppStateToIdb, loadAppStateFromIdb } from './utils/fileSystem';
 import { downloadBlob } from './utils/fileHelpers';
 import ExcelJS from 'exceljs';
@@ -78,7 +78,7 @@ const App: React.FC = () => {
   const [weeklySchedules, setWeeklySchedules] = useState<WeeklyScheduleType[]>([]);
   const [dailyDispatches, setDailyDispatches] = useState<DailyDispatchType[]>([]);
   const [globalTeamConfigs, setGlobalTeamConfigs] = useState<GlobalTeamConfigs>({});
-  const [importUrl, setImportUrl] = useState(() => localStorage.getItem('hjx_import_url') || '\\\\HJXSERVER\\App test\\上傳排程表.xlsx');
+  const [backupPath, setBackupPath] = useState(() => localStorage.getItem('hjx_backup_path') || '\\\\HJXSERVER\\App test\\db_backup');
   
   // HR 相關狀態
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -214,6 +214,31 @@ const App: React.FC = () => {
       alert(e.message);
     } finally {
       setIsWorkspaceLoading(false);
+    }
+  };
+
+  const handleManualSaveAs = async () => {
+    try {
+      const appState = {
+        projects,
+        users: allUsers,
+        auditLogs,
+        weeklySchedules,
+        dailyDispatches,
+        globalTeamConfigs,
+        employees,
+        attendance,
+        overtime,
+        monthRemarks,
+        suppliers,
+        purchaseOrders,
+        lastSaved: new Date().toISOString()
+      };
+      const jsonStr = JSON.stringify(appState, null, 2);
+      const blob = new Blob([jsonStr], { type: 'application/json' });
+      await downloadBlob(blob, `db_${new Date().toISOString().replace(/[:.]/g, '-')}.json`);
+    } catch (e) {
+      alert('存檔失敗');
     }
   };
 
@@ -425,7 +450,7 @@ const App: React.FC = () => {
         <nav className="flex-1 px-4 space-y-2 overflow-y-auto no-scrollbar">
           {!isInitialized && <div className="px-4 py-2 text-xs text-yellow-500 animate-pulse flex items-center gap-2"><LoaderIcon className="w-3 h-3 animate-spin" /> 資料載入中...</div>}
           
-          <div className="space-y-3 mb-6">
+          <div className="space-y-2 mb-6">
             <button onClick={connectWorkspace} className={`flex items-center gap-3 px-4 py-3 rounded-xl w-full transition-all border ${isConnected ? 'bg-green-600/10 border-green-500 text-green-400' : 'bg-red-600/10 border-red-500 text-red-400'}`}>
               {isWorkspaceLoading ? <LoaderIcon className="w-5 h-5 animate-spin" /> : isConnected ? <CheckCircleIcon className="w-5 h-5" /> : <AlertIcon className="w-5 h-5" />}
               <div className="flex flex-col items-start text-left">
@@ -433,7 +458,16 @@ const App: React.FC = () => {
                 <span className="text-[10px] opacity-70">db.json 自動備份</span>
               </div>
             </button>
-            <div className="px-1 pt-2">
+
+            <button onClick={handleManualSaveAs} className="flex items-center gap-3 px-4 py-3 rounded-xl w-full transition-all bg-emerald-600/10 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-600 hover:text-white group">
+              <SaveIcon className="w-5 h-5" />
+              <div className="flex flex-col items-start text-left">
+                <span className="text-sm font-bold">手動另存新檔</span>
+                <span className="text-[10px] opacity-70">下載 db.json 到本機</span>
+              </div>
+            </button>
+
+            <div className="px-1 pt-1">
               <input type="file" accept=".xlsx, .xls" ref={excelInputRef} className="hidden" onChange={handleImportExcel} />
               <button onClick={() => excelInputRef.current?.click()} disabled={isWorkspaceLoading || !isInitialized} className="flex items-center gap-3 px-4 py-3 rounded-xl w-full transition-all bg-indigo-600/10 border border-indigo-500/30 text-indigo-400 hover:bg-indigo-600 hover:text-white group disabled:opacity-50">
                 <FileTextIcon className="w-5 h-5" />
@@ -564,7 +598,7 @@ const App: React.FC = () => {
           </div>
         </header>
         <main className="flex-1 flex flex-col min-h-0 bg-[#f8fafc] pb-safe">
-          {view === 'users' ? (<UserManagement users={allUsers} onUpdateUsers={setAllUsers} auditLogs={auditLogs} onLogAction={(action, details) => setAuditLogs(prev => [{ id: generateId(), userId: currentUser.id, userName: currentUser.name, action, details, timestamp: Date.now() }, ...prev])} importUrl={importUrl} onUpdateImportUrl={(url) => { setImportUrl(url); localStorage.setItem('hjx_import_url', url); }} projects={projects} onRestoreData={(data) => { setProjects(data.projects); setAllUsers(data.users); setAuditLogs(data.auditLogs); }} />) : 
+          {view === 'users' ? (<UserManagement users={allUsers} onUpdateUsers={setAllUsers} auditLogs={auditLogs} onLogAction={(action, details) => setAuditLogs(prev => [{ id: generateId(), userId: currentUser.id, userName: currentUser.name, action, details, timestamp: Date.now() }, ...prev])} importUrl={backupPath} onUpdateImportUrl={(url) => { setBackupPath(url); localStorage.setItem('hjx_backup_path', url); }} projects={projects} onRestoreData={(data) => { setProjects(data.projects); setAllUsers(data.users); setAuditLogs(data.auditLogs); }} />) : 
            view === 'report' ? (<div className="flex-1 overflow-auto"><GlobalWorkReport projects={projects} currentUser={currentUser} onUpdateProject={handleUpdateProject} /></div>) : 
            view === 'engineering_hub' ? (<div className="flex-1 overflow-auto">{renderEngineeringHub()}</div>) :
            view === 'purchasing_hub' ? (<div className="flex-1 overflow-auto"><PurchasingModule onNavigate={setView} /></div>) :
