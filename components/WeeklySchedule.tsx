@@ -1,18 +1,19 @@
 
 import React, { useState, useMemo } from 'react';
 import { Project, WeeklySchedule as WeeklyScheduleType, GlobalTeamConfigs, TeamConfig } from '../types';
-import { ChevronRightIcon, CalendarIcon, UserIcon, PlusIcon, XIcon, TruckIcon, HomeIcon } from './Icons';
+import { ChevronRightIcon, CalendarIcon, UserIcon, PlusIcon, XIcon, TruckIcon, HomeIcon, NavigationIcon } from './Icons';
 
 interface WeeklyScheduleProps {
   projects: Project[];
   weeklySchedules: WeeklyScheduleType[];
   globalTeamConfigs: GlobalTeamConfigs;
   onUpdateWeeklySchedules: (schedules: WeeklyScheduleType[]) => void;
+  onOpenDrivingTime: () => void;
 }
 
 const ROC_HOLIDAYS = ['01-01', '02-28', '04-04', '04-05', '05-01', '10-10'];
 
-const WeeklySchedule: React.FC<WeeklyScheduleProps> = ({ projects, weeklySchedules, globalTeamConfigs, onUpdateWeeklySchedules }) => {
+const WeeklySchedule: React.FC<WeeklyScheduleProps> = ({ projects, weeklySchedules, globalTeamConfigs, onUpdateWeeklySchedules, onOpenDrivingTime }) => {
   const [currentWeekStart, setCurrentWeekStart] = useState(() => {
     const today = new Date();
     const day = today.getDay();
@@ -124,6 +125,10 @@ const WeeklySchedule: React.FC<WeeklyScheduleProps> = ({ projects, weeklySchedul
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <button onClick={onOpenDrivingTime} className="flex items-center gap-1.5 px-4 py-1.5 bg-indigo-50 text-indigo-700 text-xs font-bold rounded-lg border border-indigo-200 hover:bg-indigo-100 transition-colors mr-2">
+            <NavigationIcon className="w-4 h-4" />
+            路徑估算
+          </button>
           <button onClick={() => navigateWeek(-1)} className="p-1.5 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors"><ChevronRightIcon className="w-4 h-4 rotate-180" /></button>
           <button onClick={() => {
               const today = new Date();

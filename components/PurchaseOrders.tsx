@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo } from 'react';
 import { Project, Supplier, PurchaseOrder, PurchaseOrderItem, MaterialStatus, Material } from '../types';
 import { PlusIcon, FileTextIcon, SearchIcon, TrashIcon, DownloadIcon, CheckCircleIcon, XIcon, BriefcaseIcon, UsersIcon, BoxIcon, ClipboardListIcon, CalendarIcon, UserIcon, MapPinIcon } from './Icons';
@@ -90,7 +89,8 @@ const PurchaseOrders: React.FC<PurchaseOrdersProps> = ({ projects, suppliers, pu
       return;
     }
 
-    const poItems: PurchaseOrderItem[] = Object.entries(selectedMaterials).map(([mid, data]) => {
+    // Fix: Explicitly type the map arguments to avoid 'unknown' property access errors from Object.entries result inference
+    const poItems: PurchaseOrderItem[] = Object.entries(selectedMaterials).map(([mid, data]: [string, { quantity: number; supplierId: string; notes?: string }]) => {
       const mat = allAvailableMaterials.find(m => m.id === mid);
       // Fix: Removed 'as any' cast as supplierId is now defined in PurchaseOrderItem interface.
       return {
@@ -260,7 +260,7 @@ const PurchaseOrders: React.FC<PurchaseOrdersProps> = ({ projects, suppliers, pu
                       type="date" 
                       value={fillingDate}
                       onChange={(e) => setFillingDate(e.target.value)}
-                      className="w-full pl-10 pr-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                      className="w-full pl-10 pr-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition-all"
                     />
                   </div>
                 </div>
@@ -287,7 +287,7 @@ const PurchaseOrders: React.FC<PurchaseOrdersProps> = ({ projects, suppliers, pu
                       type="date" 
                       value={deliveryDate}
                       onChange={(e) => setDeliveryDate(e.target.value)}
-                      className="w-full pl-10 pr-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                      className="w-full pl-10 pr-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition-all"
                     />
                   </div>
                 </div>

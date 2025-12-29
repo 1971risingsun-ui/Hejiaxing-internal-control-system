@@ -95,6 +95,9 @@ const App: React.FC = () => {
   const [isWorkspaceLoading, setIsWorkspaceLoading] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
   
+  // 估計行車時間懸浮視窗
+  const [isDrivingTimeModalOpen, setIsDrivingTimeModalOpen] = useState(false);
+  
   const excelInputRef = useRef<HTMLInputElement>(null);
 
   const sortProjects = (list: Project[]) => {
@@ -356,7 +359,7 @@ const App: React.FC = () => {
     if (selectedProject?.id === updatedProject.id) setSelectedProject(updatedProject);
   };
 
-  const handleAddToWeeklySchedule = (date: string, teamId: number, taskName: string) => {
+  const handleAddToSchedule = (date: string, teamId: number, taskName: string) => {
     let wasAdded = false;
     setWeeklySchedules(prevSchedules => {
       const newWeeklySchedules = [...prevSchedules];
@@ -380,8 +383,10 @@ const App: React.FC = () => {
       if (!teams[teamId]) teams[teamId] = { tasks: [] };
       
       const teamTasks = [...teams[teamId].tasks];
-      teamTasks.push(taskName);
-      wasAdded = true;
+      if (!teamTasks.includes(taskName)) {
+        teamTasks.push(taskName);
+        wasAdded = true;
+      }
       
       teams[teamId] = { tasks: teamTasks };
       dayData.teams = teams;
@@ -605,19 +610,19 @@ const App: React.FC = () => {
            view === 'driving_time' ? (
             <div className="flex flex-col flex-1 min-h-0">
               <div className="px-6 pt-4"><button onClick={() => setView('engineering_hub')} className="flex items-center gap-2 text-slate-500 hover:text-blue-600 font-bold text-xs"><ArrowLeftIcon className="w-3 h-3" /> 返回工作排程</button></div>
-              <div className="flex-1 overflow-auto"><DrivingTimeEstimator projects={projects} onAddToSchedule={handleAddToWeeklySchedule} globalTeamConfigs={globalTeamConfigs} /></div>
+              <div className="flex-1 overflow-auto"><DrivingTimeEstimator projects={projects} onAddToSchedule={handleAddToSchedule} globalTeamConfigs={globalTeamConfigs} /></div>
             </div>
            ) :
            view === 'weekly_schedule' ? (
              <div className="flex flex-col flex-1 min-h-0">
                <div className="px-6 pt-4"><button onClick={() => setView('engineering_hub')} className="flex items-center gap-2 text-slate-500 hover:text-blue-600 font-bold text-xs"><ArrowLeftIcon className="w-3 h-3" /> 返回工作排程</button></div>
-               <div className="flex-1 overflow-hidden"><WeeklySchedule projects={projects} weeklySchedules={weeklySchedules} globalTeamConfigs={globalTeamConfigs} onUpdateWeeklySchedules={setWeeklySchedules} /></div>
+               <div className="flex-1 overflow-hidden"><WeeklySchedule projects={projects} weeklySchedules={weeklySchedules} globalTeamConfigs={globalTeamConfigs} onUpdateWeeklySchedules={setWeeklySchedules} onOpenDrivingTime={() => setIsDrivingTimeModalOpen(true)} /></div>
              </div>
            ) :
            view === 'daily_dispatch' ? (
             <div className="flex flex-col flex-1 min-h-0">
               <div className="px-6 pt-4"><button onClick={() => setView('engineering_hub')} className="flex items-center gap-2 text-slate-500 hover:text-blue-600 font-bold text-xs"><ArrowLeftIcon className="w-3 h-3" /> 返回工作排程</button></div>
-              <div className="flex-1 overflow-hidden"><DailyDispatch projects={projects} weeklySchedules={weeklySchedules} dailyDispatches={dailyDispatches} globalTeamConfigs={globalTeamConfigs} onUpdateDailyDispatches={setDailyDispatches} /></div>
+              <div className="flex-1 overflow-hidden"><DailyDispatch projects={projects} weeklySchedules={weeklySchedules} dailyDispatches={dailyDispatches} globalTeamConfigs={globalTeamConfigs} onUpdateDailyDispatches={setDailyDispatches} onOpenDrivingTime={() => setIsDrivingTimeModalOpen(true)} /></div>
             </div>
            ) :
            view === 'engineering_groups' ? (
@@ -631,6 +636,36 @@ const App: React.FC = () => {
            (<div className="flex-1 overflow-auto"><ProjectList title={getTitle()} projects={currentViewProjects} currentUser={currentUser} onSelectProject={setSelectedProject} onAddProject={() => setIsAddModalOpen(true)} onDeleteProject={handleDeleteProject} onDuplicateProject={()=>{}} onEditProject={setEditingProject} /></div>)}
         </main>
       </div>
+
+      {/* 路徑估算懸浮視窗 */}
+      {isDrivingTimeModalOpen && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 md:p-10 animate-fade-in">
+          <div className="bg-slate-50 w-full max-w-4xl h-full max-h-[90vh] rounded-[32px] shadow-2xl overflow-hidden flex flex-col relative">
+            <header className="px-8 py-4 bg-white border-b border-slate-200 flex justify-between items-center flex-shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="bg-indigo-600 p-2 rounded-xl text-white">
+                  <NavigationIcon className="w-5 h-5" />
+                </div>
+                <h3 className="font-black text-slate-800">路徑規劃與估算</h3>
+              </div>
+              <button 
+                onClick={() => setIsDrivingTimeModalOpen(false)}
+                className="p-2 bg-slate-100 hover:bg-red-50 hover:text-red-500 text-slate-400 rounded-full transition-all"
+              >
+                <XIcon className="w-6 h-6" />
+              </button>
+            </header>
+            <div className="flex-1 overflow-y-auto custom-scrollbar bg-[#f8fafc]">
+              <DrivingTimeEstimator 
+                projects={projects} 
+                globalTeamConfigs={globalTeamConfigs} 
+                onAddToSchedule={handleAddToSchedule} 
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
       {isAddModalOpen && <AddProjectModal onClose={() => setIsAddModalOpen(false)} onAdd={(p) => { setProjects(sortProjects([p, ...projects])); setIsAddModalOpen(false); }} defaultType={view === 'maintenance' ? ProjectType.MAINTENANCE : view === 'modular_house' ? ProjectType.MODULAR_HOUSE : ProjectType.CONSTRUCTION} />}
       {editingProject && <EditProjectModal project={editingProject} onClose={() => setEditingProject(null)} onSave={handleUpdateProject} />}
     </div>
