@@ -205,7 +205,7 @@ const App: React.FC = () => {
       try {
         const json = JSON.parse(evt.target?.result as string);
         if (!json.projects || !Array.isArray(json.projects)) throw new Error('備份檔格式不正確');
-        if (confirm(`還原將覆寫現有所有資料，確定要匯入嗎？`)) {
+        if (confirm(`還原將覆寫現有資料，確定要匯入嗎？`)) {
           restoreDataToState(json);
           alert('資料匯入完成');
         }
@@ -365,8 +365,9 @@ const App: React.FC = () => {
         fgColor: { argb: 'FFE0E0E0' }
       };
 
-      const rowHeightPoints = 100; // 固定列高 (點)
-      const rowHeightPixels = rowHeightPoints * 1.33; // 約 133 像素
+      const minRowHeightPoints = 100; // 最小列高 (點)
+      const photoHeightPoints = 100; // 照片固定高度 (點)
+      const pointsToPixels = 1.333; // Excel 點轉像素概算
 
       // 使用 for...of 以便處理非同步圖片載入
       let currentRowIdx = 2;
@@ -387,7 +388,11 @@ const App: React.FC = () => {
           remarks: p.remarks,
         });
         
-        row.height = rowHeightPoints; // 設定列高
+        // 估算文字內容高度並設定最小列高
+        const descLines = (p.description || '').split('\n').length;
+        const remarksLines = (p.remarks || '').split('\n').length;
+        const estimatedTextHeight = Math.max(descLines, remarksLines, Math.ceil((p.description?.length || 0) / 25)) * 15;
+        row.height = Math.max(minRowHeightPoints, estimatedTextHeight);
 
         // 處理圖片附件
         const imageAttachments = (p.attachments || []).filter(att => att.type.startsWith('image/'));
@@ -400,12 +405,13 @@ const App: React.FC = () => {
             const base64Data = splitData[1];
             const extension = att.type.split('/')[1] || 'png';
             
-            // 取得圖片比例
+            // 取得圖片比例，根據固定高度計算寬度
             const dims = await getImageDimensions(att.url);
             const aspectRatio = dims.width / dims.height;
-            const targetWidthPx = rowHeightPixels * aspectRatio;
+            const targetWidthPx = (photoHeightPoints * pointsToPixels) * aspectRatio;
+            const targetHeightPx = photoHeightPoints * pointsToPixels;
             
-            // 加入圖片到工作簿
+            // 加入圖片到工作簿 (不壓縮)
             const imageId = workbook.addImage({
               base64: base64Data,
               extension: (extension === 'jpeg' ? 'jpg' : extension) as any,
@@ -420,13 +426,12 @@ const App: React.FC = () => {
                 worksheet.getColumn(colIdx).width = excelColWidth;
             }
 
-            // 放置圖片
+            // 放置圖片：tl (top-left) 位置，ext (extent) 設為固定比例後的尺寸
             worksheet.addImage(imageId, {
               tl: { col: colIdx - 1, row: currentRowIdx - 1 },
-              ext: { width: targetWidthPx, height: rowHeightPixels }
+              ext: { width: targetWidthPx, height: targetHeightPx }
             });
             
-            // 標示此儲存格有內容 (防止樣式遺漏)
             row.getCell(colIdx).value = ""; 
           } catch (e) {
             console.warn('圖片匯出失敗', e);
@@ -459,7 +464,7 @@ const App: React.FC = () => {
         userId: currentUser?.id || 'system', 
         userName: currentUser?.name || '系統', 
         action: 'EXPORT_EXCEL', 
-        details: `匯出 Excel 案件表（含圖片），共 ${projects.length} 筆`, 
+        details: `匯出 Excel 案件表，最小列高 100pt，照片不壓縮且維持比例`, 
         timestamp: Date.now() 
       }, ...prev]);
     } catch (error: any) {
