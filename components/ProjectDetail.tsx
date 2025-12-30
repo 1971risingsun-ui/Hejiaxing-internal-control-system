@@ -79,16 +79,22 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ project, currentUser, onB
         </button>
         
         <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
-          <div>
-            <div className="flex items-center gap-3">
+          <div className="flex-1">
+            <div className="flex items-center flex-wrap gap-3">
                <h1 className="text-2xl font-bold text-slate-800">{project.name}</h1>
                {canEdit && (
-                 <div className="flex items-center gap-1 bg-slate-50 border border-slate-100 rounded-full px-1">
-                   <button onClick={() => onEditProject(project)} className="text-slate-400 hover:text-blue-600 p-1.5 hover:bg-white rounded-full transition-colors" title="編輯專案">
-                     <EditIcon className="w-4 h-4" />
+                 <div className="flex items-center gap-2">
+                   <button 
+                     onClick={() => onEditProject(project)} 
+                     className="flex items-center gap-1 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg transition-all text-xs font-bold"
+                   >
+                     <EditIcon className="w-3.5 h-3.5" /> 編輯
                    </button>
-                   <button onClick={() => setIsScheduling(true)} className="text-slate-400 hover:text-indigo-600 p-1.5 hover:bg-white rounded-full transition-colors" title="加入排程">
-                     <PlusIcon className="w-4 h-4" />
+                   <button 
+                     onClick={() => setIsScheduling(true)} 
+                     className="flex items-center gap-1 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 rounded-lg transition-all text-xs font-bold border border-indigo-100"
+                   >
+                     <PlusIcon className="w-3.5 h-3.5" /> 加入排程
                    </button>
                  </div>
                )}
@@ -111,15 +117,14 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ project, currentUser, onB
             </div>
           </div>
           <div className="flex items-center gap-3">
-             <div className="text-right mr-2">
-                <div className="text-xs text-slate-500 uppercase font-semibold">專案進度</div>
-                <div className="text-2xl font-bold text-blue-600">{project.progress}%</div>
+             <div className="text-right mr-2 hidden sm:block">
+                <div className="text-[10px] text-slate-400 uppercase font-bold tracking-widest">案件狀態</div>
              </div>
              
              <button 
                onClick={handleStatusCycle}
                disabled={!canEdit}
-               className={`px-4 py-1.5 rounded-full text-sm font-semibold border transition-all active:scale-95 select-none ${
+               className={`px-4 py-2 rounded-xl text-sm font-black border transition-all active:scale-95 select-none ${
                  !canEdit ? 'cursor-default opacity-80' : 'cursor-pointer hover:shadow-md'
                } ${
                  project.status === ProjectStatus.COMPLETED ? 'bg-green-100 text-green-800 border-green-200' : 
@@ -135,18 +140,18 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ project, currentUser, onB
         </div>
 
         <div className="flex gap-6 mt-8 border-b border-slate-200 overflow-x-auto no-scrollbar">
-          <button className={`pb-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${activeTab === 'overview' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`} onClick={() => setActiveTab('overview')}>
+          <button className={`pb-3 text-sm font-bold border-b-2 transition-colors whitespace-nowrap ${activeTab === 'overview' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`} onClick={() => setActiveTab('overview')}>
             詳細資訊
           </button>
-          <button className={`pb-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap flex items-center gap-2 ${activeTab === 'construction' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`} onClick={() => setActiveTab('construction')}>
+          <button className={`pb-3 text-sm font-bold border-b-2 transition-colors whitespace-nowrap flex items-center gap-2 ${activeTab === 'construction' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`} onClick={() => setActiveTab('construction')}>
             <ClipboardListIcon className="w-4 h-4" /> {project.type === ProjectType.CONSTRUCTION ? '施工紀錄' : '施工報告'} ({project.constructionItems?.length || 0})
           </button>
           {supportsCompletionReport && (
-            <button className={`pb-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap flex items-center gap-2 ${activeTab === 'completion' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`} onClick={() => setActiveTab('completion')}>
+            <button className={`pb-3 text-sm font-bold border-b-2 transition-colors whitespace-nowrap flex items-center gap-2 ${activeTab === 'completion' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`} onClick={() => setActiveTab('completion')}>
                 <FileTextIcon className="w-4 h-4" /> 完工報告 ({(project.completionReports || []).length})
             </button>
           )}
-          <button className={`pb-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap flex items-center gap-2 ${activeTab === 'materials' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`} onClick={() => setActiveTab('materials')}>
+          <button className={`pb-3 text-sm font-bold border-b-2 transition-colors whitespace-nowrap flex items-center gap-2 ${activeTab === 'materials' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`} onClick={() => setActiveTab('materials')}>
             <BoxIcon className="w-4 h-4" /> 材料請購 ({project.materials?.length || 0})
           </button>
         </div>

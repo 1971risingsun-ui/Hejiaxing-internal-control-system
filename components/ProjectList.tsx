@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Project, ProjectStatus, User, UserRole, ProjectType, GlobalTeamConfigs } from '../types';
-// 加入 PaperclipIcon 用於顯示附件提示
 import { CalendarIcon, MapPinIcon, SearchIcon, MoreVerticalIcon, EditIcon, CopyIcon, TrashIcon, LayoutGridIcon, ListIcon, PlusIcon, NavigationIcon, PlusIcon as AddIcon, CheckCircleIcon, XIcon, UsersIcon, ClipboardListIcon, PaperclipIcon } from './Icons';
 
 interface ProjectListProps {
@@ -171,8 +170,9 @@ const ProjectList: React.FC<ProjectListProps> = ({
         </div>
       </div>
 
-      <div className="mb-6 flex flex-col gap-4 bg-white p-4 rounded-xl border border-slate-200 shadow-sm sticky top-0 z-10 md:static">
-        <div className="flex gap-2">
+      <div className="mb-6 flex flex-col gap-4 bg-white rounded-xl border border-slate-200 shadow-sm sticky top-0 z-10 md:static">
+        {/* Search and View Mode */}
+        <div className="flex gap-2 p-4 pb-0">
             <div className="relative flex-1">
                 <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
                 <input 
@@ -199,46 +199,54 @@ const ProjectList: React.FC<ProjectListProps> = ({
                 </button>
             </div>
         </div>
+
+        {/* Category Tabs */}
+        <div className="px-4">
+            <div className="flex gap-8 overflow-x-auto no-scrollbar border-b border-slate-100">
+                <button 
+                    onClick={() => setTypeFilter('ALL')}
+                    className={`pb-3 text-sm font-bold transition-all relative whitespace-nowrap ${typeFilter === 'ALL' ? 'text-blue-600' : 'text-slate-400 hover:text-slate-600'}`}
+                >
+                    全部案件
+                    {typeFilter === 'ALL' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 rounded-full animate-fade-in" />}
+                </button>
+                <button 
+                    onClick={() => setTypeFilter(ProjectType.CONSTRUCTION)}
+                    className={`pb-3 text-sm font-bold transition-all relative whitespace-nowrap ${typeFilter === ProjectType.CONSTRUCTION ? 'text-blue-600' : 'text-slate-400 hover:text-slate-600'}`}
+                >
+                    圍籬
+                    {typeFilter === ProjectType.CONSTRUCTION && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 rounded-full animate-fade-in" />}
+                </button>
+                <button 
+                    onClick={() => setTypeFilter(ProjectType.MODULAR_HOUSE)}
+                    className={`pb-3 text-sm font-bold transition-all relative whitespace-nowrap ${typeFilter === ProjectType.MODULAR_HOUSE ? 'text-blue-600' : 'text-slate-400 hover:text-slate-600'}`}
+                >
+                    組合屋
+                    {typeFilter === ProjectType.MODULAR_HOUSE && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 rounded-full animate-fade-in" />}
+                </button>
+                <button 
+                    onClick={() => setTypeFilter(ProjectType.MAINTENANCE)}
+                    className={`pb-3 text-sm font-bold transition-all relative whitespace-nowrap ${typeFilter === ProjectType.MAINTENANCE ? 'text-blue-600' : 'text-slate-400 hover:text-slate-600'}`}
+                >
+                    維修
+                    {typeFilter === ProjectType.MAINTENANCE && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 rounded-full animate-fade-in" />}
+                </button>
+            </div>
+        </div>
             
-        <div className="flex flex-col gap-2">
-            <div className="flex gap-2 overflow-x-auto w-full no-scrollbar">
-                <span className="text-[10px] font-bold text-slate-400 uppercase py-1.5 flex items-center whitespace-nowrap">狀態：</span>
+        {/* Status Filter (Sub-navigation) */}
+        <div className="px-4 pb-3">
+            <div className="flex gap-2 overflow-x-auto w-full no-scrollbar pt-1">
+                <span className="text-[10px] font-bold text-slate-400 uppercase py-1.5 flex items-center whitespace-nowrap">狀態篩選：</span>
                 {['ALL', ProjectStatus.IN_PROGRESS, ProjectStatus.PLANNING, ProjectStatus.COMPLETED].map((status) => (
                     <button 
                         key={status}
                         onClick={() => setStatusFilter(status as any)}
-                        className={`px-3 py-1 rounded-full text-xs font-medium transition-colors whitespace-nowrap ${statusFilter === status ? 'bg-slate-800 text-white shadow-sm' : 'bg-slate-100 text-slate-600'}`}
+                        className={`px-3 py-1 rounded-full text-[11px] font-bold transition-colors whitespace-nowrap ${statusFilter === status ? 'bg-slate-800 text-white shadow-sm' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}
                     >
                         {status === 'ALL' ? '全部' : status}
                     </button>
                 ))}
-            </div>
-            <div className="flex gap-2 overflow-x-auto w-full no-scrollbar border-t border-slate-50 pt-2">
-                <span className="text-[10px] font-bold text-slate-400 uppercase py-1.5 flex items-center whitespace-nowrap">類別：</span>
-                <button 
-                    onClick={() => setTypeFilter('ALL')}
-                    className={`px-3 py-1 rounded-full text-xs font-medium transition-colors whitespace-nowrap ${typeFilter === 'ALL' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-slate-100 text-slate-600'}`}
-                >
-                    全部
-                </button>
-                <button 
-                    onClick={() => setTypeFilter(ProjectType.CONSTRUCTION)}
-                    className={`px-3 py-1 rounded-full text-xs font-medium transition-colors whitespace-nowrap ${typeFilter === ProjectType.CONSTRUCTION ? 'bg-indigo-600 text-white shadow-sm' : 'bg-slate-100 text-slate-600'}`}
-                >
-                    圍籬
-                </button>
-                <button 
-                    onClick={() => setTypeFilter(ProjectType.MODULAR_HOUSE)}
-                    className={`px-3 py-1 rounded-full text-xs font-medium transition-colors whitespace-nowrap ${typeFilter === ProjectType.MODULAR_HOUSE ? 'bg-indigo-600 text-white shadow-sm' : 'bg-slate-100 text-slate-600'}`}
-                >
-                    組合屋
-                </button>
-                <button 
-                    onClick={() => setTypeFilter(ProjectType.MAINTENANCE)}
-                    className={`px-3 py-1 rounded-full text-xs font-medium transition-colors whitespace-nowrap ${typeFilter === ProjectType.MAINTENANCE ? 'bg-indigo-600 text-white shadow-sm' : 'bg-slate-100 text-slate-600'}`}
-                >
-                    維修
-                </button>
             </div>
         </div>
       </div>
@@ -316,7 +324,6 @@ const ProjectList: React.FC<ProjectListProps> = ({
                     {project.name}
                   </h3>
                   
-                  {/* 加大字體與顯示空間：text-xs md:text-sm -> text-sm md:text-base, line-clamp-2 -> line-clamp-5 */}
                   <p className="text-slate-500 text-sm md:text-base mb-4 line-clamp-5 min-h-[5em] leading-relaxed">
                     {project.description}
                   </p>
