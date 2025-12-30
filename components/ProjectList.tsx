@@ -1,7 +1,7 @@
-
 import React, { useState, useEffect, useRef } from 'react';
-import { Project, ProjectStatus, User, UserRole, ProjectType } from '../types';
-import { CalendarIcon, MapPinIcon, SearchIcon, MoreVerticalIcon, EditIcon, CopyIcon, TrashIcon, LayoutGridIcon, ListIcon, PlusIcon } from './Icons';
+import { Project, ProjectStatus, User, UserRole, ProjectType, GlobalTeamConfigs } from '../types';
+// Fix: Added ClipboardListIcon to the import list to resolve the "Cannot find name 'ClipboardListIcon'" error on line 480.
+import { CalendarIcon, MapPinIcon, SearchIcon, MoreVerticalIcon, EditIcon, CopyIcon, TrashIcon, LayoutGridIcon, ListIcon, PlusIcon, NavigationIcon, PlusIcon as AddIcon, CheckCircleIcon, XIcon, UsersIcon, ClipboardListIcon } from './Icons';
 
 interface ProjectListProps {
   title?: string;
@@ -12,13 +12,28 @@ interface ProjectListProps {
   onDeleteProject: (projectId: string) => void;
   onDuplicateProject: (project: Project) => void;
   onEditProject: (project: Project) => void;
+  onOpenDrivingTime?: () => void;
+  onAddToSchedule?: (date: string, teamId: number, taskName: string) => boolean;
+  globalTeamConfigs?: GlobalTeamConfigs;
 }
 
-const ProjectList: React.FC<ProjectListProps> = ({ title, projects, currentUser, onSelectProject, onAddProject, onDeleteProject, onDuplicateProject, onEditProject }) => {
+const ProjectList: React.FC<ProjectListProps> = ({ 
+  title, projects, currentUser, onSelectProject, onAddProject, 
+  onDeleteProject, onDuplicateProject, onEditProject, onOpenDrivingTime,
+  onAddToSchedule, globalTeamConfigs
+}) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<ProjectStatus | 'ALL'>('ALL');
+  const [typeFilter, setTypeFilter] = useState<ProjectType | 'ALL'>('ALL');
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid'); 
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
+  
+  // 排程相關狀態
+  const [schedulingProject, setSchedulingProject] = useState<Project | null>(null);
+  const [scheduleDate, setScheduleDate] = useState(new Date().toISOString().split('T')[0]);
+  const [scheduleTeam, setScheduleTeam] = useState(1);
+  const [pastedDone, setPastedDone] = useState(false);
+
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -76,8 +91,9 @@ const ProjectList: React.FC<ProjectListProps> = ({ title, projects, currentUser,
       addr.includes(search);
     
     const matchesStatus = statusFilter === 'ALL' || project.status === statusFilter;
+    const matchesType = typeFilter === 'ALL' || project.type === typeFilter;
 
-    return matchesSearch && matchesStatus;
+    return matchesSearch && matchesStatus && matchesType;
   });
 
   const canAddProject = currentUser.role === UserRole.ADMIN || currentUser.role === UserRole.MANAGER;
@@ -106,21 +122,53 @@ const ProjectList: React.FC<ProjectListProps> = ({ title, projects, currentUser,
     setActiveMenuId(null);
   };
 
+  const handleOpenScheduleDialog = (e: React.MouseEvent, project: Project) => {
+    e.stopPropagation();
+    setSchedulingProject(project);
+    setActiveMenuId(null);
+    setPastedDone(false);
+  };
+
+  const handlePasteToSchedule = () => {
+    if (!schedulingProject || !onAddToSchedule) return;
+    const success = onAddToSchedule(scheduleDate, scheduleTeam, schedulingProject.name);
+    if (success) {
+      setPastedDone(true);
+      setTimeout(() => {
+        setPastedDone(false);
+        setSchedulingProject(null);
+      }, 1500);
+    } else {
+      alert('該案件已在排程中');
+    }
+  };
+
   return (
     <div className="p-4 md:p-6 w-full max-w-[1600px] mx-auto pb-20 md:pb-6" onClick={() => setActiveMenuId(null)}>
       <div className="flex flex-row items-center justify-between mb-6 gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-800">{title || '案件總覽'}</h1>
         </div>
-        {canAddProject && (
-          <button
-            onClick={onAddProject}
-            className="bg-blue-600 hover:bg-blue-700 text-white w-10 h-10 rounded-full shadow-sm flex items-center justify-center transition-all active:scale-95"
-            title="新增案件"
-          >
-            <PlusIcon className="w-6 h-6" />
-          </button>
-        )}
+        <div className="flex gap-2">
+          {onOpenDrivingTime && (
+            <button
+              onClick={onOpenDrivingTime}
+              className="bg-indigo-100 hover:bg-indigo-200 text-indigo-700 w-10 h-10 rounded-full shadow-sm flex items-center justify-center transition-all active:scale-95"
+              title="估計行車時間"
+            >
+              <NavigationIcon className="w-5 h-5" />
+            </button>
+          )}
+          {canAddProject && (
+            <button
+              onClick={onAddProject}
+              className="bg-blue-600 hover:bg-blue-700 text-white w-10 h-10 rounded-full shadow-sm flex items-center justify-center transition-all active:scale-95"
+              title="新增案件"
+            >
+              <PlusIcon className="w-6 h-6" />
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="mb-6 flex flex-col gap-4 bg-white p-4 rounded-xl border border-slate-200 shadow-sm sticky top-0 z-10 md:static">
@@ -152,16 +200,46 @@ const ProjectList: React.FC<ProjectListProps> = ({ title, projects, currentUser,
             </div>
         </div>
             
-        <div className="flex gap-2 overflow-x-auto w-full pb-1 no-scrollbar">
-            {['ALL', ProjectStatus.IN_PROGRESS, ProjectStatus.PLANNING, ProjectStatus.COMPLETED].map((status) => (
+        <div className="flex flex-col gap-2">
+            <div className="flex gap-2 overflow-x-auto w-full no-scrollbar">
+                <span className="text-[10px] font-bold text-slate-400 uppercase py-1.5 flex items-center whitespace-nowrap">狀態：</span>
+                {['ALL', ProjectStatus.IN_PROGRESS, ProjectStatus.PLANNING, ProjectStatus.COMPLETED].map((status) => (
+                    <button 
+                        key={status}
+                        onClick={() => setStatusFilter(status as any)}
+                        className={`px-3 py-1 rounded-full text-xs font-medium transition-colors whitespace-nowrap ${statusFilter === status ? 'bg-slate-800 text-white shadow-sm' : 'bg-slate-100 text-slate-600'}`}
+                    >
+                        {status === 'ALL' ? '全部' : status}
+                    </button>
+                ))}
+            </div>
+            <div className="flex gap-2 overflow-x-auto w-full no-scrollbar border-t border-slate-50 pt-2">
+                <span className="text-[10px] font-bold text-slate-400 uppercase py-1.5 flex items-center whitespace-nowrap">類別：</span>
                 <button 
-                    key={status}
-                    onClick={() => setStatusFilter(status as any)}
-                    className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors whitespace-nowrap ${statusFilter === status ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-600'}`}
+                    onClick={() => setTypeFilter('ALL')}
+                    className={`px-3 py-1 rounded-full text-xs font-medium transition-colors whitespace-nowrap ${typeFilter === 'ALL' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-slate-100 text-slate-600'}`}
                 >
-                    {status === 'ALL' ? '全部' : status}
+                    全部
                 </button>
-            ))}
+                <button 
+                    onClick={() => setTypeFilter(ProjectType.CONSTRUCTION)}
+                    className={`px-3 py-1 rounded-full text-xs font-medium transition-colors whitespace-nowrap ${typeFilter === ProjectType.CONSTRUCTION ? 'bg-indigo-600 text-white shadow-sm' : 'bg-slate-100 text-slate-600'}`}
+                >
+                    圍籬
+                </button>
+                <button 
+                    onClick={() => setTypeFilter(ProjectType.MODULAR_HOUSE)}
+                    className={`px-3 py-1 rounded-full text-xs font-medium transition-colors whitespace-nowrap ${typeFilter === ProjectType.MODULAR_HOUSE ? 'bg-indigo-600 text-white shadow-sm' : 'bg-slate-100 text-slate-600'}`}
+                >
+                    組合屋
+                </button>
+                <button 
+                    onClick={() => setTypeFilter(ProjectType.MAINTENANCE)}
+                    className={`px-3 py-1 rounded-full text-xs font-medium transition-colors whitespace-nowrap ${typeFilter === ProjectType.MAINTENANCE ? 'bg-indigo-600 text-white shadow-sm' : 'bg-slate-100 text-slate-600'}`}
+                >
+                    維修
+                </button>
+            </div>
         </div>
       </div>
 
@@ -204,12 +282,15 @@ const ProjectList: React.FC<ProjectListProps> = ({ title, projects, currentUser,
                           {activeMenuId === project.id && (
                             <div 
                               ref={menuRef}
-                              className="absolute right-0 top-full mt-1 w-32 bg-white rounded-lg shadow-xl border border-slate-100 z-50 overflow-hidden animate-fade-in"
+                              className="absolute right-0 top-full mt-1 w-36 bg-white rounded-lg shadow-xl border border-slate-100 z-50 overflow-hidden animate-fade-in"
                             >
-                              <button onClick={(e) => handleEditClick(e, project)} className="w-full text-left px-4 py-3 text-sm text-slate-600 hover:bg-slate-50 hover:text-blue-600 flex items-center gap-2">
+                              <button onClick={(e) => handleOpenScheduleDialog(e, project)} className="w-full text-left px-4 py-3 text-sm text-indigo-600 hover:bg-indigo-50 font-bold flex items-center gap-2">
+                                <PlusIcon className="w-4 h-4" /> 加入排程
+                              </button>
+                              <button onClick={(e) => handleEditClick(e, project)} className="w-full text-left px-4 py-3 text-sm text-slate-600 hover:bg-slate-50 border-t border-slate-50 flex items-center gap-2">
                                 <EditIcon className="w-4 h-4" /> 編輯
                               </button>
-                              <button onClick={(e) => handleDuplicate(e, project)} className="w-full text-left px-4 py-3 text-sm text-slate-600 hover:bg-slate-50 hover:text-blue-600 flex items-center gap-2">
+                              <button onClick={(e) => handleDuplicate(e, project)} className="w-full text-left px-4 py-3 text-sm text-slate-600 hover:bg-slate-50 flex items-center gap-2">
                                 <CopyIcon className="w-4 h-4" /> 複製
                               </button>
                               {currentUser.role === UserRole.ADMIN && (
@@ -320,6 +401,9 @@ const ProjectList: React.FC<ProjectListProps> = ({ title, projects, currentUser,
                                     {canManageProject && (
                                         <td className="px-4 py-3 align-top text-right whitespace-nowrap" onClick={e => e.stopPropagation()}>
                                             <div className="flex items-center justify-end gap-1">
+                                                <button onClick={(e) => handleOpenScheduleDialog(e, project)} className="p-2 text-slate-400 hover:text-indigo-600 rounded-full" title="加入排程">
+                                                  <PlusIcon className="w-4 h-4" />
+                                                </button>
                                                 <button onClick={(e) => handleEditClick(e, project)} className="p-2 text-slate-400 hover:text-blue-600 rounded-full">
                                                     <EditIcon className="w-4 h-4" />
                                                 </button>
@@ -332,6 +416,73 @@ const ProjectList: React.FC<ProjectListProps> = ({ title, projects, currentUser,
                     </tbody>
                 </table>
             </div>
+        </div>
+      )}
+
+      {/* 加入排程對話框 */}
+      {schedulingProject && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in" onClick={() => setSchedulingProject(null)}>
+          <div className="bg-white w-full max-w-sm rounded-[32px] shadow-2xl overflow-hidden flex flex-col animate-scale-in" onClick={e => e.stopPropagation()}>
+             <header className="px-6 py-4 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
+                <div className="flex items-center gap-2">
+                   <div className="bg-indigo-600 p-1.5 rounded-lg text-white">
+                      <PlusIcon className="w-4 h-4" />
+                   </div>
+                   <h3 className="font-black text-slate-800 text-sm">加入工作排程</h3>
+                </div>
+                <button onClick={() => setSchedulingProject(null)} className="p-1 text-slate-400 hover:text-slate-600">
+                   <XIcon className="w-5 h-5" />
+                </button>
+             </header>
+             <div className="p-6 space-y-5">
+                <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100 mb-2">
+                   <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-0.5">待排專案</div>
+                   <div className="text-sm font-black text-slate-800 truncate">{schedulingProject.name}</div>
+                </div>
+
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-[10px] font-black text-slate-500 uppercase mb-1.5 tracking-wider">預計施工日期</label>
+                    <div className="relative">
+                       <CalendarIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                       <input 
+                         type="date" 
+                         value={scheduleDate}
+                         onChange={e => setScheduleDate(e.target.value)}
+                         className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-indigo-700 outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500 transition-all"
+                       />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-black text-slate-500 uppercase mb-1.5 tracking-wider">派遣組別</label>
+                    <div className="relative">
+                       <UsersIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                       <select 
+                         value={scheduleTeam}
+                         onChange={e => setScheduleTeam(parseInt(e.target.value))}
+                         className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 outline-none appearance-none cursor-pointer focus:bg-white transition-all"
+                       >
+                         {[1,2,3,4,5,6,7,8].map(t => (
+                           <option key={t} value={t}>
+                             第 {t} 組 {globalTeamConfigs && globalTeamConfigs[t]?.master ? `(${globalTeamConfigs[t].master})` : ''}
+                           </option>
+                         ))}
+                       </select>
+                    </div>
+                  </div>
+                </div>
+
+                <button 
+                  onClick={handlePasteToSchedule}
+                  disabled={pastedDone}
+                  className={`w-full flex items-center justify-center gap-2 py-3 rounded-2xl text-sm font-black transition-all shadow-lg active:scale-95 ${pastedDone ? 'bg-emerald-500 text-white shadow-emerald-100' : 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-indigo-100'}`}
+                >
+                  {pastedDone ? <CheckCircleIcon className="w-5 h-5" /> : <ClipboardListIcon className="w-5 h-5" />}
+                  {pastedDone ? '已貼上排程' : '貼上排程'}
+                </button>
+             </div>
+          </div>
         </div>
       )}
     </div>

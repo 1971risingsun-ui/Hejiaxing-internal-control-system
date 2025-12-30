@@ -1,7 +1,6 @@
-
 import React, { useState, useRef } from 'react';
 import { Project, ProjectStatus, Attachment, ProjectType } from '../types';
-import { PaperclipIcon, XIcon, LoaderIcon } from './Icons';
+import { PaperclipIcon, XIcon, LoaderIcon, BoxIcon } from './Icons';
 import { processFile } from '../utils/fileHelpers';
 
 interface AddProjectModalProps {
@@ -13,6 +12,7 @@ interface AddProjectModalProps {
 const AddProjectModal: React.FC<AddProjectModalProps> = ({ onClose, onAdd, defaultType }) => {
   const [formData, setFormData] = useState({
     name: '',
+    type: defaultType,
     clientName: '',
     clientContact: '',
     clientPhone: '',
@@ -27,7 +27,7 @@ const AddProjectModal: React.FC<AddProjectModalProps> = ({ onClose, onAdd, defau
   const [isProcessing, setIsProcessing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
@@ -68,7 +68,7 @@ const AddProjectModal: React.FC<AddProjectModalProps> = ({ onClose, onAdd, defau
     
     const newProject: Project = {
       id: crypto.randomUUID(),
-      type: defaultType,
+      type: formData.type,
       name: formData.name,
       clientName: formData.clientName,
       clientContact: formData.clientContact || formData.clientName,
@@ -94,13 +94,11 @@ const AddProjectModal: React.FC<AddProjectModalProps> = ({ onClose, onAdd, defau
   };
 
   const getTitle = () => {
-      if (defaultType === ProjectType.MAINTENANCE) return '新增維修案件';
-      if (defaultType === ProjectType.MODULAR_HOUSE) return '新增組合屋案件';
-      return '新增圍籬專案';
+      return '新增案件';
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[150] p-4">
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
         <div className="p-6 border-b border-slate-100 flex justify-between items-center">
           <h2 className="text-xl font-bold text-slate-800">
@@ -148,6 +146,23 @@ const AddProjectModal: React.FC<AddProjectModalProps> = ({ onClose, onAdd, defau
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">報修日期</label>
                 <input name="reportDate" value={formData.reportDate} onChange={handleChange} type="date" className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition" />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">案件類別</label>
+              <div className="relative">
+                <BoxIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <select 
+                  name="type" 
+                  value={formData.type} 
+                  onChange={handleChange}
+                  className="w-full pl-10 pr-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition bg-white appearance-none"
+                >
+                  <option value={ProjectType.CONSTRUCTION}>圍籬 (Fence)</option>
+                  <option value={ProjectType.MODULAR_HOUSE}>組合屋 (Modular)</option>
+                  <option value={ProjectType.MAINTENANCE}>維修 (Maintenance)</option>
+                </select>
               </div>
             </div>
 
