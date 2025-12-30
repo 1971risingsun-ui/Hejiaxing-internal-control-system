@@ -327,6 +327,84 @@ const App: React.FC = () => {
     }
   };
 
+  const handleExportExcel = async () => {
+    try {
+      const workbook = new ExcelJS.Workbook();
+      const worksheet = workbook.addWorksheet('案件排程表');
+
+      // 設定表頭與欄位寬度
+      worksheet.columns = [
+        { header: '客戶', key: 'name', width: 25 },
+        { header: '類別', key: 'typeLabel', width: 12 },
+        { header: '聯絡人', key: 'clientContact', width: 15 },
+        { header: '電話', key: 'clientPhone', width: 15 },
+        { header: '地址', key: 'address', width: 40 },
+        { header: '預約日期', key: 'appointmentDate', width: 15 },
+        { header: '報修日期', key: 'reportDate', width: 15 },
+        { header: '工程', key: 'description', width: 40 },
+        { header: '備註', key: 'remarks', width: 30 },
+      ];
+
+      // 設定標題樣式
+      const headerRow = worksheet.getRow(1);
+      headerRow.font = { bold: true };
+      headerRow.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFE0E0E0' }
+      };
+
+      // 填充資料
+      projects.forEach(p => {
+        let typeLabel = '圍籬';
+        if (p.type === ProjectType.MAINTENANCE) typeLabel = '維修';
+        else if (p.type === ProjectType.MODULAR_HOUSE) typeLabel = '組合屋';
+
+        worksheet.addRow({
+          name: p.name,
+          typeLabel,
+          clientContact: p.clientContact,
+          clientPhone: p.clientPhone,
+          address: p.address,
+          appointmentDate: p.appointmentDate,
+          reportDate: p.reportDate,
+          description: p.description,
+          remarks: p.remarks,
+        });
+      });
+
+      // 自動換行與對齊
+      worksheet.eachRow((row, rowNumber) => {
+        row.eachCell((cell) => {
+          cell.alignment = { vertical: 'top', wrapText: true };
+          if (rowNumber > 1) {
+            cell.border = {
+              top: { style: 'thin' },
+              left: { style: 'thin' },
+              bottom: { style: 'thin' },
+              right: { style: 'thin' }
+            };
+          }
+        });
+      });
+
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      await downloadBlob(blob, `合家興案件排程表_${new Date().toISOString().split('T')[0]}.xlsx`);
+      
+      setAuditLogs(prev => [{ 
+        id: generateId(), 
+        userId: currentUser?.id || 'system', 
+        userName: currentUser?.name || '系統', 
+        action: 'EXPORT_EXCEL', 
+        details: `匯出 Excel 案件表，共 ${projects.length} 筆`, 
+        timestamp: Date.now() 
+      }, ...prev]);
+    } catch (error: any) {
+      alert('匯出 Excel 失敗: ' + error.message);
+    }
+  };
+
   useEffect(() => {
     if (!isInitialized) return;
     const saveAll = async () => {
@@ -679,7 +757,7 @@ const App: React.FC = () => {
            ) :
            view === 'equipment' ? (<div className="flex-1 overflow-auto">{renderEquipmentView()}</div>) :
            selectedProject ? (<div className="flex-1 overflow-hidden"><ProjectDetail project={selectedProject} currentUser={currentUser} onBack={() => setSelectedProject(null)} onUpdateProject={handleUpdateProject} onEditProject={setEditingProject} onAddToSchedule={handleAddToSchedule} globalTeamConfigs={globalTeamConfigs} /></div>) : 
-           (<div className="flex-1 overflow-auto"><ProjectList title={getTitle()} projects={currentViewProjects} currentUser={currentUser} onSelectProject={setSelectedProject} onAddProject={() => setIsAddModalOpen(true)} onDeleteProject={handleDeleteProject} onDuplicateProject={()=>{}} onEditProject={setEditingProject} onOpenDrivingTime={() => setIsDrivingTimeModalOpen(true)} onImportExcel={() => excelInputRef.current?.click()} onAddToSchedule={handleAddToSchedule} globalTeamConfigs={globalTeamConfigs} /></div>)}
+           (<div className="flex-1 overflow-auto"><ProjectList title={getTitle()} projects={currentViewProjects} currentUser={currentUser} onSelectProject={setSelectedProject} onAddProject={() => setIsAddModalOpen(true)} onDeleteProject={handleDeleteProject} onDuplicateProject={()=>{}} onEditProject={setEditingProject} onOpenDrivingTime={() => setIsDrivingTimeModalOpen(true)} onImportExcel={() => excelInputRef.current?.click()} onExportExcel={handleExportExcel} onAddToSchedule={handleAddToSchedule} globalTeamConfigs={globalTeamConfigs} /></div>)}
         </main>
       </div>
 

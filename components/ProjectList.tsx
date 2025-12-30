@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Project, ProjectStatus, User, UserRole, ProjectType, GlobalTeamConfigs } from '../types';
-import { CalendarIcon, MapPinIcon, SearchIcon, MoreVerticalIcon, EditIcon, CopyIcon, TrashIcon, LayoutGridIcon, ListIcon, PlusIcon, NavigationIcon, CheckCircleIcon, XIcon, UsersIcon, ClipboardListIcon, PaperclipIcon, BoxIcon, FileTextIcon } from './Icons';
+import { CalendarIcon, MapPinIcon, SearchIcon, MoreVerticalIcon, EditIcon, CopyIcon, TrashIcon, LayoutGridIcon, ListIcon, PlusIcon, NavigationIcon, CheckCircleIcon, XIcon, UsersIcon, ClipboardListIcon, PaperclipIcon, BoxIcon, FileTextIcon, DownloadIcon } from './Icons';
 
 interface ProjectListProps {
   title?: string;
@@ -13,6 +13,7 @@ interface ProjectListProps {
   onEditProject: (project: Project) => void;
   onOpenDrivingTime?: () => void;
   onImportExcel?: () => void;
+  onExportExcel?: () => void;
   onAddToSchedule?: (date: string, teamId: number, taskName: string) => boolean;
   globalTeamConfigs?: GlobalTeamConfigs;
 }
@@ -20,7 +21,7 @@ interface ProjectListProps {
 const ProjectList: React.FC<ProjectListProps> = ({ 
   title, projects, currentUser, onSelectProject, onAddProject, 
   onDeleteProject, onDuplicateProject, onEditProject, onOpenDrivingTime,
-  onImportExcel, onAddToSchedule, globalTeamConfigs
+  onImportExcel, onExportExcel, onAddToSchedule, globalTeamConfigs
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<ProjectStatus | 'ALL'>('ALL');
@@ -151,6 +152,15 @@ const ProjectList: React.FC<ProjectListProps> = ({
           <h1 className="text-2xl font-bold text-slate-800">{title || '案件總覽'}</h1>
         </div>
         <div className="flex gap-2">
+          {onExportExcel && (
+            <button
+              onClick={onExportExcel}
+              className="bg-emerald-100 hover:bg-emerald-200 text-emerald-700 w-10 h-10 rounded-full shadow-sm flex items-center justify-center transition-all active:scale-95"
+              title="匯出排程表"
+            >
+              <DownloadIcon className="w-5 h-5" />
+            </button>
+          )}
           {onImportExcel && (
             <button
               onClick={onImportExcel}
