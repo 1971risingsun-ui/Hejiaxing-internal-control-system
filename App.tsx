@@ -441,7 +441,7 @@ const App: React.FC = () => {
             </button>
 
             <button 
-              onClick={() => window.open("https://114.36.79.93/share.cgi?ssid=79f9da81f26d45bb8e896be3d7d95cbb", "_blank")}
+              onClick={() => window.open("http://192.168.1.2:8080/share.cgi?ssid=79f9da81f26d45bb8e896be3d7d95cbb", "_blank")}
               className="flex items-center gap-3 px-4 py-3 rounded-xl w-full transition-all bg-sky-600/10 border border-sky-500/30 text-sky-400 hover:bg-sky-600 hover:text-white group"
             >
               <ExternalLinkIcon className="w-5 h-5" />
