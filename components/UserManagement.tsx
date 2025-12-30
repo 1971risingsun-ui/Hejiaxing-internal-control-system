@@ -1,4 +1,3 @@
-
 import React, { useState, useRef } from 'react';
 import { User, UserRole, AuditLog, Project } from '../types';
 import { PlusIcon, TrashIcon, ShieldIcon, UserIcon, HistoryIcon, DownloadIcon, UploadIcon, BoxIcon, SettingsIcon, CheckCircleIcon, LoaderIcon, AlertIcon } from './Icons';
@@ -11,20 +10,23 @@ interface UserManagementProps {
   onLogAction: (action: string, details: string) => void;
   projects?: Project[];
   onRestoreData?: (data: { projects: Project[], users: User[], auditLogs: AuditLog[] }) => void;
-  // 更新 Props 以支援目錄授權連動
   onConnectDirectory?: () => Promise<void>;
+  onSetStorageDirectory?: () => Promise<void>;
   dirPermission?: 'granted' | 'prompt' | 'denied';
+  storagePermission?: 'granted' | 'prompt' | 'denied';
   isWorkspaceLoading?: boolean;
 }
 
 const UserManagement: React.FC<UserManagementProps> = ({ 
   users, onUpdateUsers, auditLogs, onLogAction, projects = [], onRestoreData,
-  onConnectDirectory, dirPermission, isWorkspaceLoading
+  onConnectDirectory, onSetStorageDirectory, dirPermission, storagePermission, isWorkspaceLoading
 }) => {
   const [activeTab, setActiveTab] = useState<'users' | 'logs' | 'data' | 'settings'>('users');
   const [isAdding, setIsAdding] = useState(false);
   const [newUser, setNewUser] = useState({ name: '', email: '', role: UserRole.WORKER });
   const importFileRef = useRef<HTMLInputElement>(null);
+
+  const isBrowserSupported = 'showDirectoryPicker' in window;
 
   const handleAddUser = () => {
     if (!newUser.name || !newUser.email) return;
@@ -114,16 +116,16 @@ const UserManagement: React.FC<UserManagementProps> = ({
       </div>
 
       <div className="flex gap-4 mb-6 border-b border-slate-200 overflow-x-auto no-scrollbar">
-        <button className={`pb-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${activeTab === 'users' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500'}`} onClick={() => setActiveTab('users')}>
+        <button className={`pb-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${activeTab === 'users' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`} onClick={() => setActiveTab('users')}>
           <ShieldIcon className="w-4 h-4" /> 使用者
         </button>
-        <button className={`pb-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${activeTab === 'logs' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500'}`} onClick={() => setActiveTab('logs')}>
+        <button className={`pb-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${activeTab === 'logs' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`} onClick={() => setActiveTab('logs')}>
           <HistoryIcon className="w-4 h-4" /> 紀錄
         </button>
-        <button className={`pb-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${activeTab === 'data' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500'}`} onClick={() => setActiveTab('data')}>
+        <button className={`pb-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${activeTab === 'data' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`} onClick={() => setActiveTab('data')}>
           <BoxIcon className="w-4 h-4" /> 備份
         </button>
-        <button className={`pb-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${activeTab === 'settings' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500'}`} onClick={() => setActiveTab('settings')}>
+        <button className={`pb-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${activeTab === 'settings' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`} onClick={() => setActiveTab('settings')}>
           <SettingsIcon className="w-4 h-4" /> 設定
         </button>
       </div>
@@ -292,7 +294,7 @@ const UserManagement: React.FC<UserManagementProps> = ({
              <SettingsIcon className="w-5 h-5 text-slate-400" /> 系統全域設定
            </h3>
            
-           <div className="space-y-6">
+           <div className="space-y-10">
               <div>
                 <label className="block text-sm font-bold text-slate-700 mb-2">自動備份 db.json 權限設定</label>
                 <p className="text-xs text-slate-500 mb-4">
@@ -302,14 +304,15 @@ const UserManagement: React.FC<UserManagementProps> = ({
                 <div className="mt-4">
                   <button 
                     onClick={onConnectDirectory}
-                    disabled={isWorkspaceLoading}
+                    disabled={isWorkspaceLoading || !isBrowserSupported}
                     className={`flex items-center gap-4 px-6 py-5 rounded-2xl w-full transition-all border-2 ${
+                      !isBrowserSupported ? 'bg-slate-50 border-slate-200 opacity-50 cursor-not-allowed' :
                       dirPermission === 'granted' 
                         ? 'bg-green-50 border-green-500 text-green-700' 
                         : 'bg-blue-50 border-blue-500 text-blue-700'
                     } hover:shadow-md active:scale-[0.99]`}
                   >
-                    <div className={`p-3 rounded-xl ${dirPermission === 'granted' ? 'bg-green-600' : 'bg-blue-600'} text-white`}>
+                    <div className={`p-3 rounded-xl ${!isBrowserSupported ? 'bg-slate-300' : dirPermission === 'granted' ? 'bg-green-600' : 'bg-blue-600'} text-white`}>
                       {isWorkspaceLoading ? <LoaderIcon className="w-6 h-6 animate-spin" /> : <BoxIcon className="w-6 h-6" />}
                     </div>
                     <div className="flex flex-col items-start text-left flex-1 min-w-0">
@@ -317,12 +320,14 @@ const UserManagement: React.FC<UserManagementProps> = ({
                         {dirPermission === 'granted' ? '電腦同步已開啟' : '連結電腦自動備份目錄'}
                       </span>
                       <span className="text-xs opacity-70 font-bold">
-                        {dirPermission === 'granted' ? '點擊可更換儲存資料夾' : '選取資料夾以開啟即時備份功能'}
+                        {!isBrowserSupported ? '目前瀏覽器不支援' : dirPermission === 'granted' ? '點擊可更換儲存資料夾' : '選取資料夾以開啟即時備份功能'}
                       </span>
                     </div>
-                    <div className="flex items-center gap-2">
-                      {dirPermission === 'granted' ? <CheckCircleIcon className="w-6 h-6" /> : <AlertIcon className="w-6 h-6" />}
-                    </div>
+                    {isBrowserSupported && (
+                      <div className="flex items-center gap-2">
+                        {dirPermission === 'granted' ? <CheckCircleIcon className="w-6 h-6" /> : <AlertIcon className="w-6 h-6" />}
+                      </div>
+                    )}
                   </button>
                   
                   {dirPermission === 'granted' && (
@@ -331,6 +336,42 @@ const UserManagement: React.FC<UserManagementProps> = ({
                       <span className="text-xs font-bold text-slate-600">系統目前正在同步您的資料夾根目錄下的 db.json</span>
                     </div>
                   )}
+                </div>
+              </div>
+
+              <div className="pt-6 border-t border-slate-100">
+                <label className="block text-sm font-bold text-slate-700 mb-2">預設下載位置設定 (支援網路資料夾/NAS)</label>
+                <p className="text-xs text-slate-500 mb-4">
+                  設定一個專屬的資料夾或網路磁碟路徑，用於存放從側邊欄點擊「開啟儲存位置」產生的檔案。支援映射後的網路磁碟機。
+                </p>
+                <div className="mt-4">
+                  <button 
+                    onClick={onSetStorageDirectory} 
+                    disabled={isWorkspaceLoading || !isBrowserSupported} 
+                    className={`flex items-center gap-4 px-6 py-5 rounded-2xl w-full transition-all border-2 ${
+                      !isBrowserSupported ? 'bg-slate-50 border-slate-200 opacity-50 cursor-not-allowed' :
+                      storagePermission === 'granted' 
+                        ? 'bg-indigo-50 border-indigo-500 text-indigo-700' 
+                        : 'bg-slate-50 border-slate-300 text-slate-600'
+                    } hover:shadow-md active:scale-[0.99]`}
+                  >
+                    <div className={`p-3 rounded-xl ${!isBrowserSupported ? 'bg-slate-300' : storagePermission === 'granted' ? 'bg-indigo-600' : 'bg-slate-400'} text-white`}>
+                      {isWorkspaceLoading ? <LoaderIcon className="w-6 h-6 animate-spin" /> : <DownloadIcon className="w-6 h-6" />}
+                    </div>
+                    <div className="flex flex-col items-start text-left flex-1 min-w-0">
+                      <span className="text-lg font-black tracking-tight">
+                        {storagePermission === 'granted' ? '預設下載目錄已設定' : '設定下載儲存目錄'}
+                      </span>
+                      <span className="text-xs opacity-70 font-bold">
+                        {!isBrowserSupported ? '目前瀏覽器不支援' : storagePermission === 'granted' ? '已選定資料夾，點擊側邊欄即可存檔至此' : '選取資料夾後，即可從側邊欄一鍵下載檔案至此'}
+                      </span>
+                    </div>
+                    {isBrowserSupported && (
+                      <div className="flex items-center gap-2">
+                        {storagePermission === 'granted' ? <CheckCircleIcon className="w-6 h-6" /> : <SettingsIcon className="w-6 h-6 opacity-30" />}
+                      </div>
+                    )}
+                  </button>
                 </div>
               </div>
            </div>
