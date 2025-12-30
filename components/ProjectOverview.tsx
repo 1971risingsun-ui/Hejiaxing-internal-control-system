@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Project, Milestone, User, UserRole } from '../types';
 import { UserIcon, PhoneIcon, PaperclipIcon, DownloadIcon, FileTextIcon, PlusIcon, CheckCircleIcon, TrashIcon, XIcon, CalendarIcon } from './Icons';
@@ -96,6 +95,61 @@ const ProjectOverview: React.FC<ProjectOverviewProps> = ({ project, currentUser,
            </div>
       </div>
 
+      {/* 工程概要 (原本在下方，現在移到里程碑上方) */}
+      <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+          <h3 className="font-bold text-lg mb-3 text-slate-800">工程概要</h3>
+          <p className="text-slate-600 leading-relaxed text-sm mb-6 whitespace-pre-wrap">{project.description}</p>
+          
+          {project.attachments && project.attachments.length > 0 && (
+             <div className="pt-4 border-t border-slate-100">
+               <h4 className="text-sm font-bold text-slate-700 mb-4 flex items-center gap-2">
+                  <PaperclipIcon className="w-4 h-4" /> 圖面與附件 (Excel 自動匯入)
+               </h4>
+               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {project.attachments.map(att => {
+                     const isImage = att.type.startsWith('image/');
+                     return (
+                        <div key={att.id} className="flex flex-col bg-slate-50 rounded-lg border border-slate-200 overflow-hidden hover:shadow-md transition-shadow group">
+                           {isImage ? (
+                             <div 
+                                className="h-48 bg-slate-200 cursor-zoom-in overflow-hidden relative flex items-center justify-center"
+                                onClick={() => setViewingPhoto(att.url)}
+                             >
+                                <img src={att.url} alt={att.name} className="max-w-full max-h-full object-contain transition-transform duration-300" />
+                             </div>
+                           ) : (
+                             <div className="h-48 bg-slate-100 flex items-center justify-center text-slate-300">
+                                <FileTextIcon className="w-12 h-12" />
+                             </div>
+                           )}
+                           <div className="p-3 flex items-center justify-between bg-white border-t border-slate-100">
+                              <div className="flex-1 min-w-0 mr-2">
+                                 <div className="text-xs font-bold text-slate-700 truncate">{att.name}</div>
+                                 <div className="text-[10px] text-slate-400">{(att.size / 1024).toFixed(1)} KB</div>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <a href={att.url} download={att.name} className="text-slate-400 hover:text-blue-600 p-1.5" onClick={(e) => e.stopPropagation()}>
+                                   <DownloadIcon className="w-4 h-4" />
+                                </a>
+                                {canEdit && (
+                                  <button 
+                                    onClick={(e) => { e.stopPropagation(); handleDeleteAttachment(att.id); }} 
+                                    className="text-slate-400 hover:text-red-500 p-1.5"
+                                    title="刪除附件"
+                                  >
+                                    <TrashIcon className="w-4 h-4" />
+                                  </button>
+                                )}
+                              </div>
+                           </div>
+                        </div>
+                     );
+                  })}
+               </div>
+             </div>
+          )}
+      </div>
+
       {/* 工期里程碑 / 紀錄工期 */}
       <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
           <div className="flex justify-between items-center mb-6">
@@ -180,60 +234,6 @@ const ProjectOverview: React.FC<ProjectOverviewProps> = ({ project, currentUser,
               </div>
             )}
           </div>
-      </div>
-
-      <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-          <h3 className="font-bold text-lg mb-3 text-slate-800">工程概要</h3>
-          <p className="text-slate-600 leading-relaxed text-sm mb-6 whitespace-pre-wrap">{project.description}</p>
-          
-          {project.attachments && project.attachments.length > 0 && (
-             <div className="pt-4 border-t border-slate-100">
-               <h4 className="text-sm font-bold text-slate-700 mb-4 flex items-center gap-2">
-                  <PaperclipIcon className="w-4 h-4" /> 圖面與附件 (Excel 自動匯入)
-               </h4>
-               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {project.attachments.map(att => {
-                     const isImage = att.type.startsWith('image/');
-                     return (
-                        <div key={att.id} className="flex flex-col bg-slate-50 rounded-lg border border-slate-200 overflow-hidden hover:shadow-md transition-shadow group">
-                           {isImage ? (
-                             <div 
-                                className="h-48 bg-slate-200 cursor-zoom-in overflow-hidden relative flex items-center justify-center"
-                                onClick={() => setViewingPhoto(att.url)}
-                             >
-                                <img src={att.url} alt={att.name} className="max-w-full max-h-full object-contain transition-transform duration-300" />
-                             </div>
-                           ) : (
-                             <div className="h-48 bg-slate-100 flex items-center justify-center text-slate-300">
-                                <FileTextIcon className="w-12 h-12" />
-                             </div>
-                           )}
-                           <div className="p-3 flex items-center justify-between bg-white border-t border-slate-100">
-                              <div className="flex-1 min-w-0 mr-2">
-                                 <div className="text-xs font-bold text-slate-700 truncate">{att.name}</div>
-                                 <div className="text-[10px] text-slate-400">{(att.size / 1024).toFixed(1)} KB</div>
-                              </div>
-                              <div className="flex items-center gap-1">
-                                <a href={att.url} download={att.name} className="text-slate-400 hover:text-blue-600 p-1.5" onClick={(e) => e.stopPropagation()}>
-                                   <DownloadIcon className="w-4 h-4" />
-                                </a>
-                                {canEdit && (
-                                  <button 
-                                    onClick={(e) => { e.stopPropagation(); handleDeleteAttachment(att.id); }} 
-                                    className="text-slate-400 hover:text-red-500 p-1.5"
-                                    title="刪除附件"
-                                  >
-                                    <TrashIcon className="w-4 h-4" />
-                                  </button>
-                                )}
-                              </div>
-                           </div>
-                        </div>
-                     );
-                  })}
-               </div>
-             </div>
-          )}
       </div>
 
       <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">

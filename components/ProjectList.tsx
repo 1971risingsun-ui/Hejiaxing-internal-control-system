@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Project, ProjectStatus, User, UserRole, ProjectType, GlobalTeamConfigs } from '../types';
-// Fix: Added ClipboardListIcon to the import list to resolve the "Cannot find name 'ClipboardListIcon'" error on line 480.
-import { CalendarIcon, MapPinIcon, SearchIcon, MoreVerticalIcon, EditIcon, CopyIcon, TrashIcon, LayoutGridIcon, ListIcon, PlusIcon, NavigationIcon, PlusIcon as AddIcon, CheckCircleIcon, XIcon, UsersIcon, ClipboardListIcon } from './Icons';
+// 加入 PaperclipIcon 用於顯示附件提示
+import { CalendarIcon, MapPinIcon, SearchIcon, MoreVerticalIcon, EditIcon, CopyIcon, TrashIcon, LayoutGridIcon, ListIcon, PlusIcon, NavigationIcon, PlusIcon as AddIcon, CheckCircleIcon, XIcon, UsersIcon, ClipboardListIcon, PaperclipIcon } from './Icons';
 
 interface ProjectListProps {
   title?: string;
@@ -251,22 +251,29 @@ const ProjectList: React.FC<ProjectListProps> = ({
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
           {filteredProjects.map((project) => {
             const typeInfo = getTypeInfo(project.type);
+            const hasAttachments = project.attachments && project.attachments.length > 0;
+
             return (
               <div 
                 key={project.id} 
                 onClick={() => onSelectProject(project)}
-                className="bg-white rounded-xl border border-slate-200 shadow-sm active:scale-[0.98] transition-all cursor-pointer overflow-hidden group relative"
+                className="bg-white rounded-xl border border-slate-200 shadow-sm active:scale-[0.98] transition-all cursor-pointer overflow-hidden group relative flex flex-col"
               >
                 <div className={`h-1.5 bg-gradient-to-r ${project.type === ProjectType.MAINTENANCE ? 'from-orange-400 to-amber-500' : 'from-blue-500 to-indigo-500'}`} />
-                <div className="p-5">
+                <div className="p-5 flex flex-col flex-1">
                   <div className="flex justify-between items-start mb-3">
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 items-center">
                       <span className={`px-2 py-0.5 rounded text-[10px] font-bold border uppercase tracking-wide ${getStatusColor(project.status)}`}>
                         {project.status}
                       </span>
                       <span className={`px-2 py-0.5 rounded text-[10px] font-bold border tracking-wide ${typeInfo.color}`}>
                         {typeInfo.label}
                       </span>
+                      {hasAttachments && (
+                        <div className="flex items-center text-indigo-500" title="包含附件">
+                          <PaperclipIcon className="w-3.5 h-3.5" />
+                        </div>
+                      )}
                     </div>
                     
                     <div className="flex items-center gap-1">
@@ -309,11 +316,12 @@ const ProjectList: React.FC<ProjectListProps> = ({
                     {project.name}
                   </h3>
                   
-                  <p className="text-slate-500 text-xs md:text-sm mb-4 line-clamp-2 min-h-[2.5em]">
+                  {/* 加大字體與顯示空間：text-xs md:text-sm -> text-sm md:text-base, line-clamp-2 -> line-clamp-5 */}
+                  <p className="text-slate-500 text-sm md:text-base mb-4 line-clamp-5 min-h-[5em] leading-relaxed">
                     {project.description}
                   </p>
 
-                  <div className="space-y-1.5 text-xs md:text-sm text-slate-600 mb-5">
+                  <div className="space-y-1.5 text-xs md:text-sm text-slate-600 mt-auto">
                     <div className="flex items-center gap-2">
                       <MapPinIcon className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
                       <span className="truncate">{project.address}</span>
@@ -332,16 +340,6 @@ const ProjectList: React.FC<ProjectListProps> = ({
                       )}
                     </div>
                   </div>
-
-                  <div className="mt-auto">
-                    <div className="flex justify-between text-xs mb-1.5">
-                      <span className="font-medium text-slate-600">進度</span>
-                      <span className="font-bold text-blue-600">{project.progress}%</span>
-                    </div>
-                    <div className="w-full bg-slate-100 rounded-full h-1.5">
-                      <div className={`h-1.5 rounded-full transition-all duration-500 ${project.type === ProjectType.MAINTENANCE ? 'bg-orange-500' : 'bg-blue-600'}`} style={{ width: `${project.progress}%` }}></div>
-                    </div>
-                  </div>
                 </div>
               </div>
             );
@@ -357,13 +355,14 @@ const ProjectList: React.FC<ProjectListProps> = ({
                             <th className="px-4 py-3 whitespace-nowrap">專案名稱</th>
                             <th className="px-4 py-3 whitespace-nowrap">客戶 / 地址</th>
                             <th className="px-4 py-3 whitespace-nowrap">日期資訊</th>
-                            <th className="px-4 py-3 w-32 whitespace-nowrap">進度</th>
+                            <th className="px-4 py-3 w-10 text-center">附件</th>
                             {canManageProject && <th className="px-4 py-3 w-20 text-right whitespace-nowrap">操作</th>}
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                         {filteredProjects.map((project) => {
                             const typeInfo = getTypeInfo(project.type);
+                            const hasAttachments = project.attachments && project.attachments.length > 0;
                             return (
                                 <tr key={project.id} onClick={() => onSelectProject(project)} className="hover:bg-slate-50 transition-colors cursor-pointer group active:bg-slate-100">
                                     <td className="px-4 py-3 align-top whitespace-nowrap">
@@ -390,13 +389,8 @@ const ProjectList: React.FC<ProjectListProps> = ({
                                           <span><span className="font-semibold">報修:</span> {formatDate(project.reportDate) || '-'}</span>
                                         </div>
                                     </td>
-                                    <td className="px-4 py-3 align-top whitespace-nowrap">
-                                        <div className="flex items-center gap-2 mb-1">
-                                            <span className={`text-xs font-bold ${project.type === ProjectType.MAINTENANCE ? 'text-orange-600' : 'text-blue-600'}`}>{project.progress}%</span>
-                                        </div>
-                                        <div className="w-full bg-slate-100 rounded-full h-1">
-                                            <div className={`h-1 rounded-full transition-all duration-500 ${project.type === ProjectType.MAINTENANCE ? 'bg-orange-500' : 'bg-blue-600'}`} style={{ width: `${project.progress}%` }}></div>
-                                        </div>
+                                    <td className="px-4 py-3 align-top text-center">
+                                        {hasAttachments && <PaperclipIcon className="w-4 h-4 text-indigo-400 mx-auto" />}
                                     </td>
                                     {canManageProject && (
                                         <td className="px-4 py-3 align-top text-right whitespace-nowrap" onClick={e => e.stopPropagation()}>
