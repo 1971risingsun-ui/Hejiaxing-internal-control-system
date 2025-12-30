@@ -342,7 +342,7 @@ const App: React.FC = () => {
       const workbook = new ExcelJS.Workbook();
       const worksheet = workbook.addWorksheet('案件排程表');
 
-      // 設定基本欄位
+      // 設定基本欄位寬度
       const columns = [
         { header: '客戶', key: 'name', width: 25 },
         { header: '類別', key: 'typeLabel', width: 12 },
@@ -369,6 +369,17 @@ const App: React.FC = () => {
       const photoHeightPoints = 100; // 照片固定高度 (點)
       const pointsToPixels = 1.333; // Excel 點轉像素概算
 
+      // 輔助函式：計算文字所需的列高
+      const countLines = (text: string, colWidth: number) => {
+        if (!text) return 1;
+        return text.split('\n').reduce((acc, line) => {
+          // 概略計算：中文約占 2 單位寬度，數字英文約 1 單位
+          // 加上一些緩衝以確保文字完全顯示
+          const estimatedCharsPerLine = colWidth * 0.8; 
+          return acc + Math.max(1, Math.ceil(line.length / estimatedCharsPerLine));
+        }, 0);
+      };
+
       // 使用 for...of 以便處理非同步圖片載入
       let currentRowIdx = 2;
       for (const p of projects) {
@@ -388,10 +399,14 @@ const App: React.FC = () => {
           remarks: p.remarks,
         });
         
-        // 估算文字內容高度並設定最小列高
-        const descLines = (p.description || '').split('\n').length;
-        const remarksLines = (p.remarks || '').split('\n').length;
-        const estimatedTextHeight = Math.max(descLines, remarksLines, Math.ceil((p.description?.length || 0) / 25)) * 15;
+        // 精確估算文字內容高度
+        const descLines = countLines(p.description || '', 40);
+        const remarksLines = countLines(p.remarks || '', 30);
+        const nameLines = countLines(p.name || '', 25);
+        const addressLines = countLines(p.address || '', 40);
+        
+        // 15~18 點約為標準單行高度
+        const estimatedTextHeight = Math.max(descLines, remarksLines, nameLines, addressLines) * 16 + 10;
         row.height = Math.max(minRowHeightPoints, estimatedTextHeight);
 
         // 處理圖片附件
@@ -426,12 +441,13 @@ const App: React.FC = () => {
                 worksheet.getColumn(colIdx).width = excelColWidth;
             }
 
-            // 放置圖片：tl (top-left) 位置，ext (extent) 設為固定比例後的尺寸
+            // 放置圖片：tl (top-left) 位置，ext (extent) 設為固定 100pt 比例後的尺寸
             worksheet.addImage(imageId, {
               tl: { col: colIdx - 1, row: currentRowIdx - 1 },
               ext: { width: targetWidthPx, height: targetHeightPx }
             });
             
+            // 標示此儲存格為空，以便後續套用邊框樣式
             row.getCell(colIdx).value = ""; 
           } catch (e) {
             console.warn('圖片匯出失敗', e);
@@ -443,7 +459,7 @@ const App: React.FC = () => {
       // 統一設定對齊與邊框
       worksheet.eachRow((row, rowNumber) => {
         row.eachCell({ includeEmpty: true }, (cell) => {
-          cell.alignment = { vertical: 'middle', wrapText: true };
+          cell.alignment = { vertical: 'middle', horizontal: 'left', wrapText: true };
           if (rowNumber > 1) {
             cell.border = {
               top: { style: 'thin' },
@@ -464,7 +480,7 @@ const App: React.FC = () => {
         userId: currentUser?.id || 'system', 
         userName: currentUser?.name || '系統', 
         action: 'EXPORT_EXCEL', 
-        details: `匯出 Excel 案件表，最小列高 100pt，照片不壓縮且維持比例`, 
+        details: `匯出 Excel 案件表，列高依內容調整，照片高度固定 100pt`, 
         timestamp: Date.now() 
       }, ...prev]);
     } catch (error: any) {

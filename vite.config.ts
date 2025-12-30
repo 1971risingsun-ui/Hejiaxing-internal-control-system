@@ -4,7 +4,8 @@ import { VitePWA } from 'vite-plugin-pwa';
 import process from 'node:process';
 
 export default defineConfig(({ mode }) => {
-  const env = loadEnv(mode, process.cwd(), '');
+  // Fix: Cast process to any to access cwd() when type definitions for Node's process are not fully available.
+  const env = loadEnv(mode, (process as any).cwd(), '');
   return {
     plugins: [
       react(),
