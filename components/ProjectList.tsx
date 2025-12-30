@@ -200,36 +200,32 @@ const ProjectList: React.FC<ProjectListProps> = ({
             </div>
         </div>
 
-        {/* Category Tabs */}
-        <div className="px-4">
-            <div className="flex gap-8 overflow-x-auto no-scrollbar border-b border-slate-100">
+        {/* Category Tabs (Added background colors) */}
+        <div className="px-4 py-3 border-b border-slate-50">
+            <div className="flex gap-2 overflow-x-auto no-scrollbar">
                 <button 
                     onClick={() => setTypeFilter('ALL')}
-                    className={`pb-3 text-sm font-bold transition-all relative whitespace-nowrap ${typeFilter === 'ALL' ? 'text-blue-600' : 'text-slate-400 hover:text-slate-600'}`}
+                    className={`px-5 py-2 rounded-xl text-sm font-black transition-all whitespace-nowrap shadow-sm ${typeFilter === 'ALL' ? 'bg-indigo-600 text-white shadow-indigo-100' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}
                 >
                     全部案件
-                    {typeFilter === 'ALL' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 rounded-full animate-fade-in" />}
                 </button>
                 <button 
                     onClick={() => setTypeFilter(ProjectType.CONSTRUCTION)}
-                    className={`pb-3 text-sm font-bold transition-all relative whitespace-nowrap ${typeFilter === ProjectType.CONSTRUCTION ? 'text-blue-600' : 'text-slate-400 hover:text-slate-600'}`}
+                    className={`px-5 py-2 rounded-xl text-sm font-black transition-all whitespace-nowrap shadow-sm ${typeFilter === ProjectType.CONSTRUCTION ? 'bg-blue-600 text-white shadow-blue-100' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}
                 >
                     圍籬
-                    {typeFilter === ProjectType.CONSTRUCTION && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 rounded-full animate-fade-in" />}
                 </button>
                 <button 
                     onClick={() => setTypeFilter(ProjectType.MODULAR_HOUSE)}
-                    className={`pb-3 text-sm font-bold transition-all relative whitespace-nowrap ${typeFilter === ProjectType.MODULAR_HOUSE ? 'text-blue-600' : 'text-slate-400 hover:text-slate-600'}`}
+                    className={`px-5 py-2 rounded-xl text-sm font-black transition-all whitespace-nowrap shadow-sm ${typeFilter === ProjectType.MODULAR_HOUSE ? 'bg-emerald-600 text-white shadow-emerald-100' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}
                 >
                     組合屋
-                    {typeFilter === ProjectType.MODULAR_HOUSE && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 rounded-full animate-fade-in" />}
                 </button>
                 <button 
                     onClick={() => setTypeFilter(ProjectType.MAINTENANCE)}
-                    className={`pb-3 text-sm font-bold transition-all relative whitespace-nowrap ${typeFilter === ProjectType.MAINTENANCE ? 'text-blue-600' : 'text-slate-400 hover:text-slate-600'}`}
+                    className={`px-5 py-2 rounded-xl text-sm font-black transition-all whitespace-nowrap shadow-sm ${typeFilter === ProjectType.MAINTENANCE ? 'bg-orange-600 text-white shadow-orange-100' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}
                 >
                     維修
-                    {typeFilter === ProjectType.MAINTENANCE && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 rounded-full animate-fade-in" />}
                 </button>
             </div>
         </div>
@@ -242,7 +238,7 @@ const ProjectList: React.FC<ProjectListProps> = ({
                     <button 
                         key={status}
                         onClick={() => setStatusFilter(status as any)}
-                        className={`px-3 py-1 rounded-full text-[11px] font-bold transition-colors whitespace-nowrap ${statusFilter === status ? 'bg-slate-800 text-white shadow-sm' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}
+                        className={`px-3 py-1 rounded-full text-[11px] font-bold transition-colors whitespace-nowrap ${statusFilter === status ? 'bg-slate-800 text-white shadow-sm' : 'bg-slate-50 text-slate-500 hover:bg-slate-100'}`}
                     >
                         {status === 'ALL' ? '全部' : status}
                     </button>
@@ -268,7 +264,7 @@ const ProjectList: React.FC<ProjectListProps> = ({
                 className="bg-white rounded-xl border border-slate-200 shadow-sm active:scale-[0.98] transition-all cursor-pointer overflow-hidden group relative flex flex-col"
               >
                 <div className={`h-1.5 bg-gradient-to-r ${project.type === ProjectType.MAINTENANCE ? 'from-orange-400 to-amber-500' : 'from-blue-500 to-indigo-500'}`} />
-                <div className="p-5 flex flex-col flex-1">
+                <div className="p-5">
                   <div className="flex justify-between items-start mb-3">
                     <div className="flex gap-2 items-center">
                       <span className={`px-2 py-0.5 rounded text-[10px] font-bold border uppercase tracking-wide ${getStatusColor(project.status)}`}>
