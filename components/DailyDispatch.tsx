@@ -53,14 +53,23 @@ const DailyDispatch: React.FC<DailyDispatchProps> = ({ projects, weeklySchedules
         if (team.assistants.length > 0) {
             text += `👥 助手：${team.assistants.join(', ')}\n`;
         }
-        // 按使用者要求，移除車號資訊
+        
         if (team.tasks.length > 0) {
-            text += `📝 排程：\n`; // 將名稱從「任務」改為「排程」
+            text += `📝 排程：\n`;
             team.tasks.forEach((task, idx) => {
-                // 案件名稱和工程描述之間換行
+                // 案件名稱
                 text += `   ${idx + 1}. ${task.name}\n`;
                 if (task.description) {
-                    text += `      ${task.description}\n`;
+                    // 將描述內容按行拆分，並進行齊頭縮排處理
+                    const indentedDesc = task.description
+                        .split('\n')
+                        .map(line => `      ${line}`) // 使用固定 6 格縮排以保持與序號後的文字齊頭
+                        .join('\n');
+                    text += `${indentedDesc}\n`;
+                }
+                // 不同案件間空一行，但最後一個項目後不額外空行以保持格式美觀
+                if (idx < team.tasks.length - 1) {
+                    text += `\n`;
                 }
             });
         }
