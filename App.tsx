@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { App as CapacitorApp } from '@capacitor/app';
-import { Project, ProjectStatus, User, UserRole, MaterialStatus, AuditLog, ProjectType, Attachment, WeeklySchedule as WeeklyScheduleType, DailyDispatch as DailyDispatchType, GlobalTeamConfigs, Employee, AttendanceRecord, OvertimeRecord, MonthSummaryRemark, Supplier, PurchaseOrder } from './types';
+import { Project, ProjectStatus, User, UserRole, MaterialStatus, AuditLog, ProjectType, Attachment, WeeklySchedule as WeeklyScheduleType, DailyDispatch as DailyDispatchType, GlobalTeamConfigs, Employee, AttendanceRecord, OvertimeRecord, MonthSummaryRemark, Supplier, PurchaseOrder, SitePhoto } from './types';
 import ProjectList from './components/ProjectList';
 import ProjectDetail from './components/ProjectDetail';
 import UserManagement from './components/UserManagement';
@@ -65,6 +65,16 @@ const parseExcelDate = (val: any): string => {
     } catch (e) {}
   }
   return str;
+};
+
+// 輔助函式：取得圖片原始尺寸
+const getImageDimensions = (url: string): Promise<{ width: number; height: number }> => {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => resolve({ width: img.naturalWidth, height: img.naturalHeight });
+    img.onerror = () => resolve({ width: 100, height: 100 });
+    img.src = url;
+  });
 };
 
 const App: React.FC = () => {
@@ -332,8 +342,8 @@ const App: React.FC = () => {
       const workbook = new ExcelJS.Workbook();
       const worksheet = workbook.addWorksheet('案件排程表');
 
-      // 設定表頭與欄位寬度
-      worksheet.columns = [
+      // 設定基本欄位
+      const columns = [
         { header: '客戶', key: 'name', width: 25 },
         { header: '類別', key: 'typeLabel', width: 12 },
         { header: '聯絡人', key: 'clientContact', width: 15 },
@@ -344,6 +354,7 @@ const App: React.FC = () => {
         { header: '工程', key: 'description', width: 40 },
         { header: '備註', key: 'remarks', width: 30 },
       ];
+      worksheet.columns = columns;
 
       // 設定標題樣式
       const headerRow = worksheet.getRow(1);
@@ -354,13 +365,17 @@ const App: React.FC = () => {
         fgColor: { argb: 'FFE0E0E0' }
       };
 
-      // 填充資料
-      projects.forEach(p => {
+      const rowHeightPoints = 100; // 固定列高 (點)
+      const rowHeightPixels = rowHeightPoints * 1.33; // 約 133 像素
+
+      // 使用 for...of 以便處理非同步圖片載入
+      let currentRowIdx = 2;
+      for (const p of projects) {
         let typeLabel = '圍籬';
         if (p.type === ProjectType.MAINTENANCE) typeLabel = '維修';
         else if (p.type === ProjectType.MODULAR_HOUSE) typeLabel = '組合屋';
 
-        worksheet.addRow({
+        const row = worksheet.addRow({
           name: p.name,
           typeLabel,
           clientContact: p.clientContact,
@@ -371,12 +386,59 @@ const App: React.FC = () => {
           description: p.description,
           remarks: p.remarks,
         });
-      });
+        
+        row.height = rowHeightPoints; // 設定列高
 
-      // 自動換行與對齊
+        // 處理圖片附件
+        const imageAttachments = (p.attachments || []).filter(att => att.type.startsWith('image/'));
+        
+        for (const [imgIdx, att] of imageAttachments.entries()) {
+          try {
+            const splitData = att.url.split(',');
+            if (splitData.length < 2) continue;
+            
+            const base64Data = splitData[1];
+            const extension = att.type.split('/')[1] || 'png';
+            
+            // 取得圖片比例
+            const dims = await getImageDimensions(att.url);
+            const aspectRatio = dims.width / dims.height;
+            const targetWidthPx = rowHeightPixels * aspectRatio;
+            
+            // 加入圖片到工作簿
+            const imageId = workbook.addImage({
+              base64: base64Data,
+              extension: (extension === 'jpeg' ? 'jpg' : extension) as any,
+            });
+
+            // 計算放置欄位 (從第 10 欄開始，即 J 欄)
+            const colIdx = 10 + imgIdx;
+            
+            // 動態調整圖片欄位寬度 (Excel 寬度單位約為 7.5 像素)
+            const excelColWidth = targetWidthPx / 7.5;
+            if (!worksheet.getColumn(colIdx).width || worksheet.getColumn(colIdx).width < excelColWidth) {
+                worksheet.getColumn(colIdx).width = excelColWidth;
+            }
+
+            // 放置圖片
+            worksheet.addImage(imageId, {
+              tl: { col: colIdx - 1, row: currentRowIdx - 1 },
+              ext: { width: targetWidthPx, height: rowHeightPixels }
+            });
+            
+            // 標示此儲存格有內容 (防止樣式遺漏)
+            row.getCell(colIdx).value = ""; 
+          } catch (e) {
+            console.warn('圖片匯出失敗', e);
+          }
+        }
+        currentRowIdx++;
+      }
+
+      // 統一設定對齊與邊框
       worksheet.eachRow((row, rowNumber) => {
-        row.eachCell((cell) => {
-          cell.alignment = { vertical: 'top', wrapText: true };
+        row.eachCell({ includeEmpty: true }, (cell) => {
+          cell.alignment = { vertical: 'middle', wrapText: true };
           if (rowNumber > 1) {
             cell.border = {
               top: { style: 'thin' },
@@ -397,7 +459,7 @@ const App: React.FC = () => {
         userId: currentUser?.id || 'system', 
         userName: currentUser?.name || '系統', 
         action: 'EXPORT_EXCEL', 
-        details: `匯出 Excel 案件表，共 ${projects.length} 筆`, 
+        details: `匯出 Excel 案件表（含圖片），共 ${projects.length} 筆`, 
         timestamp: Date.now() 
       }, ...prev]);
     } catch (error: any) {
