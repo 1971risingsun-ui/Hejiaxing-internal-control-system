@@ -7,13 +7,13 @@ const DB_NAME = 'hjx_handle_db';
 const STORE_NAME = 'handles';
 const APP_STATE_KEY = 'app_full_state';
 const HANDLE_KEY = 'current_dir';
-const STORAGE_HANDLE_KEY = 'storage_dir'; // 新增：專供下載使用的目錄鍵值
+const STORAGE_HANDLE_KEY = 'storage_dir'; // 檔案儲存位置專用鍵值
 const DB_FILENAME = 'db.json';
 
 // 初始化 IndexedDB
 const getDB = (): Promise<IDBDatabase> => {
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, 2); // 升級版本以確保 Store 存在
+    const request = indexedDB.open(DB_NAME, 2);
     request.onupgradeneeded = (e: any) => {
       const db = request.result;
       if (!db.objectStoreNames.contains(STORE_NAME)) {
@@ -73,7 +73,7 @@ export const getHandleFromIdb = async (): Promise<FileSystemDirectoryHandle | nu
   }
 };
 
-// 設定下載目錄 Handle (新增)
+// 設定儲存位置 Handle
 export const saveStorageHandleToIdb = async (handle: FileSystemDirectoryHandle) => {
   const db = await getDB();
   const tx = db.transaction(STORE_NAME, 'readwrite');
