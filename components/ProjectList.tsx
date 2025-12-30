@@ -184,30 +184,30 @@ const ProjectList: React.FC<ProjectListProps> = ({
       {/* Unified Project Section (Merged tabs and projects) */}
       <div className="flex flex-col bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         
-        {/* Category Tabs Section */}
+        {/* Category Tabs Section - Shrinked by approx 40% */}
         <div className="bg-slate-50 border-b border-slate-200">
             <div className="flex overflow-x-auto no-scrollbar">
                 <button 
                     onClick={() => setTypeFilter('ALL')}
-                    className={`flex-1 min-w-[100px] py-4 px-4 text-sm font-black transition-all border-b-4 relative ${typeFilter === 'ALL' ? 'bg-indigo-600 text-white border-indigo-700 shadow-inner' : 'text-slate-500 hover:bg-slate-100 border-transparent'}`}
+                    className={`flex-1 min-w-[60px] py-2.5 px-3 text-xs font-black transition-all border-b-2 relative ${typeFilter === 'ALL' ? 'bg-indigo-600 text-white border-indigo-700 shadow-inner' : 'text-slate-500 hover:bg-slate-100 border-transparent'}`}
                 >
                     全部案件
                 </button>
                 <button 
                     onClick={() => setTypeFilter(ProjectType.CONSTRUCTION)}
-                    className={`flex-1 min-w-[100px] py-4 px-4 text-sm font-black transition-all border-b-4 relative ${typeFilter === ProjectType.CONSTRUCTION ? 'bg-blue-600 text-white border-blue-700 shadow-inner' : 'text-slate-500 hover:bg-slate-100 border-transparent'}`}
+                    className={`flex-1 min-w-[60px] py-2.5 px-3 text-xs font-black transition-all border-b-2 relative ${typeFilter === ProjectType.CONSTRUCTION ? 'bg-blue-600 text-white border-blue-700 shadow-inner' : 'text-slate-500 hover:bg-slate-100 border-transparent'}`}
                 >
                     圍籬
                 </button>
                 <button 
                     onClick={() => setTypeFilter(ProjectType.MODULAR_HOUSE)}
-                    className={`flex-1 min-w-[100px] py-4 px-4 text-sm font-black transition-all border-b-4 relative ${typeFilter === ProjectType.MODULAR_HOUSE ? 'bg-emerald-600 text-white border-emerald-700 shadow-inner' : 'text-slate-500 hover:bg-slate-100 border-transparent'}`}
+                    className={`flex-1 min-w-[60px] py-2.5 px-3 text-xs font-black transition-all border-b-2 relative ${typeFilter === ProjectType.MODULAR_HOUSE ? 'bg-emerald-600 text-white border-emerald-700 shadow-inner' : 'text-slate-500 hover:bg-slate-100 border-transparent'}`}
                 >
                     組合屋
                 </button>
                 <button 
                     onClick={() => setTypeFilter(ProjectType.MAINTENANCE)}
-                    className={`flex-1 min-w-[100px] py-4 px-4 text-sm font-black transition-all border-b-4 relative ${typeFilter === ProjectType.MAINTENANCE ? 'bg-orange-600 text-white border-orange-700 shadow-inner' : 'text-slate-500 hover:bg-slate-100 border-transparent'}`}
+                    className={`flex-1 min-w-[60px] py-2.5 px-3 text-xs font-black transition-all border-b-2 relative ${typeFilter === ProjectType.MAINTENANCE ? 'bg-orange-600 text-white border-orange-700 shadow-inner' : 'text-slate-500 hover:bg-slate-100 border-transparent'}`}
                 >
                     維修
                 </button>
