@@ -424,7 +424,7 @@ const App: React.FC = () => {
              合家興<span className="text-yellow-500 text-base ml-1">行政管理系統</span>
            </h1>
         </div>
-        <nav className="flex-1 px-4 space-y-2 overflow-y-auto no-scrollbar">
+        <nav className="flex-1 px-4 space-y-2 overflow-y-auto no-scrollbar pb-10">
           {!isInitialized && <div className="px-4 py-2 text-xs text-yellow-500 animate-pulse flex items-center gap-2"><LoaderIcon className="w-3 h-3 animate-spin" /> 資料載入中...</div>}
           
           <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-2 mt-4 px-4">工務工程 (Engineering)</div>
@@ -454,9 +454,9 @@ const App: React.FC = () => {
           <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-2 mt-6 px-4">快速捷徑</div>
           <button onClick={() => { setSelectedProject(null); setView('report'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'report' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}><ClipboardListIcon className="w-5 h-5" /> <span className="font-medium">工作回報</span></button>
           {currentUser.role === UserRole.ADMIN && (<button onClick={() => { setView('users'); setSelectedProject(null); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'users' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}><ShieldIcon className="w-4 h-4" /> <span className="font-medium">系統權限</span></button>)}
-        </nav>
-        <div className="p-4 border-t border-slate-800 w-full mt-auto mb-safe">
-          <div className="space-y-2 mb-4">
+
+          {/* 系統工具功能移動至此 */}
+          <div className="pt-4 border-t border-slate-800 mt-4 space-y-2">
             <button 
               onClick={() => handleDirectoryAction(false)} 
               disabled={!isBrowserSupported}
@@ -505,6 +505,8 @@ const App: React.FC = () => {
               </button>
             </div>
           </div>
+        </nav>
+        <div className="p-4 border-t border-slate-800 w-full mt-auto mb-safe">
           <button onClick={handleLogout} className="flex w-full items-center justify-center gap-2 px-4 py-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors text-sm">
             <LogOutIcon className="w-4 h-4" /> 登出
           </button>
