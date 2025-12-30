@@ -8,6 +8,8 @@ const DB_NAME = 'hjx_handle_db';
 const STORE_NAME = 'handles';
 const APP_STATE_KEY = 'app_full_state';
 const HANDLE_KEY = 'current_dir';
+// Fix: Added STORAGE_HANDLE_KEY to support separate storage directory persistence
+const STORAGE_HANDLE_KEY = 'storage_dir';
 const DB_FILENAME = 'db.json';
 
 // 初始化 IndexedDB
@@ -73,6 +75,28 @@ export const getHandleFromIdb = async (): Promise<FileSystemDirectoryHandle | nu
   }
 };
 
+// Fix: Exported saveStorageHandleToIdb to resolve import error in App.tsx
+export const saveStorageHandleToIdb = async (handle: FileSystemDirectoryHandle) => {
+  const db = await getDB();
+  const tx = db.transaction(STORE_NAME, 'readwrite');
+  tx.objectStore(STORE_NAME).put(handle, STORAGE_HANDLE_KEY);
+  return new Promise((resolve) => (tx.oncomplete = resolve));
+};
+
+// Fix: Exported getStorageHandleFromIdb to resolve import error in App.tsx
+export const getStorageHandleFromIdb = async (): Promise<FileSystemDirectoryHandle | null> => {
+  try {
+    const db = await getDB();
+    const tx = db.transaction(STORE_NAME, 'readonly');
+    const request = tx.objectStore(STORE_NAME).get(STORAGE_HANDLE_KEY);
+    return new Promise((resolve) => {
+      request.onsuccess = () => resolve(request.result || null);
+    });
+  } catch (e) {
+    return null;
+  }
+};
+
 export const clearHandleFromIdb = async () => {
   const db = await getDB();
   const tx = db.transaction(STORE_NAME, 'readwrite');
@@ -98,16 +122,17 @@ export const getDirectoryHandle = async (): Promise<FileSystemDirectoryHandle> =
   }
 };
 
-export const saveDbToLocal = async (handle: FileSystemDirectoryHandle, data: any) => {
+// Fix: Updated saveDbToLocal to accept an optional fileName argument, resolving the "Expected 2 arguments, but got 3" error in App.tsx
+export const saveDbToLocal = async (handle: FileSystemDirectoryHandle, data: any, fileName: string = DB_FILENAME) => {
   try {
     if ((await (handle as any).queryPermission({ mode: 'readwrite' })) !== 'granted') return;
     
-    const fileHandle = await handle.getFileHandle(DB_FILENAME, { create: true });
+    const fileHandle = await handle.getFileHandle(fileName, { create: true });
     const writable = await fileHandle.createWritable();
     await writable.write(JSON.stringify(data, null, 2));
     await writable.close();
   } catch (e) {
-    console.error('儲存本機 db.json 失敗', e);
+    console.error(`儲存本機 ${fileName} 失敗`, e);
   }
 };
 
