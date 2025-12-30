@@ -427,7 +427,36 @@ const App: React.FC = () => {
         <nav className="flex-1 px-4 space-y-2 overflow-y-auto no-scrollbar">
           {!isInitialized && <div className="px-4 py-2 text-xs text-yellow-500 animate-pulse flex items-center gap-2"><LoaderIcon className="w-3 h-3 animate-spin" /> 資料載入中...</div>}
           
-          <div className="space-y-2 mb-6">
+          <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-2 mt-4 px-4">工務工程 (Engineering)</div>
+          <button onClick={() => { setSelectedProject(null); setView('engineering'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'engineering' && !selectedProject ? 'bg-blue-600 text-white shadow-md shadow-blue-900/20' : 'text-slate-400 hover:bg-slate-800'}`}>
+            <LayoutGridIcon className="w-5 h-5" /> 
+            <span className="font-medium">工務總覽</span>
+          </button>
+          <button onClick={() => { setSelectedProject(null); setView('engineering_hub'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'engineering_hub' || view === 'weekly_schedule' || view === 'daily_dispatch' || view === 'engineering_groups' || view === 'driving_time' ? 'bg-blue-600 text-white shadow-md shadow-blue-900/20' : 'text-slate-400 hover:bg-slate-800'}`}>
+            <BriefcaseIcon className="w-5 h-5" /> 
+            <span className="font-medium">工作排程</span>
+          </button>
+
+          <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-2 mt-6 px-4">行政管理 (Administration)</div>
+          <button onClick={() => { setSelectedProject(null); setView('purchasing_hub'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view.startsWith('purchasing') ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
+            <BoxIcon className="w-5 h-5" /> 
+            <span className="font-medium">採購</span>
+          </button>
+          <button onClick={() => { setSelectedProject(null); setView('hr'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'hr' ? 'bg-blue-600 text-white shadow-md shadow-blue-900/20' : 'text-slate-400 hover:bg-slate-800'}`}>
+            <UsersIcon className="w-5 h-5" /> 
+            <span className="font-medium">人事</span>
+          </button>
+          <button onClick={() => { setSelectedProject(null); setView('equipment'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'equipment' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
+            <WrenchIcon className="w-5 h-5" /> 
+            <span className="font-medium">設備／工具</span>
+          </button>
+
+          <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-2 mt-6 px-4">快速捷徑</div>
+          <button onClick={() => { setSelectedProject(null); setView('report'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'report' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}><ClipboardListIcon className="w-5 h-5" /> <span className="font-medium">工作回報</span></button>
+          {currentUser.role === UserRole.ADMIN && (<button onClick={() => { setView('users'); setSelectedProject(null); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'users' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}><ShieldIcon className="w-4 h-4" /> <span className="font-medium">系統權限</span></button>)}
+        </nav>
+        <div className="p-4 border-t border-slate-800 w-full mt-auto mb-safe">
+          <div className="space-y-2 mb-4">
             <button 
               onClick={() => handleDirectoryAction(false)} 
               disabled={!isBrowserSupported}
@@ -441,7 +470,7 @@ const App: React.FC = () => {
             </button>
 
             <button 
-              onClick={() => window.open("http://192.168.1.2:8080/share.cgi?ssid=79f9da81f26d45bb8e896be3d7d95cbb", "_blank")}
+              onClick={() => window.open("https://114.36.79.93/share.cgi?ssid=79f9da81f26d45bb8e896be3d7d95cbb", "_blank")}
               className="flex items-center gap-3 px-4 py-3 rounded-xl w-full transition-all bg-sky-600/10 border border-sky-500/30 text-sky-400 hover:bg-sky-600 hover:text-white group"
             >
               <ExternalLinkIcon className="w-5 h-5" />
@@ -476,36 +505,10 @@ const App: React.FC = () => {
               </button>
             </div>
           </div>
-
-          <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-2 mt-4 px-4">工務工程 (Engineering)</div>
-          <button onClick={() => { setSelectedProject(null); setView('engineering'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'engineering' && !selectedProject ? 'bg-blue-600 text-white shadow-md shadow-blue-900/20' : 'text-slate-400 hover:bg-slate-800'}`}>
-            <LayoutGridIcon className="w-5 h-5" /> 
-            <span className="font-medium">工務總覽</span>
+          <button onClick={handleLogout} className="flex w-full items-center justify-center gap-2 px-4 py-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors text-sm">
+            <LogOutIcon className="w-4 h-4" /> 登出
           </button>
-          <button onClick={() => { setSelectedProject(null); setView('engineering_hub'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'engineering_hub' || view === 'weekly_schedule' || view === 'daily_dispatch' || view === 'engineering_groups' || view === 'driving_time' ? 'bg-blue-600 text-white shadow-md shadow-blue-900/20' : 'text-slate-400 hover:bg-slate-800'}`}>
-            <BriefcaseIcon className="w-5 h-5" /> 
-            <span className="font-medium">工作排程</span>
-          </button>
-
-          <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-2 mt-6 px-4">行政管理 (Administration)</div>
-          <button onClick={() => { setSelectedProject(null); setView('purchasing_hub'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view.startsWith('purchasing') ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
-            <BoxIcon className="w-5 h-5" /> 
-            <span className="font-medium">採購</span>
-          </button>
-          <button onClick={() => { setSelectedProject(null); setView('hr'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'hr' ? 'bg-blue-600 text-white shadow-md shadow-blue-900/20' : 'text-slate-400 hover:bg-slate-800'}`}>
-            <UsersIcon className="w-5 h-5" /> 
-            <span className="font-medium">人事</span>
-          </button>
-          <button onClick={() => { setSelectedProject(null); setView('equipment'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'equipment' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
-            <WrenchIcon className="w-5 h-5" /> 
-            <span className="font-medium">設備／工具</span>
-          </button>
-
-          <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-2 mt-6 px-4">快速捷徑</div>
-          <button onClick={() => { setSelectedProject(null); setView('report'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'report' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}><ClipboardListIcon className="w-5 h-5" /> <span className="font-medium">工作回報</span></button>
-          {currentUser.role === UserRole.ADMIN && (<button onClick={() => { setView('users'); setSelectedProject(null); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'users' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}><ShieldIcon className="w-4 h-4" /> <span className="font-medium">系統權限</span></button>)}
-        </nav>
-        <div className="p-4 border-t border-slate-800 w-full mt-auto mb-safe"><button onClick={handleLogout} className="flex w-full items-center justify-center gap-2 px-4 py-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors text-sm"><LogOutIcon className="w-4 h-4" /> 登出</button></div>
+        </div>
       </>
     );
   };
