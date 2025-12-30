@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { App as CapacitorApp } from '@capacitor/app';
 import { Project, ProjectStatus, User, UserRole, MaterialStatus, AuditLog, ProjectType, Attachment, WeeklySchedule as WeeklyScheduleType, DailyDispatch as DailyDispatchType, GlobalTeamConfigs, Employee, AttendanceRecord, OvertimeRecord, MonthSummaryRemark, Supplier, PurchaseOrder } from './types';
@@ -18,8 +19,8 @@ import HRManagement from './components/HRManagement';
 import PurchasingModule from './components/PurchasingModule';
 import SupplierList from './components/SupplierList';
 import PurchaseOrders from './components/PurchaseOrders';
-import { HomeIcon, UserIcon, LogOutIcon, ShieldIcon, MenuIcon, XIcon, ChevronRightIcon, WrenchIcon, UploadIcon, LoaderIcon, ClipboardListIcon, LayoutGridIcon, BoxIcon, DownloadIcon, FileTextIcon, CheckCircleIcon, AlertIcon, XCircleIcon, UsersIcon, TruckIcon, BriefcaseIcon, ArrowLeftIcon, CalendarIcon, ClockIcon, NavigationIcon, SaveIcon, SettingsIcon } from './components/Icons';
-import { getDirectoryHandle, saveDbToLocal, loadDbFromLocal, getHandleFromIdb, clearHandleFromIdb, saveAppStateToIdb, loadAppStateFromIdb, saveHandleToIdb, saveStorageHandleToIdb, getStorageHandleFromIdb } from './utils/fileSystem';
+import { HomeIcon, UserIcon, LogOutIcon, ShieldIcon, MenuIcon, XIcon, ChevronRightIcon, WrenchIcon, UploadIcon, LoaderIcon, ClipboardListIcon, LayoutGridIcon, BoxIcon, DownloadIcon, FileTextIcon, CheckCircleIcon, AlertIcon, XCircleIcon, UsersIcon, TruckIcon, BriefcaseIcon, ArrowLeftIcon, CalendarIcon, ClockIcon, NavigationIcon, SaveIcon } from './components/Icons';
+import { getDirectoryHandle, saveDbToLocal, loadDbFromLocal, getHandleFromIdb, clearHandleFromIdb, saveAppStateToIdb, loadAppStateFromIdb } from './utils/fileSystem';
 import { downloadBlob } from './utils/fileHelpers';
 import ExcelJS from 'exceljs';
 
@@ -78,24 +79,24 @@ const App: React.FC = () => {
   const [dailyDispatches, setDailyDispatches] = useState<DailyDispatchType[]>([]);
   const [globalTeamConfigs, setGlobalTeamConfigs] = useState<GlobalTeamConfigs>({});
   
+  // HR 相關狀態
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
   const [overtime, setOvertime] = useState<OvertimeRecord[]>([]);
   const [monthRemarks, setMonthRemarks] = useState<MonthSummaryRemark[]>([]);
 
+  // 採購相關狀態
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>([]);
 
   const [dirHandle, setDirHandle] = useState<FileSystemDirectoryHandle | null>(null);
   const [dirPermission, setDirPermission] = useState<'granted' | 'prompt' | 'denied'>('prompt');
-  
-  const [storageHandle, setStorageHandle] = useState<FileSystemDirectoryHandle | null>(null);
-  const [storagePermission, setStoragePermission] = useState<'granted' | 'prompt' | 'denied'>('prompt');
-  
   const [isWorkspaceLoading, setIsWorkspaceLoading] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
   
+  // 估計行車時間懸浮視窗
   const [isDrivingTimeModalOpen, setIsDrivingTimeModalOpen] = useState(false);
+  
   const excelInputRef = useRef<HTMLInputElement>(null);
 
   const sortProjects = (list: Project[]) => {
@@ -125,21 +126,30 @@ const App: React.FC = () => {
           if (cachedState.suppliers) setSuppliers(cachedState.suppliers);
           if (cachedState.purchaseOrders) setPurchaseOrders(cachedState.purchaseOrders);
         }
-        
         const savedHandle = await getHandleFromIdb();
         if (savedHandle) {
           setDirHandle(savedHandle);
           const status = await (savedHandle as any).queryPermission({ mode: 'readwrite' });
           setDirPermission(status);
+          if (status === 'granted') {
+            const savedData = await loadDbFromLocal(savedHandle);
+            if (savedData) {
+               const dbProjects = Array.isArray(savedData.projects) ? savedData.projects : [];
+               setProjects(sortProjects(dbProjects));
+               if (Array.isArray(savedData.users)) setAllUsers(savedData.users);
+               if (Array.isArray(savedData.auditLogs)) setAuditLogs(savedData.auditLogs);
+               if (Array.isArray(savedData.weeklySchedules)) setWeeklySchedules(savedData.weeklySchedules);
+               if (Array.isArray(savedData.dailyDispatches)) setDailyDispatches(savedData.dailyDispatches);
+               if (savedData.globalTeamConfigs) setGlobalTeamConfigs(savedData.globalTeamConfigs);
+               if (savedData.employees) setEmployees(savedData.employees);
+               if (savedData.attendance) setAttendance(savedData.attendance);
+               if (savedData.overtime) setOvertime(savedData.overtime);
+               if (savedData.monthRemarks) setMonthRemarks(savedData.monthRemarks);
+               if (savedData.suppliers) setSuppliers(savedData.suppliers);
+               if (savedData.purchaseOrders) setPurchaseOrders(savedData.purchaseOrders);
+            }
+          }
         }
-
-        const savedStorageHandle = await getStorageHandleFromIdb();
-        if (savedStorageHandle) {
-          setStorageHandle(savedStorageHandle);
-          const sStatus = await (savedStorageHandle as any).queryPermission({ mode: 'readwrite' });
-          setStoragePermission(sStatus);
-        }
-
       } catch (e) {
         console.error('資料恢復過程失敗', e);
       } finally {
@@ -158,21 +168,39 @@ const App: React.FC = () => {
     }
   };
 
+  /**
+   * 核心連動邏輯：
+   * 1. 如果 handle 存在但沒權限，僅要求權限（不跳資料夾選取器）
+   * 2. 如果參數 force 為 true，強制開啟資料夾選取器
+   */
   const handleDirectoryAction = async (force: boolean = false) => {
     setIsWorkspaceLoading(true);
     try {
       let handle = dirHandle;
+      
+      // 只有在強制選取或目前沒有控制項時才開啟 Picker
       if (force || !handle) {
         handle = await getDirectoryHandle();
         setDirHandle(handle);
-        await saveHandleToIdb(handle);
       }
+
+      // 要求讀寫權限 (若是現有 handle，瀏覽器只會跳出「允許」按鈕，不會開資料夾視窗)
       const status = await (handle as any).requestPermission({ mode: 'readwrite' });
       setDirPermission(status);
+      
       if (status === 'granted') {
         const savedData = await loadDbFromLocal(handle);
         if (savedData) {
-          const sorted = sortProjects(savedData.projects || []);
+          const mergedProjects = [...projects];
+          let addedFromDbCount = 0;
+          (savedData.projects || []).forEach((fp: Project) => {
+            const exists = mergedProjects.some(lp => lp.id === fp.id);
+            if (!exists) {
+              mergedProjects.push(fp);
+              addedFromDbCount++;
+            }
+          });
+          const sorted = sortProjects(mergedProjects);
           setProjects(sorted);
           if (savedData.users) setAllUsers(savedData.users);
           if (savedData.auditLogs) setAuditLogs(savedData.auditLogs);
@@ -185,6 +213,10 @@ const App: React.FC = () => {
           if (savedData.monthRemarks) setMonthRemarks(savedData.monthRemarks);
           if (savedData.suppliers) setSuppliers(savedData.suppliers);
           if (savedData.purchaseOrders) setPurchaseOrders(savedData.purchaseOrders);
+          await syncToLocal(handle, { projects: sorted, users: savedData.users || allUsers, auditLogs: savedData.auditLogs || auditLogs, weeklySchedules: savedData.weeklySchedules || weeklySchedules, dailyDispatches: savedData.dailyDispatches || dailyDispatches, globalTeamConfigs: savedData.globalTeamConfigs || globalTeamConfigs, employees: savedData.employees || employees, attendance: savedData.attendance || attendance, overtime: savedData.overtime || overtime, monthRemarks: savedData.monthRemarks || monthRemarks, suppliers: savedData.suppliers || suppliers, purchaseOrders: savedData.purchaseOrders || purchaseOrders });
+          if (addedFromDbCount > 0) alert(`已從資料夾同步 ${addedFromDbCount} 筆新案件。`);
+        } else {
+          await syncToLocal(handle, { projects, users: allUsers, auditLogs, weeklySchedules, dailyDispatches, globalTeamConfigs, employees, attendance, overtime, monthRemarks, suppliers, purchaseOrders });
         }
       }
     } catch (e: any) {
@@ -194,52 +226,22 @@ const App: React.FC = () => {
     }
   };
 
-  const handleSetStorageDirectory = async () => {
-    setIsWorkspaceLoading(true);
-    try {
-      const handle = await getDirectoryHandle();
-      setStorageHandle(handle);
-      await saveStorageHandleToIdb(handle);
-      const status = await (handle as any).requestPermission({ mode: 'readwrite' });
-      setStoragePermission(status);
-      if (status === 'granted') alert("檔案儲存位置（支援網路路徑）設定成功！");
-    } catch (e: any) {
-      if (e.message !== '已取消選擇') alert(e.message);
-    } finally {
-      setIsWorkspaceLoading(false);
-    }
-  };
-
-  const handleDownloadToStorage = async () => {
-    if (!storageHandle) {
-      if(confirm("您尚未設定檔案儲存位置。是否前往「系統權限 > 設定」進行設定？")) {
-        setView('users');
-      }
-      return;
-    }
-    
-    try {
-      // 若連線逾時或重新整理，需重新獲得使用者授權（瀏覽器安全要求）
-      const status = await (storageHandle as any).requestPermission({ mode: 'readwrite' });
-      setStoragePermission(status);
-      if (status !== 'granted') return;
-
-      const appState = {
-        projects, users: allUsers, auditLogs, weeklySchedules, dailyDispatches, globalTeamConfigs, employees, attendance, overtime, monthRemarks, suppliers, purchaseOrders, lastSaved: new Date().toISOString()
-      };
-      
-      const fileName = `db_export_${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
-      await saveDbToLocal(storageHandle, appState, fileName);
-      alert(`連線成功！已自動同步最新資料至儲存位置：\n${fileName}`);
-    } catch (e) {
-      alert("無法連通該資料夾，請確認網路路徑是否正確或具備存取權限。");
-    }
-  };
-
   const handleManualSaveAs = async () => {
     try {
       const appState = {
-        projects, users: allUsers, auditLogs, weeklySchedules, dailyDispatches, globalTeamConfigs, employees, attendance, overtime, monthRemarks, suppliers, purchaseOrders, lastSaved: new Date().toISOString()
+        projects,
+        users: allUsers,
+        auditLogs,
+        weeklySchedules,
+        dailyDispatches,
+        globalTeamConfigs,
+        employees,
+        attendance,
+        overtime,
+        monthRemarks,
+        suppliers,
+        purchaseOrders,
+        lastSaved: new Date().toISOString()
       };
       const jsonStr = JSON.stringify(appState, null, 2);
       const blob = new Blob([jsonStr], { type: 'application/json' });
@@ -378,6 +380,7 @@ const App: React.FC = () => {
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [view, setView] = useState<'engineering' | 'engineering_hub' | 'driving_time' | 'weekly_schedule' | 'daily_dispatch' | 'engineering_groups' | 'construction' | 'modular_house' | 'maintenance' | 'purchasing_hub' | 'purchasing_management' | 'purchasing_materials' | 'purchasing_suppliers' | 'purchasing_orders' | 'hr' | 'equipment' | 'report' | 'users'>('engineering');
+  const [equipmentSubView, setEquipmentSubView] = useState<string | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   const handleLogin = (user: User) => { setCurrentUser(user); setView('engineering'); };
@@ -446,9 +449,6 @@ const App: React.FC = () => {
 
   const renderSidebarContent = () => {
     const isConnected = dirHandle && dirPermission === 'granted';
-    const isStorageSet = !!storageHandle; // 只要有路徑資訊就顯示為已設定
-    const isBrowserSupported = 'showDirectoryPicker' in window;
-
     return (
       <>
         <div className="flex items-center justify-center w-full px-2 py-6 mb-2">
@@ -462,24 +462,12 @@ const App: React.FC = () => {
           <div className="space-y-2 mb-6">
             <button 
               onClick={() => handleDirectoryAction(false)} 
-              disabled={!isBrowserSupported}
-              className={`flex items-center gap-3 px-4 py-3 rounded-xl w-full transition-all border ${!isBrowserSupported ? 'opacity-30 border-slate-700 bg-slate-800' : isConnected ? 'bg-green-600/10 border-green-500 text-green-400' : 'bg-red-600/10 border-red-500 text-red-400'}`}
+              className={`flex items-center gap-3 px-4 py-3 rounded-xl w-full transition-all border ${isConnected ? 'bg-green-600/10 border-green-500 text-green-400' : 'bg-red-600/10 border-red-500 text-red-400'}`}
             >
               {isWorkspaceLoading ? <LoaderIcon className="w-5 h-5 animate-spin" /> : isConnected ? <CheckCircleIcon className="w-5 h-5" /> : <AlertIcon className="w-5 h-5" />}
               <div className="flex flex-col items-start text-left">
-                <span className="text-sm font-bold">{!isBrowserSupported ? '不支援自動備份' : isConnected ? '電腦同步已開啟' : '未連結電腦目錄'}</span>
-                <span className="text-[10px] opacity-70">db.json 即時同步</span>
-              </div>
-            </button>
-
-            <button 
-              onClick={handleDownloadToStorage} 
-              className={`flex items-center gap-3 px-4 py-3 rounded-xl w-full transition-all border ${isStorageSet ? 'bg-blue-600/10 border-blue-500/50 text-blue-400 hover:bg-blue-600 hover:text-white' : 'bg-slate-800 border-slate-700 text-slate-500'}`}
-            >
-              <DownloadIcon className="w-5 h-5" />
-              <div className="flex flex-col items-start text-left">
-                <span className="text-sm font-bold">{isStorageSet ? '開啟儲存位置' : '設定儲存位置'}</span>
-                <span className="text-[10px] opacity-70">{isStorageSet ? '連通指定路徑(含網路)' : '請至系統權限設定'}</span>
+                <span className="text-sm font-bold">{isConnected ? '電腦同步已開啟' : '未連結電腦目錄'}</span>
+                <span className="text-[10px] opacity-70">db.json 自動備份</span>
               </div>
             </button>
 
@@ -491,7 +479,7 @@ const App: React.FC = () => {
               </div>
             </button>
 
-            <div className="px-1 pt-1 border-t border-slate-800 mt-2">
+            <div className="px-1 pt-1">
               <input type="file" accept=".xlsx, .xls" ref={excelInputRef} className="hidden" onChange={handleImportExcel} />
               <button onClick={() => excelInputRef.current?.click()} disabled={isWorkspaceLoading || !isInitialized} className="flex items-center gap-3 px-4 py-3 rounded-xl w-full transition-all bg-indigo-600/10 border border-indigo-500/30 text-indigo-400 hover:bg-indigo-600 hover:text-white group disabled:opacity-50">
                 <FileTextIcon className="w-5 h-5" />
@@ -519,7 +507,7 @@ const App: React.FC = () => {
             <UsersIcon className="w-5 h-5" /> 
             <span className="font-medium">人事</span>
           </button>
-          <button onClick={() => { setSelectedProject(null); setView('equipment'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'equipment' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
+          <button onClick={() => { setSelectedProject(null); setView('equipment'); setEquipmentSubView(null); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'equipment' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
             <WrenchIcon className="w-5 h-5" /> 
             <span className="font-medium">設備／工具</span>
           </button>
@@ -547,7 +535,7 @@ const App: React.FC = () => {
       case 'purchasing_suppliers': return '供應商清冊';
       case 'purchasing_orders': return '採購單管理';
       case 'hr': return '人事管理模組';
-      case 'equipment': return '設備／工具模組';
+      case 'equipment': return equipmentSubView ? `設備／工具 - ${equipmentSubView}` : '設備／工具模組';
       case 'construction': return '圍籬案件';
       case 'modular_house': return '組合屋案件';
       case 'maintenance': return '維修案件';
@@ -630,10 +618,9 @@ const App: React.FC = () => {
               onLogAction={(action, details) => setAuditLogs(prev => [{ id: generateId(), userId: currentUser.id, userName: currentUser.name, action, details, timestamp: Date.now() }, ...prev])} 
               projects={projects} 
               onRestoreData={(data) => { setProjects(data.projects); setAllUsers(data.users); setAuditLogs(data.auditLogs); }}
+              // 更新：設定頁面的按鈕強制開啟選取器
               onConnectDirectory={() => handleDirectoryAction(true)}
-              onSetStorageDirectory={handleSetStorageDirectory}
               dirPermission={dirPermission}
-              storagePermission={storagePermission}
               isWorkspaceLoading={isWorkspaceLoading}
             />
           ) : 
@@ -709,6 +696,7 @@ const App: React.FC = () => {
         </main>
       </div>
 
+      {/* 路徑估算懸浮視窗 */}
       {isDrivingTimeModalOpen && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 md:p-10 animate-fade-in">
           <div className="bg-slate-50 w-full max-w-4xl h-full max-h-[90vh] rounded-[32px] shadow-2xl overflow-hidden flex flex-col relative">
@@ -719,12 +707,19 @@ const App: React.FC = () => {
                 </div>
                 <h3 className="font-black text-slate-800">路徑規劃與估算</h3>
               </div>
-              <button onClick={() => setIsDrivingTimeModalOpen(false)} className="p-2 bg-slate-100 hover:bg-red-50 hover:text-red-500 text-slate-400 rounded-full transition-all">
+              <button 
+                onClick={() => setIsDrivingTimeModalOpen(false)}
+                className="p-2 bg-slate-100 hover:bg-red-50 hover:text-red-500 text-slate-400 rounded-full transition-all"
+              >
                 <XIcon className="w-6 h-6" />
               </button>
             </header>
             <div className="flex-1 overflow-y-auto custom-scrollbar bg-[#f8fafc]">
-              <DrivingTimeEstimator projects={projects} globalTeamConfigs={globalTeamConfigs} onAddToSchedule={handleAddToSchedule} />
+              <DrivingTimeEstimator 
+                projects={projects} 
+                globalTeamConfigs={globalTeamConfigs} 
+                onAddToSchedule={handleAddToSchedule} 
+              />
             </div>
           </div>
         </div>
