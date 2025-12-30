@@ -11,15 +11,13 @@ interface UserManagementProps {
   projects?: Project[];
   onRestoreData?: (data: { projects: Project[], users: User[], auditLogs: AuditLog[] }) => void;
   onConnectDirectory?: () => Promise<void>;
-  onSetStorageDirectory?: () => Promise<void>;
   dirPermission?: 'granted' | 'prompt' | 'denied';
-  storagePermission?: 'granted' | 'prompt' | 'denied';
   isWorkspaceLoading?: boolean;
 }
 
 const UserManagement: React.FC<UserManagementProps> = ({ 
   users, onUpdateUsers, auditLogs, onLogAction, projects = [], onRestoreData,
-  onConnectDirectory, onSetStorageDirectory, dirPermission, storagePermission, isWorkspaceLoading
+  onConnectDirectory, dirPermission, isWorkspaceLoading
 }) => {
   const [activeTab, setActiveTab] = useState<'users' | 'logs' | 'data' | 'settings'>('users');
   const [isAdding, setIsAdding] = useState(false);
@@ -336,42 +334,6 @@ const UserManagement: React.FC<UserManagementProps> = ({
                       <span className="text-xs font-bold text-slate-600">系統目前正在同步您的資料夾根目錄下的 db.json</span>
                     </div>
                   )}
-                </div>
-              </div>
-
-              <div className="pt-6 border-t border-slate-100">
-                <label className="block text-sm font-bold text-slate-700 mb-2">預設下載位置設定 (支援網路資料夾/NAS)</label>
-                <p className="text-xs text-slate-500 mb-4">
-                  設定一個專屬的資料夾或網路磁碟路徑，用於存放從側邊欄點擊「開啟儲存位置」產生的檔案。支援映射後的網路磁碟機。
-                </p>
-                <div className="mt-4">
-                  <button 
-                    onClick={onSetStorageDirectory} 
-                    disabled={isWorkspaceLoading || !isBrowserSupported} 
-                    className={`flex items-center gap-4 px-6 py-5 rounded-2xl w-full transition-all border-2 ${
-                      !isBrowserSupported ? 'bg-slate-50 border-slate-200 opacity-50 cursor-not-allowed' :
-                      storagePermission === 'granted' 
-                        ? 'bg-indigo-50 border-indigo-500 text-indigo-700' 
-                        : 'bg-slate-50 border-slate-300 text-slate-600'
-                    } hover:shadow-md active:scale-[0.99]`}
-                  >
-                    <div className={`p-3 rounded-xl ${!isBrowserSupported ? 'bg-slate-300' : storagePermission === 'granted' ? 'bg-indigo-600' : 'bg-slate-400'} text-white`}>
-                      {isWorkspaceLoading ? <LoaderIcon className="w-6 h-6 animate-spin" /> : <DownloadIcon className="w-6 h-6" />}
-                    </div>
-                    <div className="flex flex-col items-start text-left flex-1 min-w-0">
-                      <span className="text-lg font-black tracking-tight">
-                        {storagePermission === 'granted' ? '預設下載目錄已設定' : '設定下載儲存目錄'}
-                      </span>
-                      <span className="text-xs opacity-70 font-bold">
-                        {!isBrowserSupported ? '目前瀏覽器不支援' : storagePermission === 'granted' ? '已選定資料夾，點擊側邊欄即可存檔至此' : '選取資料夾後，即可從側邊欄一鍵下載檔案至此'}
-                      </span>
-                    </div>
-                    {isBrowserSupported && (
-                      <div className="flex items-center gap-2">
-                        {storagePermission === 'granted' ? <CheckCircleIcon className="w-6 h-6" /> : <SettingsIcon className="w-6 h-6 opacity-30" />}
-                      </div>
-                    )}
-                  </button>
                 </div>
               </div>
            </div>

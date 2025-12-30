@@ -19,7 +19,7 @@ import PurchasingModule from './components/PurchasingModule';
 import SupplierList from './components/SupplierList';
 import PurchaseOrders from './components/PurchaseOrders';
 import { HomeIcon, UserIcon, LogOutIcon, ShieldIcon, MenuIcon, XIcon, ChevronRightIcon, WrenchIcon, UploadIcon, LoaderIcon, ClipboardListIcon, LayoutGridIcon, BoxIcon, DownloadIcon, FileTextIcon, CheckCircleIcon, AlertIcon, XCircleIcon, UsersIcon, TruckIcon, BriefcaseIcon, ArrowLeftIcon, CalendarIcon, ClockIcon, NavigationIcon, SaveIcon, ExternalLinkIcon } from './components/Icons';
-import { getDirectoryHandle, saveDbToLocal, loadDbFromLocal, getHandleFromIdb, clearHandleFromIdb, saveAppStateToIdb, loadAppStateFromIdb, saveHandleToIdb, saveStorageHandleToIdb, getStorageHandleFromIdb } from './utils/fileSystem';
+import { getDirectoryHandle, saveDbToLocal, loadDbFromLocal, getHandleFromIdb, clearHandleFromIdb, saveAppStateToIdb, loadAppStateFromIdb, saveHandleToIdb } from './utils/fileSystem';
 import { downloadBlob } from './utils/fileHelpers';
 import ExcelJS from 'exceljs';
 
@@ -89,14 +89,12 @@ const App: React.FC = () => {
   const [dirHandle, setDirHandle] = useState<FileSystemDirectoryHandle | null>(null);
   const [dirPermission, setDirPermission] = useState<'granted' | 'prompt' | 'denied'>('prompt');
   
-  const [storageHandle, setStorageHandle] = useState<FileSystemDirectoryHandle | null>(null);
-  const [storagePermission, setStoragePermission] = useState<'granted' | 'prompt' | 'denied'>('prompt');
-  
   const [isWorkspaceLoading, setIsWorkspaceLoading] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
   
   const [isDrivingTimeModalOpen, setIsDrivingTimeModalOpen] = useState(false);
   const excelInputRef = useRef<HTMLInputElement>(null);
+  const dbJsonInputRef = useRef<HTMLInputElement>(null);
 
   const sortProjects = (list: Project[]) => {
     if (!Array.isArray(list)) return [];
@@ -132,14 +130,6 @@ const App: React.FC = () => {
           const status = await (savedHandle as any).queryPermission({ mode: 'readwrite' });
           setDirPermission(status);
         }
-
-        const savedStorageHandle = await getStorageHandleFromIdb();
-        if (savedStorageHandle) {
-          setStorageHandle(savedStorageHandle);
-          const sStatus = await (savedStorageHandle as any).queryPermission({ mode: 'readwrite' });
-          setStoragePermission(sStatus);
-        }
-
       } catch (e) {
         console.error('資料恢復過程失敗', e);
       } finally {
@@ -172,19 +162,7 @@ const App: React.FC = () => {
       if (status === 'granted') {
         const savedData = await loadDbFromLocal(handle);
         if (savedData) {
-          const sorted = sortProjects(savedData.projects || []);
-          setProjects(sorted);
-          if (savedData.users) setAllUsers(savedData.users);
-          if (savedData.auditLogs) setAuditLogs(savedData.auditLogs);
-          if (savedData.weeklySchedules) setWeeklySchedules(savedData.weeklySchedules);
-          if (savedData.dailyDispatches) setDailyDispatches(savedData.dailyDispatches);
-          if (savedData.globalTeamConfigs) setGlobalTeamConfigs(savedData.globalTeamConfigs);
-          if (savedData.employees) setEmployees(savedData.employees);
-          if (savedData.attendance) setAttendance(savedData.attendance);
-          if (savedData.overtime) setOvertime(savedData.overtime);
-          if (savedData.monthRemarks) setMonthRemarks(savedData.monthRemarks);
-          if (savedData.suppliers) setSuppliers(savedData.suppliers);
-          if (savedData.purchaseOrders) setPurchaseOrders(savedData.purchaseOrders);
+          restoreDataToState(savedData);
         }
       }
     } catch (e: any) {
@@ -194,45 +172,37 @@ const App: React.FC = () => {
     }
   };
 
-  const handleSetStorageDirectory = async () => {
-    setIsWorkspaceLoading(true);
-    try {
-      const handle = await getDirectoryHandle();
-      setStorageHandle(handle);
-      await saveStorageHandleToIdb(handle);
-      const status = await (handle as any).requestPermission({ mode: 'readwrite' });
-      setStoragePermission(status);
-      if (status === 'granted') alert("檔案儲存位置（支援網路路徑）設定成功！");
-    } catch (e: any) {
-      if (e.message !== '已取消選擇') alert(e.message);
-    } finally {
-      setIsWorkspaceLoading(false);
-    }
+  const restoreDataToState = (data: any) => {
+    if (Array.isArray(data.projects)) setProjects(sortProjects(data.projects));
+    if (Array.isArray(data.users)) setAllUsers(data.users);
+    if (Array.isArray(data.auditLogs)) setAuditLogs(data.auditLogs);
+    if (Array.isArray(data.weeklySchedules)) setWeeklySchedules(data.weeklySchedules);
+    if (Array.isArray(data.dailyDispatches)) setDailyDispatches(data.dailyDispatches);
+    if (data.globalTeamConfigs) setGlobalTeamConfigs(data.globalTeamConfigs);
+    if (Array.isArray(data.employees)) setEmployees(data.employees);
+    if (Array.isArray(data.attendance)) setAttendance(data.attendance);
+    if (Array.isArray(data.overtime)) setOvertime(data.overtime);
+    if (Array.isArray(data.monthRemarks)) setMonthRemarks(data.monthRemarks);
+    if (Array.isArray(data.suppliers)) setSuppliers(data.suppliers);
+    if (Array.isArray(data.purchaseOrders)) setPurchaseOrders(data.purchaseOrders);
   };
 
-  const handleDownloadToStorage = async () => {
-    if (!storageHandle) {
-      if(confirm("您尚未設定檔案儲存位置。是否前往「系統權限 > 設定」進行設定？")) {
-        setView('users');
-      }
-      return;
-    }
-    
-    try {
-      const status = await (storageHandle as any).requestPermission({ mode: 'readwrite' });
-      setStoragePermission(status);
-      if (status !== 'granted') return;
-
-      const appState = {
-        projects, users: allUsers, auditLogs, weeklySchedules, dailyDispatches, globalTeamConfigs, employees, attendance, overtime, monthRemarks, suppliers, purchaseOrders, lastSaved: new Date().toISOString()
-      };
-      
-      const fileName = `db_export_${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
-      await saveDbToLocal(storageHandle, appState, fileName);
-      alert(`連線成功！已自動同步最新資料至儲存位置：\n${fileName}`);
-    } catch (e) {
-      alert("無法連通該資料夾，請確認網路路徑是否正確或具備存取權限。");
-    }
+  const handleImportDbJson = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const json = JSON.parse(evt.target?.result as string);
+        if (!json.projects || !Array.isArray(json.projects)) throw new Error('備份檔格式不正確');
+        if (confirm(`還原將覆寫現有所有資料，確定要匯入嗎？`)) {
+          restoreDataToState(json);
+          alert('資料匯入完成');
+        }
+      } catch (error) { alert('匯入失敗：' + (error as Error).message); }
+    };
+    reader.readAsText(file);
+    if (dbJsonInputRef.current) dbJsonInputRef.current.value = '';
   };
 
   const handleManualSaveAs = async () => {
@@ -445,7 +415,6 @@ const App: React.FC = () => {
 
   const renderSidebarContent = () => {
     const isConnected = dirHandle && dirPermission === 'granted';
-    const isStorageSet = !!storageHandle; 
     const isBrowserSupported = 'showDirectoryPicker' in window;
 
     return (
@@ -472,17 +441,6 @@ const App: React.FC = () => {
             </button>
 
             <button 
-              onClick={handleDownloadToStorage} 
-              className={`flex items-center gap-3 px-4 py-3 rounded-xl w-full transition-all border ${isStorageSet ? 'bg-blue-600/10 border-blue-500/50 text-blue-400 hover:bg-blue-600 hover:text-white' : 'bg-slate-800 border-slate-700 text-slate-500'}`}
-            >
-              <DownloadIcon className="w-5 h-5" />
-              <div className="flex flex-col items-start text-left">
-                <span className="text-sm font-bold">{isStorageSet ? '開啟儲存位置' : '設定儲存位置'}</span>
-                <span className="text-[10px] opacity-70">{isStorageSet ? '連通指定路徑(含網路)' : '請至系統權限設定'}</span>
-              </div>
-            </button>
-
-            <button 
               onClick={() => window.open("http://192.168.1.2:8080/share.cgi?ssid=79f9da81f26d45bb8e896be3d7d95cbb", "_blank")}
               className="flex items-center gap-3 px-4 py-3 rounded-xl w-full transition-all bg-sky-600/10 border border-sky-500/30 text-sky-400 hover:bg-sky-600 hover:text-white group"
             >
@@ -493,15 +451,24 @@ const App: React.FC = () => {
               </div>
             </button>
 
-            <button onClick={handleManualSaveAs} className="flex items-center gap-3 px-4 py-3 rounded-xl w-full transition-all bg-emerald-600/10 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-600 hover:text-white group">
-              <SaveIcon className="w-5 h-5" />
-              <div className="flex flex-col items-start text-left">
-                <span className="text-sm font-bold">手動另存新檔</span>
-                <span className="text-[10px] opacity-70">下載 db.json 到本機</span>
-              </div>
-            </button>
+            <div className="px-1 pt-1 border-t border-slate-800 mt-2 space-y-2">
+              <input type="file" accept=".json" ref={dbJsonInputRef} className="hidden" onChange={handleImportDbJson} />
+              <button onClick={() => dbJsonInputRef.current?.click()} className="flex items-center gap-3 px-4 py-3 rounded-xl w-full transition-all bg-orange-600/10 border border-orange-500/30 text-orange-400 hover:bg-orange-600 hover:text-white group">
+                <UploadIcon className="w-5 h-5" />
+                <div className="flex flex-col items-start text-left">
+                  <span className="text-sm font-bold">匯入 db.json</span>
+                  <span className="text-[10px] opacity-70">還原系統備份資料</span>
+                </div>
+              </button>
 
-            <div className="px-1 pt-1 border-t border-slate-800 mt-2">
+              <button onClick={handleManualSaveAs} className="flex items-center gap-3 px-4 py-3 rounded-xl w-full transition-all bg-emerald-600/10 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-600 hover:text-white group">
+                <SaveIcon className="w-5 h-5" />
+                <div className="flex flex-col items-start text-left">
+                  <span className="text-sm font-bold">手動另存新檔</span>
+                  <span className="text-[10px] opacity-70">下載 db.json 到本機</span>
+                </div>
+              </button>
+
               <input type="file" accept=".xlsx, .xls" ref={excelInputRef} className="hidden" onChange={handleImportExcel} />
               <button onClick={() => excelInputRef.current?.click()} disabled={isWorkspaceLoading || !isInitialized} className="flex items-center gap-3 px-4 py-3 rounded-xl w-full transition-all bg-indigo-600/10 border border-indigo-500/30 text-indigo-400 hover:bg-indigo-600 hover:text-white group disabled:opacity-50">
                 <FileTextIcon className="w-5 h-5" />
@@ -639,11 +606,9 @@ const App: React.FC = () => {
               auditLogs={auditLogs} 
               onLogAction={(action, details) => setAuditLogs(prev => [{ id: generateId(), userId: currentUser.id, userName: currentUser.name, action, details, timestamp: Date.now() }, ...prev])} 
               projects={projects} 
-              onRestoreData={(data) => { setProjects(data.projects); setAllUsers(data.users); setAuditLogs(data.auditLogs); }}
+              onRestoreData={restoreDataToState}
               onConnectDirectory={() => handleDirectoryAction(true)}
-              onSetStorageDirectory={handleSetStorageDirectory}
               dirPermission={dirPermission}
-              storagePermission={storagePermission}
               isWorkspaceLoading={isWorkspaceLoading}
             />
           ) : 
