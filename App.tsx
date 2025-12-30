@@ -374,8 +374,8 @@ const App: React.FC = () => {
         if (!text) return 1;
         return text.split('\n').reduce((acc, line) => {
           // 概略計算：中文約占 2 單位寬度，數字英文約 1 單位
-          // 加上一些緩衝以確保文字完全顯示
-          const estimatedCharsPerLine = colWidth * 0.8; 
+          // 針對中文與全形字進行更保守的估算 (0.55 - 0.6)
+          const estimatedCharsPerLine = colWidth * 0.55; 
           return acc + Math.max(1, Math.ceil(line.length / estimatedCharsPerLine));
         }, 0);
       };
@@ -405,8 +405,8 @@ const App: React.FC = () => {
         const nameLines = countLines(p.name || '', 25);
         const addressLines = countLines(p.address || '', 40);
         
-        // 15~18 點約為標準單行高度
-        const estimatedTextHeight = Math.max(descLines, remarksLines, nameLines, addressLines) * 16 + 10;
+        // 20 點約為標準單行高度，加上足夠的緩衝 (Padding)
+        const estimatedTextHeight = Math.max(descLines, remarksLines, nameLines, addressLines) * 18 + 15;
         row.height = Math.max(minRowHeightPoints, estimatedTextHeight);
 
         // 處理圖片附件
@@ -480,7 +480,7 @@ const App: React.FC = () => {
         userId: currentUser?.id || 'system', 
         userName: currentUser?.name || '系統', 
         action: 'EXPORT_EXCEL', 
-        details: `匯出 Excel 案件表，列高依內容調整，照片高度固定 100pt`, 
+        details: `匯出 Excel 案件表，優化文字顯示高度，照片高度固定 100pt`, 
         timestamp: Date.now() 
       }, ...prev]);
     } catch (error: any) {
@@ -703,7 +703,7 @@ const App: React.FC = () => {
         <h2 className="text-2xl font-bold text-slate-800 mb-2">設備與工具管理</h2>
         <p className="text-slate-500 max-w-md">
           此模組用於追蹤公司各式機具、車輛維護紀錄與工具借用狀態。
-          功能開發中，敬請期待。
+          功能開發中，維護計畫擬定中。
         </p>
       </div>
     );
