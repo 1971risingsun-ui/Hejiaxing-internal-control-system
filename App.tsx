@@ -202,7 +202,7 @@ const App: React.FC = () => {
       await saveStorageHandleToIdb(handle);
       const status = await (handle as any).requestPermission({ mode: 'readwrite' });
       setStoragePermission(status);
-      if (status === 'granted') alert("下載目錄設定成功！");
+      if (status === 'granted') alert("檔案儲存位置（包含網路資料夾）設定成功！");
     } catch (e: any) {
       if (e.message !== '已取消選擇') alert(e.message);
     } finally {
@@ -212,13 +212,14 @@ const App: React.FC = () => {
 
   const handleDownloadToStorage = async () => {
     if (!storageHandle) {
-      if(confirm("您尚未設定下載儲存位置。是否前往「系統權限」進行設定？")) {
+      if(confirm("您尚未設定檔案儲存位置。是否前往「系統權限 > 設定」進行設定？")) {
         setView('users');
       }
       return;
     }
     
     try {
+      // 若為第一次點擊或權限已失效，主動請求
       const status = await (storageHandle as any).requestPermission({ mode: 'readwrite' });
       setStoragePermission(status);
       if (status !== 'granted') return;
@@ -229,9 +230,9 @@ const App: React.FC = () => {
       
       const fileName = `db_export_${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
       await saveDbToLocal(storageHandle, appState, fileName);
-      alert(`檔案已成功下載至指定目錄：\n${fileName}`);
+      alert(`已成功存檔至指定位置：\n${fileName}`);
     } catch (e) {
-      alert("下載失敗，請檢查資料夾存取權限。");
+      alert("無法存取該資料夾，請確認網路路徑是否連通或權限是否正確。");
     }
   };
 
@@ -445,7 +446,7 @@ const App: React.FC = () => {
 
   const renderSidebarContent = () => {
     const isConnected = dirHandle && dirPermission === 'granted';
-    const isStorageSet = storageHandle && storagePermission === 'granted';
+    const isStorageSet = !!storageHandle; // 修改：只要有 Handle 就視為已設定
     const isBrowserSupported = 'showDirectoryPicker' in window;
 
     return (
@@ -478,7 +479,7 @@ const App: React.FC = () => {
               <DownloadIcon className="w-5 h-5" />
               <div className="flex flex-col items-start text-left">
                 <span className="text-sm font-bold">{isStorageSet ? '下載至儲存位置' : '設定儲存位置'}</span>
-                <span className="text-[10px] opacity-70">{isStorageSet ? '另存 db 到預設目錄' : '請至權限管理設定'}</span>
+                <span className="text-[10px] opacity-70">{isStorageSet ? '另存 db 到指定目錄' : '請至權限管理設定'}</span>
               </div>
             </button>
 

@@ -169,9 +169,9 @@ const UserManagement: React.FC<UserManagementProps> = ({
 
               {/* 新增：設定檔案儲存位置 */}
               <div className="pt-6 border-t border-slate-100">
-                <label className="block text-sm font-bold text-slate-700 mb-2">預設下載位置設定</label>
+                <label className="block text-sm font-bold text-slate-700 mb-2">預設下載位置設定 (支援網路資料夾/NAS)</label>
                 <p className="text-xs text-slate-500 mb-4">
-                  設定一個專屬的資料夾，用於存放從側邊欄點擊「下載至儲存位置」產生的檔案。
+                  設定一個專屬的資料夾或網路磁碟路徑，用於存放從側邊欄點擊「下載至儲存位置」產生的檔案。支援映射後的網路磁碟機 (如 Z:\)。
                 </p>
                 <div className="mt-4">
                   <button 
@@ -192,7 +192,7 @@ const UserManagement: React.FC<UserManagementProps> = ({
                         {storagePermission === 'granted' ? '預設下載目錄已設定' : '設定下載儲存目錄'}
                       </span>
                       <span className="text-xs opacity-70 font-bold">
-                        {!isBrowserSupported ? '目前瀏覽器不支援' : storagePermission === 'granted' ? '點擊可更改預設目錄' : '設定後可從側邊欄一鍵下載檔案至此'}
+                        {!isBrowserSupported ? '目前瀏覽器不支援' : storagePermission === 'granted' ? '已選定資料夾，點擊側邊欄即可存檔至此' : '選取資料夾後，即可從側邊欄一鍵下載檔案至此'}
                       </span>
                     </div>
                     {isBrowserSupported && (
