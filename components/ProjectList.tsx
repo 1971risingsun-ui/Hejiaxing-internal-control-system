@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Project, ProjectStatus, User, UserRole, ProjectType, GlobalTeamConfigs } from '../types';
-import { CalendarIcon, MapPinIcon, SearchIcon, MoreVerticalIcon, EditIcon, CopyIcon, TrashIcon, LayoutGridIcon, ListIcon, PlusIcon, NavigationIcon, PlusIcon as AddIcon, CheckCircleIcon, XIcon, UsersIcon, ClipboardListIcon, PaperclipIcon } from './Icons';
+import { CalendarIcon, MapPinIcon, SearchIcon, MoreVerticalIcon, EditIcon, CopyIcon, TrashIcon, LayoutGridIcon, ListIcon, PlusIcon, NavigationIcon, CheckCircleIcon, XIcon, UsersIcon, ClipboardListIcon, PaperclipIcon, BoxIcon, FileTextIcon } from './Icons';
 
 interface ProjectListProps {
   title?: string;
@@ -12,6 +12,7 @@ interface ProjectListProps {
   onDuplicateProject: (project: Project) => void;
   onEditProject: (project: Project) => void;
   onOpenDrivingTime?: () => void;
+  onImportExcel?: () => void;
   onAddToSchedule?: (date: string, teamId: number, taskName: string) => boolean;
   globalTeamConfigs?: GlobalTeamConfigs;
 }
@@ -19,7 +20,7 @@ interface ProjectListProps {
 const ProjectList: React.FC<ProjectListProps> = ({ 
   title, projects, currentUser, onSelectProject, onAddProject, 
   onDeleteProject, onDuplicateProject, onEditProject, onOpenDrivingTime,
-  onAddToSchedule, globalTeamConfigs
+  onImportExcel, onAddToSchedule, globalTeamConfigs
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<ProjectStatus | 'ALL'>('ALL');
@@ -144,11 +145,21 @@ const ProjectList: React.FC<ProjectListProps> = ({
 
   return (
     <div className="p-4 md:p-6 w-full max-w-[1600px] mx-auto pb-20 md:pb-6" onClick={() => setActiveMenuId(null)}>
+      {/* Page Title & Global Actions */}
       <div className="flex flex-row items-center justify-between mb-6 gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-800">{title || '案件總覽'}</h1>
         </div>
         <div className="flex gap-2">
+          {onImportExcel && (
+            <button
+              onClick={onImportExcel}
+              className="bg-indigo-100 hover:bg-indigo-200 text-indigo-700 w-10 h-10 rounded-full shadow-sm flex items-center justify-center transition-all active:scale-95"
+              title="匯入排程表"
+            >
+              <FileTextIcon className="w-5 h-5" />
+            </button>
+          )}
           {onOpenDrivingTime && (
             <button
               onClick={onOpenDrivingTime}
@@ -170,253 +181,268 @@ const ProjectList: React.FC<ProjectListProps> = ({
         </div>
       </div>
 
-      <div className="mb-6 flex flex-col gap-4 bg-white rounded-xl border border-slate-200 shadow-sm sticky top-0 z-10 md:static">
-        {/* Search and View Mode */}
-        <div className="flex gap-2 p-4 pb-0">
-            <div className="relative flex-1">
-                <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                <input 
-                    type="text" 
-                    placeholder="搜尋專案..." 
-                    className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                />
-            </div>
-            
-            <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg border border-slate-200 flex-shrink-0">
-                <button 
-                    onClick={() => setViewMode('table')}
-                    className={`p-2 rounded-md transition-all ${viewMode === 'table' ? 'bg-white shadow-sm text-slate-800' : 'text-slate-400 hover:text-slate-600'}`}
-                >
-                    <ListIcon className="w-5 h-5" />
-                </button>
-                <button 
-                    onClick={() => setViewMode('grid')}
-                    className={`p-2 rounded-md transition-all ${viewMode === 'grid' ? 'bg-white shadow-sm text-slate-800' : 'text-slate-400 hover:text-slate-600'}`}
-                >
-                    <LayoutGridIcon className="w-5 h-5" />
-                </button>
-            </div>
-        </div>
-
-        {/* Category Tabs (Added background colors) */}
-        <div className="px-4 py-3 border-b border-slate-50">
-            <div className="flex gap-2 overflow-x-auto no-scrollbar">
+      {/* Unified Project Section (Merged tabs and projects) */}
+      <div className="flex flex-col bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        
+        {/* Category Tabs Section */}
+        <div className="bg-slate-50 border-b border-slate-200">
+            <div className="flex overflow-x-auto no-scrollbar">
                 <button 
                     onClick={() => setTypeFilter('ALL')}
-                    className={`px-5 py-2 rounded-xl text-sm font-black transition-all whitespace-nowrap shadow-sm ${typeFilter === 'ALL' ? 'bg-indigo-600 text-white shadow-indigo-100' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}
+                    className={`flex-1 min-w-[100px] py-4 px-4 text-sm font-black transition-all border-b-4 relative ${typeFilter === 'ALL' ? 'bg-indigo-600 text-white border-indigo-700 shadow-inner' : 'text-slate-500 hover:bg-slate-100 border-transparent'}`}
                 >
                     全部案件
                 </button>
                 <button 
                     onClick={() => setTypeFilter(ProjectType.CONSTRUCTION)}
-                    className={`px-5 py-2 rounded-xl text-sm font-black transition-all whitespace-nowrap shadow-sm ${typeFilter === ProjectType.CONSTRUCTION ? 'bg-blue-600 text-white shadow-blue-100' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}
+                    className={`flex-1 min-w-[100px] py-4 px-4 text-sm font-black transition-all border-b-4 relative ${typeFilter === ProjectType.CONSTRUCTION ? 'bg-blue-600 text-white border-blue-700 shadow-inner' : 'text-slate-500 hover:bg-slate-100 border-transparent'}`}
                 >
                     圍籬
                 </button>
                 <button 
                     onClick={() => setTypeFilter(ProjectType.MODULAR_HOUSE)}
-                    className={`px-5 py-2 rounded-xl text-sm font-black transition-all whitespace-nowrap shadow-sm ${typeFilter === ProjectType.MODULAR_HOUSE ? 'bg-emerald-600 text-white shadow-emerald-100' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}
+                    className={`flex-1 min-w-[100px] py-4 px-4 text-sm font-black transition-all border-b-4 relative ${typeFilter === ProjectType.MODULAR_HOUSE ? 'bg-emerald-600 text-white border-emerald-700 shadow-inner' : 'text-slate-500 hover:bg-slate-100 border-transparent'}`}
                 >
                     組合屋
                 </button>
                 <button 
                     onClick={() => setTypeFilter(ProjectType.MAINTENANCE)}
-                    className={`px-5 py-2 rounded-xl text-sm font-black transition-all whitespace-nowrap shadow-sm ${typeFilter === ProjectType.MAINTENANCE ? 'bg-orange-600 text-white shadow-orange-100' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}
+                    className={`flex-1 min-w-[100px] py-4 px-4 text-sm font-black transition-all border-b-4 relative ${typeFilter === ProjectType.MAINTENANCE ? 'bg-orange-600 text-white border-orange-700 shadow-inner' : 'text-slate-500 hover:bg-slate-100 border-transparent'}`}
                 >
                     維修
                 </button>
             </div>
         </div>
-            
-        {/* Status Filter (Sub-navigation) */}
-        <div className="px-4 pb-3">
-            <div className="flex gap-2 overflow-x-auto w-full no-scrollbar pt-1">
-                <span className="text-[10px] font-bold text-slate-400 uppercase py-1.5 flex items-center whitespace-nowrap">狀態篩選：</span>
+
+        {/* Toolbar Section (Search & Status) */}
+        <div className="p-4 md:p-6 border-b border-slate-100 bg-white space-y-4">
+            <div className="flex flex-col md:flex-row gap-4 items-center">
+                <div className="relative flex-1 w-full">
+                    <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                    <input 
+                        type="text" 
+                        placeholder="搜尋專案名稱、客戶或地址..." 
+                        className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:bg-white outline-none transition-all font-medium text-sm"
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                    />
+                </div>
+                
+                <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 flex-shrink-0">
+                    <button 
+                        onClick={() => setViewMode('table')}
+                        className={`p-2 rounded-lg transition-all ${viewMode === 'table' ? 'bg-white shadow-sm text-slate-800' : 'text-slate-400 hover:text-slate-600'}`}
+                        title="列表檢視"
+                    >
+                        <ListIcon className="w-5 h-5" />
+                    </button>
+                    <button 
+                        onClick={() => setViewMode('grid')}
+                        className={`p-2 rounded-lg transition-all ${viewMode === 'grid' ? 'bg-white shadow-sm text-slate-800' : 'text-slate-400 hover:text-slate-600'}`}
+                        title="卡片檢視"
+                    >
+                        <LayoutGridIcon className="w-5 h-5" />
+                    </button>
+                </div>
+            </div>
+
+            <div className="flex gap-2 overflow-x-auto w-full no-scrollbar">
+                <span className="text-[10px] font-bold text-slate-400 uppercase py-1.5 flex items-center whitespace-nowrap tracking-widest">狀態篩選：</span>
                 {['ALL', ProjectStatus.IN_PROGRESS, ProjectStatus.PLANNING, ProjectStatus.COMPLETED].map((status) => (
                     <button 
                         key={status}
                         onClick={() => setStatusFilter(status as any)}
-                        className={`px-3 py-1 rounded-full text-[11px] font-bold transition-colors whitespace-nowrap ${statusFilter === status ? 'bg-slate-800 text-white shadow-sm' : 'bg-slate-50 text-slate-500 hover:bg-slate-100'}`}
+                        className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all whitespace-nowrap border ${statusFilter === status ? 'bg-slate-800 text-white border-slate-800 shadow-md' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}
                     >
-                        {status === 'ALL' ? '全部' : status}
+                        {status === 'ALL' ? '全部狀態' : status}
                     </button>
                 ))}
             </div>
         </div>
-      </div>
 
-      {filteredProjects.length === 0 ? (
-          <div className="w-full py-20 text-center text-slate-500 bg-white rounded-xl border border-dashed border-slate-300">
-             沒有找到符合條件的專案
-          </div>
-      ) : viewMode === 'grid' ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
-          {filteredProjects.map((project) => {
-            const typeInfo = getTypeInfo(project.type);
-            const hasAttachments = project.attachments && project.attachments.length > 0;
-
-            return (
-              <div 
-                key={project.id} 
-                onClick={() => onSelectProject(project)}
-                className="bg-white rounded-xl border border-slate-200 shadow-sm active:scale-[0.98] transition-all cursor-pointer overflow-hidden group relative flex flex-col"
-              >
-                <div className={`h-1.5 bg-gradient-to-r ${project.type === ProjectType.MAINTENANCE ? 'from-orange-400 to-amber-500' : 'from-blue-500 to-indigo-500'}`} />
-                <div className="p-5">
-                  <div className="flex justify-between items-start mb-3">
-                    <div className="flex gap-2 items-center">
-                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold border uppercase tracking-wide ${getStatusColor(project.status)}`}>
-                        {project.status}
-                      </span>
-                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold border tracking-wide ${typeInfo.color}`}>
-                        {typeInfo.label}
-                      </span>
-                      {hasAttachments && (
-                        <div className="flex items-center text-indigo-500" title="包含附件">
-                          <PaperclipIcon className="w-3.5 h-3.5" />
-                        </div>
-                      )}
+        {/* Project Content Area */}
+        <div className="p-4 md:p-6 bg-slate-50/30 flex-1 min-h-[400px]">
+            {filteredProjects.length === 0 ? (
+                <div className="w-full py-24 text-center text-slate-400 bg-white rounded-2xl border border-dashed border-slate-300">
+                    <div className="mb-3 flex justify-center">
+                        <BoxIcon className="w-12 h-12 opacity-20" />
                     </div>
-                    
-                    <div className="flex items-center gap-1">
-                      {canManageProject && (
-                        <div className="relative">
-                          <button 
-                            onClick={(e) => handleMenuClick(e, project.id)}
-                            className="text-slate-400 hover:text-slate-600 p-2 -mr-2 rounded-full active:bg-slate-100 transition-colors"
-                          >
-                            <MoreVerticalIcon className="w-5 h-5" />
-                          </button>
-                          
-                          {activeMenuId === project.id && (
-                            <div 
-                              ref={menuRef}
-                              className="absolute right-0 top-full mt-1 w-36 bg-white rounded-lg shadow-xl border border-slate-100 z-50 overflow-hidden animate-fade-in"
-                            >
-                              <button onClick={(e) => handleOpenScheduleDialog(e, project)} className="w-full text-left px-4 py-3 text-sm text-indigo-600 hover:bg-indigo-50 font-bold flex items-center gap-2">
-                                <PlusIcon className="w-4 h-4" /> 加入排程
-                              </button>
-                              <button onClick={(e) => handleEditClick(e, project)} className="w-full text-left px-4 py-3 text-sm text-slate-600 hover:bg-slate-50 border-t border-slate-50 flex items-center gap-2">
-                                <EditIcon className="w-4 h-4" /> 編輯
-                              </button>
-                              <button onClick={(e) => handleDuplicate(e, project)} className="w-full text-left px-4 py-3 text-sm text-slate-600 hover:bg-slate-50 flex items-center gap-2">
-                                <CopyIcon className="w-4 h-4" /> 複製
-                              </button>
-                              {currentUser.role === UserRole.ADMIN && (
-                                <button onClick={(e) => handleDelete(e, project.id)} className="w-full text-left px-4 py-3 text-sm text-red-500 hover:bg-red-50 flex items-center gap-2 border-t border-slate-50">
-                                  <TrashIcon className="w-4 h-4" /> 刪除
-                                </button>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  
-                  <h3 className="text-lg font-bold text-slate-800 mb-2 leading-tight">
-                    {project.name}
-                  </h3>
-                  
-                  <p className="text-slate-500 text-sm md:text-base mb-4 line-clamp-5 min-h-[5em] leading-relaxed">
-                    {project.description}
-                  </p>
-
-                  <div className="space-y-1.5 text-xs md:text-sm text-slate-600 mt-auto">
-                    <div className="flex items-center gap-2">
-                      <MapPinIcon className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
-                      <span className="truncate">{project.address}</span>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2 text-xs">
-                      <div className="flex items-center gap-1.5">
-                        <CalendarIcon className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
-                        <span className="font-medium text-slate-500 whitespace-nowrap">預約:</span>
-                        <span className="text-slate-700">{formatDate(project.appointmentDate)}</span>
-                      </div>
-                      {project.reportDate && (
-                        <div className="flex items-center gap-1.5 border-l border-slate-200 pl-3">
-                          <span className="font-medium text-slate-500 whitespace-nowrap">報修:</span>
-                          <span className="text-slate-700">{formatDate(project.reportDate)}</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
+                    <p className="font-bold">沒有找到符合條件的專案</p>
+                    <p className="text-xs mt-1">您可以更換類別或清除搜尋條件</p>
                 </div>
-              </div>
-            );
-          })}
-        </div>
-      ) : (
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-            <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse min-w-[600px]">
-                    <thead className="bg-slate-50 text-slate-500 text-xs uppercase font-semibold border-b border-slate-200">
-                        <tr>
-                            <th className="px-4 py-3 w-20 whitespace-nowrap">狀態</th>
-                            <th className="px-4 py-3 whitespace-nowrap">專案名稱</th>
-                            <th className="px-4 py-3 whitespace-nowrap">客戶 / 地址</th>
-                            <th className="px-4 py-3 whitespace-nowrap">日期資訊</th>
-                            <th className="px-4 py-3 w-10 text-center">附件</th>
-                            {canManageProject && <th className="px-4 py-3 w-20 text-right whitespace-nowrap">操作</th>}
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                        {filteredProjects.map((project) => {
-                            const typeInfo = getTypeInfo(project.type);
-                            const hasAttachments = project.attachments && project.attachments.length > 0;
-                            return (
-                                <tr key={project.id} onClick={() => onSelectProject(project)} className="hover:bg-slate-50 transition-colors cursor-pointer group active:bg-slate-100">
-                                    <td className="px-4 py-3 align-top whitespace-nowrap">
-                                        <div className="flex flex-col gap-1.5">
-                                            <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold border whitespace-nowrap ${getStatusColor(project.status)}`}>
+            ) : viewMode === 'grid' ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+                    {filteredProjects.map((project) => {
+                        const typeInfo = getTypeInfo(project.type);
+                        const hasAttachments = project.attachments && project.attachments.length > 0;
+                        return (
+                            <div 
+                                key={project.id} 
+                                onClick={() => onSelectProject(project)}
+                                className="bg-white rounded-2xl border border-slate-200 shadow-sm active:scale-[0.98] transition-all cursor-pointer overflow-hidden group relative flex flex-col hover:shadow-md hover:border-blue-300"
+                            >
+                                <div className={`h-1.5 bg-gradient-to-r ${project.type === ProjectType.MAINTENANCE ? 'from-orange-400 to-amber-500' : 'from-blue-500 to-indigo-500'}`} />
+                                <div className="p-5 flex flex-col flex-1">
+                                    <div className="flex justify-between items-start mb-4">
+                                        <div className="flex gap-2 items-center">
+                                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold border uppercase tracking-wide ${getStatusColor(project.status)}`}>
                                                 {project.status}
                                             </span>
-                                            <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold border whitespace-nowrap ${typeInfo.color}`}>
+                                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold border tracking-wide ${typeInfo.color}`}>
                                                 {typeInfo.label}
                                             </span>
+                                            {hasAttachments && (
+                                                <div className="flex items-center text-indigo-500" title="包含附件">
+                                                    <PaperclipIcon className="w-3.5 h-3.5" />
+                                                </div>
+                                            )}
                                         </div>
-                                    </td>
-                                    <td className="px-4 py-3 align-top whitespace-nowrap">
-                                        <div className="font-bold text-slate-800 text-sm mb-1">{project.name}</div>
-                                        <div className="text-slate-400 text-xs line-clamp-1 max-w-[200px]">{project.description}</div>
-                                    </td>
-                                    <td className="px-4 py-3 align-top whitespace-nowrap">
-                                        <div className="text-sm font-medium text-slate-700">{project.clientName}</div>
-                                        <div className="text-xs text-slate-400 truncate max-w-[120px]">{project.address}</div>
-                                    </td>
-                                    <td className="px-4 py-3 align-top text-xs text-slate-500 whitespace-nowrap">
-                                        <div className="flex flex-col gap-1">
-                                          <span><span className="font-semibold">預約:</span> {formatDate(project.appointmentDate) || '-'}</span>
-                                          <span><span className="font-semibold">報修:</span> {formatDate(project.reportDate) || '-'}</span>
+                                        
+                                        <div className="flex items-center gap-1">
+                                            {canManageProject && (
+                                                <div className="relative">
+                                                    <button 
+                                                        onClick={(e) => handleMenuClick(e, project.id)}
+                                                        className="text-slate-400 hover:text-slate-600 p-2 -mr-2 rounded-full active:bg-slate-100 transition-colors"
+                                                    >
+                                                        <MoreVerticalIcon className="w-5 h-5" />
+                                                    </button>
+                                                    
+                                                    {activeMenuId === project.id && (
+                                                        <div 
+                                                            ref={menuRef}
+                                                            className="absolute right-0 top-full mt-1 w-36 bg-white rounded-xl shadow-xl border border-slate-100 z-50 overflow-hidden animate-fade-in"
+                                                        >
+                                                            <button onClick={(e) => handleOpenScheduleDialog(e, project)} className="w-full text-left px-4 py-3 text-sm text-indigo-600 hover:bg-indigo-50 font-bold flex items-center gap-2">
+                                                                <PlusIcon className="w-4 h-4" /> 加入排程
+                                                            </button>
+                                                            <button onClick={(e) => handleEditClick(e, project)} className="w-full text-left px-4 py-3 text-sm text-slate-600 hover:bg-slate-50 border-t border-slate-50 flex items-center gap-2">
+                                                                <EditIcon className="w-4 h-4" /> 編輯
+                                                            </button>
+                                                            <button onClick={(e) => handleDuplicate(e, project)} className="w-full text-left px-4 py-3 text-sm text-slate-600 hover:bg-slate-50 flex items-center gap-2">
+                                                                <CopyIcon className="w-4 h-4" /> 複製
+                                                            </button>
+                                                            {currentUser.role === UserRole.ADMIN && (
+                                                                <button onClick={(e) => handleDelete(e, project.id)} className="w-full text-left px-4 py-3 text-sm text-red-500 hover:bg-red-50 flex items-center gap-2 border-t border-slate-50">
+                                                                    <TrashIcon className="w-4 h-4" /> 刪除
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
                                         </div>
-                                    </td>
-                                    <td className="px-4 py-3 align-top text-center">
-                                        {hasAttachments && <PaperclipIcon className="w-4 h-4 text-indigo-400 mx-auto" />}
-                                    </td>
-                                    {canManageProject && (
-                                        <td className="px-4 py-3 align-top text-right whitespace-nowrap" onClick={e => e.stopPropagation()}>
-                                            <div className="flex items-center justify-end gap-1">
-                                                <button onClick={(e) => handleOpenScheduleDialog(e, project)} className="p-2 text-slate-400 hover:text-indigo-600 rounded-full" title="加入排程">
-                                                  <PlusIcon className="w-4 h-4" />
-                                                </button>
-                                                <button onClick={(e) => handleEditClick(e, project)} className="p-2 text-slate-400 hover:text-blue-600 rounded-full">
-                                                    <EditIcon className="w-4 h-4" />
-                                                </button>
-                                            </div>
-                                        </td>
-                                    )}
-                                </tr>
-                            );
-                        })}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-      )}
+                                    </div>
+                                    
+                                    <h3 className="text-lg font-black text-slate-800 mb-2 leading-tight group-hover:text-blue-600 transition-colors">
+                                        {project.name}
+                                    </h3>
+                                    
+                                    <p className="text-slate-500 text-sm md:text-base mb-6 line-clamp-5 min-h-[5em] leading-relaxed">
+                                        {project.description}
+                                    </p>
 
-      {/* 加入排程對話框 */}
+                                    <div className="space-y-1.5 text-xs md:text-sm text-slate-600 mt-auto pt-4 border-t border-slate-50">
+                                        <div className="flex items-center gap-2">
+                                            <MapPinIcon className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
+                                            <span className="truncate font-medium">{project.address}</span>
+                                        </div>
+                                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2 text-xs">
+                                            <div className="flex items-center gap-1.5">
+                                                <CalendarIcon className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
+                                                <span className="font-bold text-slate-400 whitespace-nowrap uppercase tracking-tighter">預約:</span>
+                                                <span className="text-slate-700 font-black">{formatDate(project.appointmentDate)}</span>
+                                            </div>
+                                            {project.reportDate && (
+                                                <div className="flex items-center gap-1.5 border-l border-slate-200 pl-3">
+                                                    <span className="font-bold text-slate-400 whitespace-nowrap uppercase tracking-tighter">報修:</span>
+                                                    <span className="text-slate-700 font-black">{formatDate(project.reportDate)}</span>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+            ) : (
+                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse min-w-[800px]">
+                            <thead className="bg-slate-50 text-slate-500 text-[10px] uppercase font-black tracking-widest border-b border-slate-200">
+                                <tr>
+                                    <th className="px-6 py-4 w-24">狀態</th>
+                                    <th className="px-6 py-4">專案名稱 / 工程內容</th>
+                                    <th className="px-6 py-4">客戶 / 地址</th>
+                                    <th className="px-6 py-4">重要日期</th>
+                                    <th className="px-6 py-4 w-16 text-center">附件</th>
+                                    {canManageProject && <th className="px-6 py-4 w-24 text-right">操作</th>}
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                                {filteredProjects.map((project) => {
+                                    const typeInfo = getTypeInfo(project.type);
+                                    const hasAttachments = project.attachments && project.attachments.length > 0;
+                                    return (
+                                        <tr key={project.id} onClick={() => onSelectProject(project)} className="hover:bg-slate-50 transition-colors cursor-pointer group active:bg-slate-100">
+                                            <td className="px-6 py-4 align-top">
+                                                <div className="flex flex-col gap-1.5">
+                                                    <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold border whitespace-nowrap ${getStatusColor(project.status)}`}>
+                                                        {project.status}
+                                                    </span>
+                                                    <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold border whitespace-nowrap ${typeInfo.color}`}>
+                                                        {typeInfo.label}
+                                                    </span>
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4 align-top">
+                                                <div className="font-black text-slate-800 text-sm mb-1 group-hover:text-blue-600 transition-colors">{project.name}</div>
+                                                <div className="text-slate-400 text-xs line-clamp-2 max-w-[300px]">{project.description}</div>
+                                            </td>
+                                            <td className="px-6 py-4 align-top">
+                                                <div className="text-sm font-bold text-slate-700">{project.clientName}</div>
+                                                <div className="text-xs text-slate-400 truncate max-w-[150px] mt-0.5">{project.address}</div>
+                                            </td>
+                                            <td className="px-6 py-4 align-top text-xs">
+                                                <div className="flex flex-col gap-1.5">
+                                                    <div className="flex items-center gap-1">
+                                                        <span className="text-slate-400 font-bold uppercase tracking-tighter">預約:</span>
+                                                        <span className="text-slate-700 font-black">{formatDate(project.appointmentDate) || '-'}</span>
+                                                    </div>
+                                                    <div className="flex items-center gap-1">
+                                                        <span className="text-slate-400 font-bold uppercase tracking-tighter">報修:</span>
+                                                        <span className="text-slate-700 font-black">{formatDate(project.reportDate) || '-'}</span>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4 align-top text-center">
+                                                {hasAttachments && <PaperclipIcon className="w-4 h-4 text-indigo-400 mx-auto" />}
+                                            </td>
+                                            {canManageProject && (
+                                                <td className="px-6 py-4 align-top text-right" onClick={e => e.stopPropagation()}>
+                                                    <div className="flex items-center justify-end gap-1">
+                                                        <button onClick={(e) => handleOpenScheduleDialog(e, project)} className="p-2 text-slate-300 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all" title="加入排程">
+                                                            <PlusIcon className="w-5 h-5" />
+                                                        </button>
+                                                        <button onClick={(e) => handleEditClick(e, project)} className="p-2 text-slate-300 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all" title="編輯">
+                                                            <EditIcon className="w-5 h-5" />
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            )}
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            )}
+        </div>
+      </div>
+
+      {/* Join Schedule Dialog */}
       {schedulingProject && (
         <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in" onClick={() => setSchedulingProject(null)}>
           <div className="bg-white w-full max-w-sm rounded-[32px] shadow-2xl overflow-hidden flex flex-col animate-scale-in" onClick={e => e.stopPropagation()}>

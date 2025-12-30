@@ -497,12 +497,6 @@ const App: React.FC = () => {
                   <span className="text-[10px] opacity-70">下載 db.json 到本機</span>
                 </div>
               </button>
-
-              <input type="file" accept=".xlsx, .xls" ref={excelInputRef} className="hidden" onChange={handleImportExcel} />
-              <button onClick={() => excelInputRef.current?.click()} disabled={isWorkspaceLoading || !isInitialized} className="flex items-center gap-3 px-4 py-3 rounded-xl w-full transition-all bg-indigo-600/10 border border-indigo-500/30 text-indigo-400 hover:bg-indigo-600 hover:text-white group disabled:opacity-50">
-                <FileTextIcon className="w-5 h-5" />
-                <span className="text-sm font-bold">匯入排程表</span>
-              </button>
             </div>
           </div>
         </nav>
@@ -685,9 +679,11 @@ const App: React.FC = () => {
            ) :
            view === 'equipment' ? (<div className="flex-1 overflow-auto">{renderEquipmentView()}</div>) :
            selectedProject ? (<div className="flex-1 overflow-hidden"><ProjectDetail project={selectedProject} currentUser={currentUser} onBack={() => setSelectedProject(null)} onUpdateProject={handleUpdateProject} onEditProject={setEditingProject} onAddToSchedule={handleAddToSchedule} globalTeamConfigs={globalTeamConfigs} /></div>) : 
-           (<div className="flex-1 overflow-auto"><ProjectList title={getTitle()} projects={currentViewProjects} currentUser={currentUser} onSelectProject={setSelectedProject} onAddProject={() => setIsAddModalOpen(true)} onDeleteProject={handleDeleteProject} onDuplicateProject={()=>{}} onEditProject={setEditingProject} onOpenDrivingTime={() => setIsDrivingTimeModalOpen(true)} onAddToSchedule={handleAddToSchedule} globalTeamConfigs={globalTeamConfigs} /></div>)}
+           (<div className="flex-1 overflow-auto"><ProjectList title={getTitle()} projects={currentViewProjects} currentUser={currentUser} onSelectProject={setSelectedProject} onAddProject={() => setIsAddModalOpen(true)} onDeleteProject={handleDeleteProject} onDuplicateProject={()=>{}} onEditProject={setEditingProject} onOpenDrivingTime={() => setIsDrivingTimeModalOpen(true)} onImportExcel={() => excelInputRef.current?.click()} onAddToSchedule={handleAddToSchedule} globalTeamConfigs={globalTeamConfigs} /></div>)}
         </main>
       </div>
+
+      <input type="file" accept=".xlsx, .xls" ref={excelInputRef} className="hidden" onChange={handleImportExcel} />
 
       {isDrivingTimeModalOpen && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 md:p-10 animate-fade-in">
