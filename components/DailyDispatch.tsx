@@ -1,7 +1,7 @@
-
 import React, { useState, useMemo } from 'react';
 import { Project, WeeklySchedule, DailyDispatch as DailyDispatchType, GlobalTeamConfigs } from '../types';
-import { CalendarIcon, UserIcon, PlusIcon, XIcon, BriefcaseIcon, FileTextIcon, HomeIcon, LayoutGridIcon, TruckIcon, HistoryIcon, CheckCircleIcon, TrashIcon, NavigationIcon } from './Icons';
+// Fix: Added ClipboardListIcon to imports as it is used in the text modal footer.
+import { CalendarIcon, UserIcon, PlusIcon, XIcon, BriefcaseIcon, FileTextIcon, HomeIcon, LayoutGridIcon, TruckIcon, HistoryIcon, CheckCircleIcon, TrashIcon, NavigationIcon, ClipboardListIcon } from './Icons';
 
 interface DailyDispatchProps {
   projects: Project[];
@@ -22,6 +22,9 @@ const DailyDispatch: React.FC<DailyDispatchProps> = ({ projects, weeklySchedules
   const [filterTeam, setFilterTeam] = useState<number | null>(null);
   const [newAssistantNames, setNewAssistantNames] = useState<Record<number, string>>({});
   const [newTaskNames, setNewTaskNames] = useState<Record<number, string>>({});
+  const [isTextModalOpen, setIsTextModalOpen] = useState(false);
+  const [copyFeedback, setCopyFeedback] = useState(false);
+
   const teams = [1, 2, 3, 4, 5, 6, 7, 8];
 
   const weekSchedule = useMemo(() => {
@@ -35,6 +38,44 @@ const DailyDispatch: React.FC<DailyDispatchProps> = ({ projects, weeklySchedules
   const dispatchRecord = useMemo(() => {
     return dailyDispatches.find(d => d.date === selectedDate) || { date: selectedDate, teams: {} };
   }, [dailyDispatches, selectedDate]);
+
+  const generatedText = useMemo(() => {
+    let text = `📅 ${selectedDate} 工作排程彙整\n`;
+    text += `========================\n\n`;
+    
+    let hasContent = false;
+    teams.forEach(t => {
+      const team = dispatchRecord.teams[t];
+      if (team && (team.master || team.tasks.length > 0 || team.assistants.length > 0)) {
+        hasContent = true;
+        text += `【第 ${t} 組】\n`;
+        text += `👤 師傅：${team.master || '未指定'}\n`;
+        if (team.assistants.length > 0) {
+            text += `👥 助手：${team.assistants.join(', ')}\n`;
+        }
+        if (team.carNumber) {
+            text += `🚛 車號：${team.carNumber}\n`;
+        }
+        if (team.tasks.length > 0) {
+            text += `📝 任務：\n`;
+            team.tasks.forEach((task, idx) => {
+                text += `   ${idx + 1}. ${task.name}${task.description ? ` (${task.description})` : ''}\n`;
+            });
+        }
+        text += `\n`;
+      }
+    });
+
+    if (!hasContent) return `${selectedDate} 尚未安排任何派工項目。`;
+    return text.trim();
+  }, [dispatchRecord, selectedDate, teams]);
+
+  const handleCopyText = () => {
+    navigator.clipboard.writeText(generatedText).then(() => {
+      setCopyFeedback(true);
+      setTimeout(() => setCopyFeedback(false), 2000);
+    });
+  };
 
   const handleUpdateDispatch = (newDispatch: DailyDispatchType) => {
     onUpdateDailyDispatches([...dailyDispatches.filter(d => d.date !== selectedDate), newDispatch]);
@@ -85,7 +126,6 @@ const DailyDispatch: React.FC<DailyDispatchProps> = ({ projects, weeklySchedules
     const teamData = dispatchRecord.teams[teamId];
     const currentTasks = [...(teamData?.tasks || [])];
     
-    // 尋找專案以代入描述
     const project = projects.find(p => p.name === taskName);
     const description = project?.description || '';
 
@@ -137,6 +177,14 @@ const DailyDispatch: React.FC<DailyDispatchProps> = ({ projects, weeklySchedules
           <div><h1 className="text-lg font-bold text-slate-800">明日工作排程</h1><p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest leading-none">Daily Dispatch</p></div>
         </div>
         <div className="flex items-center gap-3">
+          <button 
+            onClick={() => setIsTextModalOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-2 bg-slate-100 text-slate-700 text-xs font-bold rounded-xl border border-slate-200 hover:bg-slate-200 transition-colors shadow-sm"
+            title="產生文字排程"
+          >
+            <FileTextIcon className="w-4 h-4" />
+            產生文字
+          </button>
           <button onClick={onOpenDrivingTime} className="flex items-center gap-1.5 px-3 py-2 bg-indigo-50 text-indigo-700 text-xs font-bold rounded-xl border border-indigo-200 hover:bg-indigo-100 transition-colors shadow-sm">
             <NavigationIcon className="w-4 h-4" /> 
             路徑估算
@@ -269,7 +317,6 @@ const DailyDispatch: React.FC<DailyDispatchProps> = ({ projects, weeklySchedules
                                  onChange={(e) => {
                                      const val = e.target.value;
                                      setNewTaskNames(prev => ({ ...prev, [t]: val }));
-                                     // 如果選單內已有該案件名稱，直接觸發添加
                                      if (projects.some(p => p.name === val)) {
                                          setTimeout(() => handleAddTask(t), 0);
                                      }
@@ -308,6 +355,44 @@ const DailyDispatch: React.FC<DailyDispatchProps> = ({ projects, weeklySchedules
             💡 系統提示：點擊「+ 派工項目」可選取現有案件，系統將自動從案件資料庫代入「工程概要」。
          </p>
       </div>
+
+      {isTextModalOpen && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in" onClick={() => setIsTextModalOpen(false)}>
+          <div className="bg-white w-full max-w-lg rounded-[32px] shadow-2xl overflow-hidden flex flex-col animate-scale-in" onClick={e => e.stopPropagation()}>
+            <header className="px-8 py-5 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
+              <div className="flex items-center gap-3">
+                <div className="bg-indigo-600 p-2 rounded-xl text-white">
+                  <FileTextIcon className="w-5 h-5" />
+                </div>
+                <h3 className="font-black text-slate-800">產生文字排程</h3>
+              </div>
+              <button onClick={() => setIsTextModalOpen(false)} className="p-2 bg-white hover:bg-red-50 hover:text-red-500 text-slate-400 rounded-full transition-all shadow-sm">
+                <XIcon className="w-5 h-5" />
+              </button>
+            </header>
+            <div className="p-8 flex-1 overflow-y-auto max-h-[60vh] bg-white">
+              <pre className="whitespace-pre-wrap text-sm font-medium text-slate-700 leading-relaxed font-sans bg-slate-50 p-6 rounded-2xl border border-slate-100 shadow-inner">
+                {generatedText}
+              </pre>
+            </div>
+            <footer className="p-6 bg-slate-50 border-t border-slate-100 flex gap-3">
+              <button 
+                onClick={() => setIsTextModalOpen(false)}
+                className="flex-1 py-3.5 rounded-2xl text-sm font-bold text-slate-500 hover:bg-slate-200 transition-colors"
+              >
+                關閉
+              </button>
+              <button 
+                onClick={handleCopyText}
+                className={`flex-[2] flex items-center justify-center gap-2 py-3.5 rounded-2xl text-sm font-black transition-all shadow-lg active:scale-95 ${copyFeedback ? 'bg-emerald-500 text-white' : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}
+              >
+                {copyFeedback ? <CheckCircleIcon className="w-5 h-5" /> : <ClipboardListIcon className="w-5 h-5" />}
+                {copyFeedback ? '已複製到剪貼簿' : '複製全文內容'}
+              </button>
+            </footer>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
