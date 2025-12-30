@@ -53,13 +53,15 @@ const DailyDispatch: React.FC<DailyDispatchProps> = ({ projects, weeklySchedules
         if (team.assistants.length > 0) {
             text += `👥 助手：${team.assistants.join(', ')}\n`;
         }
-        if (team.carNumber) {
-            text += `🚛 車號：${team.carNumber}\n`;
-        }
+        // 按使用者要求，移除車號資訊
         if (team.tasks.length > 0) {
-            text += `📝 任務：\n`;
+            text += `📝 排程：\n`; // 將名稱從「任務」改為「排程」
             team.tasks.forEach((task, idx) => {
-                text += `   ${idx + 1}. ${task.name}${task.description ? ` (${task.description})` : ''}\n`;
+                // 案件名稱和工程描述之間換行
+                text += `   ${idx + 1}. ${task.name}\n`;
+                if (task.description) {
+                    text += `      ${task.description}\n`;
+                }
             });
         }
         text += `\n`;
