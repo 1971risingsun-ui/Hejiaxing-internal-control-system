@@ -103,6 +103,9 @@ const App: React.FC = () => {
   const [isInitialized, setIsInitialized] = useState(false);
   const [lastSyncTime, setLastSyncTime] = useState<string>('');
   
+  // 新增：追蹤最後更新的案件資訊
+  const [lastUpdateInfo, setLastUpdateInfo] = useState<{ name: string; time: string } | null>(null);
+  
   const [isDrivingTimeModalOpen, setIsDrivingTimeModalOpen] = useState(false);
   const excelInputRef = useRef<HTMLInputElement>(null);
   const dbJsonInputRef = useRef<HTMLInputElement>(null);
@@ -136,6 +139,9 @@ const App: React.FC = () => {
           if (cachedState.lastSaved) {
             setLastSyncTime(new Date(cachedState.lastSaved).toLocaleTimeString('zh-TW', { hour12: false }));
           }
+          if (cachedState.lastUpdateInfo) {
+            setLastUpdateInfo(cachedState.lastUpdateInfo);
+          }
         }
         
         const savedHandle = await getHandleFromIdb();
@@ -153,10 +159,17 @@ const App: React.FC = () => {
     restoreAndLoad();
   }, []);
 
+  const updateLastAction = (name: string) => {
+    setLastUpdateInfo({
+      name,
+      time: new Date().toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' })
+    });
+  };
+
   const syncToLocal = async (handle: FileSystemDirectoryHandle, data: any) => {
     try {
       const now = new Date();
-      const payload = { ...data, lastSaved: now.toISOString() };
+      const payload = { ...data, lastSaved: now.toISOString(), lastUpdateInfo };
       await saveDbToLocal(handle, payload);
       setLastSyncTime(now.toLocaleTimeString('zh-TW', { hour12: false }));
     } catch (e) {
@@ -182,6 +195,9 @@ const App: React.FC = () => {
           if (savedData.lastSaved) {
             setLastSyncTime(new Date(savedData.lastSaved).toLocaleTimeString('zh-TW', { hour12: false }));
           }
+          if (savedData.lastUpdateInfo) {
+            setLastUpdateInfo(savedData.lastUpdateInfo);
+          }
         }
       }
     } catch (e: any) {
@@ -204,6 +220,7 @@ const App: React.FC = () => {
     if (Array.isArray(data.monthRemarks)) setMonthRemarks(data.monthRemarks);
     if (Array.isArray(data.suppliers)) setSuppliers(data.suppliers);
     if (Array.isArray(data.purchaseOrders)) setPurchaseOrders(data.purchaseOrders);
+    if (data.lastUpdateInfo) setLastUpdateInfo(data.lastUpdateInfo);
   };
 
   const handleImportDbJson = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -216,6 +233,7 @@ const App: React.FC = () => {
         if (!json.projects || !Array.isArray(json.projects)) throw new Error('備份檔格式不正確');
         if (confirm(`還原將覆寫現有資料，確定要匯入嗎？`)) {
           restoreDataToState(json);
+          updateLastAction('匯入備份');
           alert('資料匯入完成');
         }
       } catch (error) { alert('匯入失敗：' + (error as Error).message); }
@@ -227,7 +245,7 @@ const App: React.FC = () => {
   const handleManualSaveAs = async () => {
     try {
       const appState = {
-        projects, users: allUsers, auditLogs, weeklySchedules, dailyDispatches, globalTeamConfigs, employees, attendance, overtime, monthRemarks, suppliers, purchaseOrders, lastSaved: new Date().toISOString()
+        projects, users: allUsers, auditLogs, weeklySchedules, dailyDispatches, globalTeamConfigs, employees, attendance, overtime, monthRemarks, suppliers, purchaseOrders, lastUpdateInfo, lastSaved: new Date().toISOString()
       };
       const jsonStr = JSON.stringify(appState, null, 2);
       const blob = new Blob([jsonStr], { type: 'application/json' });
@@ -336,6 +354,7 @@ const App: React.FC = () => {
         if (rowNumber % 20 === 0) await new Promise(r => setTimeout(r, 0));
       }
       setProjects(sortProjects(currentProjects));
+      updateLastAction('Excel 匯入更新');
       alert(`匯入完成！\n新增：${newCount} 筆\n更新：${updateCount} 筆`);
       setAuditLogs(prev => [{ id: generateId(), userId: currentUser?.id || 'system', userName: currentUser?.name || '系統', action: 'IMPORT_EXCEL', details: `匯入 Excel: ${file.name}, 新增 ${newCount}, 更新 ${updateCount}`, timestamp: Date.now() }, ...prev]);
     } catch (error: any) {
@@ -501,7 +520,7 @@ const App: React.FC = () => {
     if (!isInitialized) return;
     const saveAll = async () => {
         try {
-            await saveAppStateToIdb({ projects, users: allUsers, auditLogs, weeklySchedules, dailyDispatches, globalTeamConfigs, employees, attendance, overtime, monthRemarks, suppliers, purchaseOrders, lastSaved: new Date().toISOString() });
+            await saveAppStateToIdb({ projects, users: allUsers, auditLogs, weeklySchedules, dailyDispatches, globalTeamConfigs, employees, attendance, overtime, monthRemarks, suppliers, purchaseOrders, lastUpdateInfo, lastSaved: new Date().toISOString() });
             if (dirHandle && dirPermission === 'granted') {
                 syncToLocal(dirHandle, { projects, users: allUsers, auditLogs, weeklySchedules, dailyDispatches, globalTeamConfigs, employees, attendance, overtime, monthRemarks, suppliers, purchaseOrders });
             }
@@ -511,7 +530,7 @@ const App: React.FC = () => {
     };
     const timer = setTimeout(saveAll, 500);
     return () => clearTimeout(timer);
-  }, [projects, allUsers, auditLogs, weeklySchedules, dailyDispatches, globalTeamConfigs, employees, attendance, overtime, monthRemarks, suppliers, purchaseOrders, dirHandle, dirPermission, isInitialized]);
+  }, [projects, allUsers, auditLogs, weeklySchedules, dailyDispatches, globalTeamConfigs, employees, attendance, overtime, monthRemarks, suppliers, purchaseOrders, dirHandle, dirPermission, isInitialized, lastUpdateInfo]);
 
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
@@ -522,11 +541,15 @@ const App: React.FC = () => {
   const handleLogin = (user: User) => { setCurrentUser(user); setView('engineering'); };
   const handleLogout = () => { setCurrentUser(null); setIsSidebarOpen(false); };
   const handleDeleteProject = (id: string) => {
-    if (window.confirm('確定要刪除此案件嗎？')) setProjects(sortProjects(projects.filter(p => p.id !== id)));
+    if (window.confirm('確定要刪除此案件嗎？')) {
+        setProjects(sortProjects(projects.filter(p => p.id !== id)));
+        updateLastAction('刪除案件');
+    }
   };
   const handleUpdateProject = (updatedProject: Project) => {
     setProjects(prev => sortProjects(prev.map(p => p.id === updatedProject.id ? updatedProject : p)));
     if (selectedProject?.id === updatedProject.id) setSelectedProject(updatedProject);
+    updateLastAction(updatedProject.name);
   };
 
   const handleAddToSchedule = (date: string, teamId: number, taskName: string) => {
@@ -566,6 +589,7 @@ const App: React.FC = () => {
       
       return newWeeklySchedules;
     });
+    if (wasAdded) updateLastAction(`排程: ${taskName}`);
     return wasAdded;
   };
 
@@ -851,7 +875,7 @@ const App: React.FC = () => {
            ) :
            view === 'equipment' ? (<div className="flex-1 overflow-auto">{renderEquipmentView()}</div>) :
            selectedProject ? (<div className="flex-1 overflow-hidden"><ProjectDetail project={selectedProject} currentUser={currentUser} onBack={() => setSelectedProject(null)} onUpdateProject={handleUpdateProject} onEditProject={setEditingProject} onAddToSchedule={handleAddToSchedule} globalTeamConfigs={globalTeamConfigs} /></div>) : 
-           (<div className="flex-1 overflow-auto"><ProjectList title={getTitle()} projects={currentViewProjects} currentUser={currentUser} onSelectProject={setSelectedProject} onAddProject={() => setIsAddModalOpen(true)} onDeleteProject={handleDeleteProject} onDuplicateProject={()=>{}} onEditProject={setEditingProject} onOpenDrivingTime={() => setIsDrivingTimeModalOpen(true)} onImportExcel={() => excelInputRef.current?.click()} onExportExcel={handleExportExcel} onAddToSchedule={handleAddToSchedule} globalTeamConfigs={globalTeamConfigs} /></div>)}
+           (<div className="flex-1 overflow-auto"><ProjectList title={getTitle()} projects={currentViewProjects} currentUser={currentUser} lastUpdateInfo={lastUpdateInfo} onSelectProject={setSelectedProject} onAddProject={() => setIsAddModalOpen(true)} onDeleteProject={handleDeleteProject} onDuplicateProject={()=>{}} onEditProject={setEditingProject} onOpenDrivingTime={() => setIsDrivingTimeModalOpen(true)} onImportExcel={() => excelInputRef.current?.click()} onExportExcel={handleExportExcel} onAddToSchedule={handleAddToSchedule} globalTeamConfigs={globalTeamConfigs} /></div>)}
         </main>
       </div>
 
@@ -878,7 +902,7 @@ const App: React.FC = () => {
         </div>
       )}
 
-      {isAddModalOpen && <AddProjectModal onClose={() => setIsAddModalOpen(false)} onAdd={(p) => { setProjects(sortProjects([p, ...projects])); setIsAddModalOpen(false); }} defaultType={view === 'maintenance' ? ProjectType.MAINTENANCE : view === 'modular_house' ? ProjectType.MODULAR_HOUSE : ProjectType.CONSTRUCTION} />}
+      {isAddModalOpen && <AddProjectModal onClose={() => setIsAddModalOpen(false)} onAdd={(p) => { setProjects(sortProjects([p, ...projects])); updateLastAction(p.name); setIsAddModalOpen(false); }} defaultType={view === 'maintenance' ? ProjectType.MAINTENANCE : view === 'modular_house' ? ProjectType.MODULAR_HOUSE : ProjectType.CONSTRUCTION} />}
       {editingProject && <EditProjectModal project={editingProject} onClose={() => setEditingProject(null)} onSave={handleUpdateProject} />}
     </div>
   );

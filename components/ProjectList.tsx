@@ -6,6 +6,7 @@ interface ProjectListProps {
   title?: string;
   projects: Project[];
   currentUser: User;
+  lastUpdateInfo?: { name: string; time: string } | null;
   onSelectProject: (project: Project) => void;
   onAddProject: () => void;
   onDeleteProject: (projectId: string) => void;
@@ -19,7 +20,7 @@ interface ProjectListProps {
 }
 
 const ProjectList: React.FC<ProjectListProps> = ({ 
-  title, projects, currentUser, onSelectProject, onAddProject, 
+  title, projects, currentUser, lastUpdateInfo, onSelectProject, onAddProject, 
   onDeleteProject, onDuplicateProject, onEditProject, onOpenDrivingTime,
   onImportExcel, onExportExcel, onAddToSchedule, globalTeamConfigs
 }) => {
@@ -150,6 +151,12 @@ const ProjectList: React.FC<ProjectListProps> = ({
       <div className="flex flex-row items-center justify-between mb-6 gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-800">{title || '案件總覽'}</h1>
+          {lastUpdateInfo && (
+            <div className="text-[10px] text-slate-400 font-bold mt-1 flex items-center gap-1.5 animate-fade-in tracking-tight">
+              <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(59,130,246,0.5)]"></div>
+              最後更新: <span className="text-blue-600">{lastUpdateInfo.name}</span> <span className="opacity-60">({lastUpdateInfo.time})</span>
+            </div>
+          )}
         </div>
         <div className="flex gap-2">
           {onExportExcel && (
