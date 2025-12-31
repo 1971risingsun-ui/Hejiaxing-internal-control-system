@@ -18,7 +18,7 @@ import HRManagement from './components/HRManagement';
 import PurchasingModule from './components/PurchasingModule';
 import SupplierList from './components/SupplierList';
 import PurchaseOrders from './components/PurchaseOrders';
-import { HomeIcon, UserIcon, LogOutIcon, ShieldIcon, MenuIcon, XIcon, ChevronRightIcon, WrenchIcon, UploadIcon, LoaderIcon, ClipboardListIcon, LayoutGridIcon, BoxIcon, DownloadIcon, FileTextIcon, CheckCircleIcon, AlertIcon, XCircleIcon, UsersIcon, TruckIcon, BriefcaseIcon, ArrowLeftIcon, CalendarIcon, ClockIcon, NavigationIcon, SaveIcon, ExternalLinkIcon } from './components/Icons';
+import { HomeIcon, UserIcon, LogOutIcon, ShieldIcon, MenuIcon, XIcon, ChevronRightIcon, WrenchIcon, UploadIcon, LoaderIcon, ClipboardListIcon, LayoutGridIcon, BoxIcon, DownloadIcon, FileTextIcon, CheckCircleIcon, AlertIcon, XCircleIcon, UsersIcon, TruckIcon, BriefcaseIcon, ArrowLeftIcon, CalendarIcon, ClockIcon, NavigationIcon, SaveIcon, ExternalLinkIcon, RefreshIcon } from './components/Icons';
 import { getDirectoryHandle, saveDbToLocal, loadDbFromLocal, getHandleFromIdb, clearHandleFromIdb, saveAppStateToIdb, loadAppStateFromIdb, saveHandleToIdb } from './utils/fileSystem';
 import { downloadBlob } from './utils/fileHelpers';
 import ExcelJS from 'exceljs';
@@ -101,6 +101,7 @@ const App: React.FC = () => {
   
   const [isWorkspaceLoading, setIsWorkspaceLoading] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
+  const [lastSyncTime, setLastSyncTime] = useState<string>('');
   
   const [isDrivingTimeModalOpen, setIsDrivingTimeModalOpen] = useState(false);
   const excelInputRef = useRef<HTMLInputElement>(null);
@@ -132,6 +133,9 @@ const App: React.FC = () => {
           if (cachedState.monthRemarks) setMonthRemarks(cachedState.monthRemarks);
           if (cachedState.suppliers) setSuppliers(cachedState.suppliers);
           if (cachedState.purchaseOrders) setPurchaseOrders(cachedState.purchaseOrders);
+          if (cachedState.lastSaved) {
+            setLastSyncTime(new Date(cachedState.lastSaved).toLocaleTimeString('zh-TW', { hour12: false }));
+          }
         }
         
         const savedHandle = await getHandleFromIdb();
@@ -151,8 +155,10 @@ const App: React.FC = () => {
 
   const syncToLocal = async (handle: FileSystemDirectoryHandle, data: any) => {
     try {
-      const payload = { ...data, lastSaved: new Date().toISOString() };
+      const now = new Date();
+      const payload = { ...data, lastSaved: now.toISOString() };
       await saveDbToLocal(handle, payload);
+      setLastSyncTime(now.toLocaleTimeString('zh-TW', { hour12: false }));
     } catch (e) {
       console.error('同步至電腦資料夾失敗', e);
     }
@@ -173,6 +179,9 @@ const App: React.FC = () => {
         const savedData = await loadDbFromLocal(handle);
         if (savedData) {
           restoreDataToState(savedData);
+          if (savedData.lastSaved) {
+            setLastSyncTime(new Date(savedData.lastSaved).toLocaleTimeString('zh-TW', { hour12: false }));
+          }
         }
       }
     } catch (e: any) {
@@ -626,7 +635,9 @@ const App: React.FC = () => {
               {isWorkspaceLoading ? <LoaderIcon className="w-5 h-5 animate-spin" /> : isConnected ? <CheckCircleIcon className="w-5 h-5" /> : <AlertIcon className="w-5 h-5" />}
               <div className="flex flex-col items-start text-left">
                 <span className="text-sm font-bold">{!isBrowserSupported ? '不支援自動備份' : isConnected ? '電腦同步已開啟' : '未連結電腦目錄'}</span>
-                <span className="text-[10px] opacity-70">db.json 即時同步</span>
+                <span className="text-[10px] opacity-70">
+                  {isConnected && lastSyncTime ? `最後同步: ${lastSyncTime}` : 'db.json 即時同步'}
+                </span>
               </div>
             </button>
 
