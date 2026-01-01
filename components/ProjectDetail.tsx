@@ -1,12 +1,12 @@
-
 import React, { useState } from 'react';
 import { Project, ProjectStatus, User, UserRole, ProjectType, GlobalTeamConfigs } from '../types';
-import { ArrowLeftIcon, CalendarIcon, MapPinIcon, ExternalLinkIcon, ClipboardListIcon, BoxIcon, EditIcon, FileTextIcon, PlusIcon, XIcon, UsersIcon, CheckCircleIcon } from './Icons';
+import { ArrowLeftIcon, CalendarIcon, MapPinIcon, ExternalLinkIcon, ClipboardListIcon, BoxIcon, EditIcon, FileTextIcon, PlusIcon, XIcon, UsersIcon, CheckCircleIcon, TruckIcon } from './Icons';
 import ProjectOverview from './ProjectOverview';
 import ConstructionRecord from './ConstructionRecord';
 import ProjectMaterials from './ProjectMaterials';
 import CompletionReport from './CompletionReport';
 import EngineeringPlanning from './EngineeringPlanning';
+import MaterialPreparation from './MaterialPreparation';
 
 interface ProjectDetailProps {
   project: Project;
@@ -19,7 +19,7 @@ interface ProjectDetailProps {
 }
 
 const ProjectDetail: React.FC<ProjectDetailProps> = ({ project, currentUser, onBack, onUpdateProject, onEditProject, onAddToSchedule, globalTeamConfigs }) => {
-  const [activeTab, setActiveTab] = useState<'overview' | 'materials' | 'construction' | 'completion' | 'planning'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'materials' | 'construction' | 'completion' | 'preparation' | 'planning'>('overview');
   
   // 排程相關狀態
   const [isScheduling, setIsScheduling] = useState(false);
@@ -156,8 +156,11 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ project, currentUser, onB
           <button className={`pb-3 text-sm font-bold border-b-2 transition-colors whitespace-nowrap flex items-center gap-2 ${activeTab === 'materials' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`} onClick={() => setActiveTab('materials')}>
             <BoxIcon className="w-4 h-4" /> 材料請購 ({project.materials?.length || 0})
           </button>
+          <button className={`pb-3 text-sm font-bold border-b-2 transition-colors whitespace-nowrap flex items-center gap-2 ${activeTab === 'preparation' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`} onClick={() => setActiveTab('preparation')}>
+            <TruckIcon className="w-4 h-4" /> 備料/安排
+          </button>
           <button className={`pb-3 text-sm font-bold border-b-2 transition-colors whitespace-nowrap flex items-center gap-2 ${activeTab === 'planning' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`} onClick={() => setActiveTab('planning')}>
-            <EditIcon className="w-4 h-4" /> 工程規劃 ({(project.planningReports || []).length})
+            <FileTextIcon className="w-4 h-4" /> 報價單 ({(project.planningReports || []).length})
           </button>
         </div>
       </div>
@@ -167,9 +170,76 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ project, currentUser, onB
         {activeTab === 'construction' && <ConstructionRecord project={project} currentUser={currentUser} onUpdateProject={onUpdateProject} />}
         {activeTab === 'completion' && supportsCompletionReport && <CompletionReport project={project} currentUser={currentUser} onUpdateProject={onUpdateProject} />}
         {activeTab === 'materials' && <ProjectMaterials project={project} currentUser={currentUser} onUpdateProject={onUpdateProject} />}
+        {activeTab === 'preparation' && <MaterialPreparation project={project} currentUser={currentUser} />}
         {activeTab === 'planning' && <EngineeringPlanning project={project} currentUser={currentUser} onUpdateProject={onUpdateProject} />}
       </div>
-      {/* ...其餘代碼保持不變 */}
+      
+      {/* Join Schedule Dialog */}
+      {isScheduling && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in" onClick={() => setIsScheduling(false)}>
+          <div className="bg-white w-full max-w-sm rounded-[32px] shadow-2xl overflow-hidden flex flex-col animate-scale-in" onClick={e => e.stopPropagation()}>
+             <header className="px-6 py-4 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
+                <div className="flex items-center gap-2">
+                   <div className="bg-indigo-600 p-1.5 rounded-lg text-white">
+                      <PlusIcon className="w-4 h-4" />
+                   </div>
+                   <h3 className="font-black text-slate-800 text-sm">加入工作排程</h3>
+                </div>
+                <button onClick={() => setIsScheduling(false)} className="p-1 text-slate-400 hover:text-slate-600">
+                   <XIcon className="w-5 h-5" />
+                </button>
+             </header>
+             <div className="p-6 space-y-5">
+                <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100 mb-2">
+                   <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-0.5">待排專案</div>
+                   <div className="text-sm font-black text-slate-800 truncate">{project.name}</div>
+                </div>
+
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-[10px] font-black text-slate-500 uppercase mb-1.5 tracking-wider">預計施工日期</label>
+                    <div className="relative">
+                       <CalendarIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                       <input 
+                         type="date" 
+                         value={scheduleDate}
+                         onChange={e => setScheduleDate(e.target.value)}
+                         className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-indigo-700 outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500 transition-all"
+                       />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-black text-slate-500 uppercase mb-1.5 tracking-wider">派遣組別</label>
+                    <div className="relative">
+                       <UsersIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                       <select 
+                         value={scheduleTeam}
+                         onChange={e => setScheduleTeam(parseInt(e.target.value))}
+                         className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 outline-none appearance-none cursor-pointer focus:bg-white transition-all"
+                       >
+                         {[1,2,3,4,5,6,7,8].map(t => (
+                           <option key={t} value={t}>
+                             第 {t} 組 {globalTeamConfigs && globalTeamConfigs[t]?.master ? `(${globalTeamConfigs[t].master})` : ''}
+                           </option>
+                         ))}
+                       </select>
+                    </div>
+                  </div>
+                </div>
+
+                <button 
+                  onClick={handlePasteToSchedule}
+                  disabled={pastedDone}
+                  className={`w-full flex items-center justify-center gap-2 py-3 rounded-2xl text-sm font-black transition-all shadow-lg active:scale-95 ${pastedDone ? 'bg-emerald-500 text-white shadow-emerald-100' : 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-indigo-100'}`}
+                >
+                  {pastedDone ? <CheckCircleIcon className="w-5 h-5" /> : <ClipboardListIcon className="w-5 h-5" />}
+                  {pastedDone ? '已貼上排程' : '貼上排程'}
+                </button>
+             </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

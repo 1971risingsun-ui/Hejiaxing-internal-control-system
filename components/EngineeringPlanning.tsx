@@ -391,10 +391,10 @@ const EngineeringPlanning: React.FC<EngineeringPlanningProps> = ({ project, curr
         <div style="font-family: 'Microsoft JhengHei', sans-serif; padding: 40px; color: #000; background: white;">
             <div style="text-align: center; margin-bottom: 30px;">
                 <h1 style="font-size: 28px; font-weight: bold; margin: 0;">合家興實業有限公司</h1>
-                <h2 style="font-size: 22px; font-weight: normal; margin: 10px 0; text-decoration: underline; letter-spacing: 2px;">工 程 規 規劃 書 (估 價 預 估)</h2>
+                <h2 style="font-size: 22px; font-weight: normal; margin: 10px 0; text-decoration: underline; letter-spacing: 2px;">報 價 單 (估 價 預 估)</h2>
             </div>
             <div style="display: flex; justify-content: space-between; margin-bottom: 15px; font-size: 15px;">
-                <div><span style="font-weight: bold;">規劃日期：</span> ${reportDate}</div>
+                <div><span style="font-weight: bold;">日期：</span> ${reportDate}</div>
                 <div><span style="font-weight: bold;">案場名稱：</span> ${project.name}</div>
             </div>
             <div style="border: 2px solid #000; padding: 15px; margin-bottom: 25px; font-size: 15px; background-color: #fffbeb;">
@@ -402,7 +402,7 @@ const EngineeringPlanning: React.FC<EngineeringPlanningProps> = ({ project, curr
             </div>
             ${items.length > 0 ? groupsHtml : '<div style="text-align: center; padding: 50px; border: 1px solid #ccc;">尚未加入任何規劃項目</div>'}
             <div style="border: 1px solid #000; padding: 15px; min-height: 120px; margin-bottom: 30px; margin-top: 20px;">
-                <div style="font-weight: bold; margin-bottom: 8px; border-bottom: 1px solid #ddd; padding-bottom: 5px;">規劃說明與技術備註：</div>
+                <div style="font-weight: bold; margin-bottom: 8px; border-bottom: 1px solid #ddd; padding-bottom: 5px;">備註說明：</div>
                 <div style="white-space: pre-wrap; font-size: 14px; line-height: 1.6;">${notes || '無'}</div>
             </div>
         </div>
@@ -429,7 +429,7 @@ const EngineeringPlanning: React.FC<EngineeringPlanningProps> = ({ project, curr
              pdf.addImage(imgData, 'JPEG', 0, position, pdfWidth, imgHeight);
              heightLeft -= pdfHeight;
         }
-        downloadBlob(pdf.output('blob'), `${project.name}_工程規劃_${reportDate}.pdf`);
+        downloadBlob(pdf.output('blob'), `${project.name}_報價單_${reportDate}.pdf`);
     } catch (e) {
         console.error(e);
         alert("PDF 生成失敗");
@@ -444,7 +444,7 @@ const EngineeringPlanning: React.FC<EngineeringPlanningProps> = ({ project, curr
           <div className="p-4 md:p-6 border-b border-slate-100 bg-slate-50/50 flex-shrink-0">
               <div className="flex justify-between items-center mb-4">
                   <h3 className="font-bold text-lg text-slate-800 flex items-center gap-2">
-                    <FileTextIcon className="w-5 h-5 text-indigo-600" /> 工程規劃書 (Engineering Planning)
+                    <FileTextIcon className="w-5 h-5 text-indigo-600" /> 報價單 (Quotation / Engineering Planning)
                   </h3>
                   <div className="flex gap-2">
                        <input type="file" accept=".xlsx, .xls" ref={fileInputRef} className="hidden" onChange={handleImportExcel} />
@@ -460,7 +460,7 @@ const EngineeringPlanning: React.FC<EngineeringPlanningProps> = ({ project, curr
                             onClick={generatePDF}
                             disabled={isGeneratingPDF}
                             className={`p-2 rounded-full transition-colors ${isGeneratingPDF ? 'text-slate-300' : 'text-slate-500 hover:text-indigo-600 hover:bg-indigo-50'}`}
-                            title="匯出規劃書 PDF"
+                            title="匯出報價單 PDF"
                         >
                             {isGeneratingPDF ? <LoaderIcon className="w-5 h-5 animate-spin" /> : <DownloadIcon className="w-5 h-5" />}
                         </button>
@@ -468,7 +468,7 @@ const EngineeringPlanning: React.FC<EngineeringPlanningProps> = ({ project, curr
               </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-sm">
-                      <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wider">規劃日期</label>
+                      <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wider">日期</label>
                       <input 
                         type="date" 
                         value={reportDate}
@@ -652,7 +652,7 @@ const EngineeringPlanning: React.FC<EngineeringPlanningProps> = ({ project, curr
               )}
 
               <div className="pt-8 border-t border-slate-100">
-                  <label className="block text-xs font-black text-slate-400 mb-2 uppercase tracking-widest">規劃全域說明與技術備註 (General Notes)</label>
+                  <label className="block text-xs font-black text-slate-400 mb-2 uppercase tracking-widest">報價單備註說明 (General Notes)</label>
                   <textarea className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl h-32 resize-none disabled:bg-slate-50 disabled:text-slate-400 text-sm font-medium focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all shadow-inner" value={notes} onChange={e => setNotes(e.target.value)} disabled={!isEditing} placeholder="請輸入工程規劃細節、施工條件說明 or 全域物料規格備註..."></textarea>
               </div>
           </div>
@@ -663,7 +663,7 @@ const EngineeringPlanning: React.FC<EngineeringPlanningProps> = ({ project, curr
                     {hasReport && <button onClick={() => setIsEditing(false)} className="px-6 py-2 rounded-xl text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 shadow-sm font-bold transition-all active:scale-95">取消</button>}
                     <button onClick={handleSave} className="px-8 py-2 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 shadow-lg shadow-indigo-100 font-black flex items-center gap-2 transition-all active:scale-95"><CheckCircleIcon className="w-4 h-4" /> 提交規劃並儲存</button>
                   </>
-              ) : <button onClick={() => setIsEditing(true)} className="px-8 py-2 rounded-xl bg-slate-900 text-white hover:bg-black shadow-lg shadow-slate-200 font-black flex items-center gap-2 transition-all active:scale-95"><EditIcon className="w-5 h-5" /> 編輯規劃內容</button>}
+              ) : <button onClick={() => setIsEditing(true)} className="px-8 py-2 rounded-xl bg-slate-900 text-white hover:bg-black shadow-lg shadow-slate-200 font-black flex items-center gap-2 transition-all active:scale-95"><EditIcon className="w-5 h-5" /> 編輯報價單</button>}
           </div>
       </div>
   );
