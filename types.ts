@@ -100,6 +100,8 @@ export interface CompletionItem {
   quantity: string;
   unit: string;
   category: string;
+  spec?: string;
+  itemNote?: string;
 }
 
 export interface CompletionReport {

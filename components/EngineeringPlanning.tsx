@@ -13,7 +13,7 @@ interface EngineeringPlanningProps {
   onUpdateProject: (updatedProject: Project) => void;
 }
 
-// 根據附件 PDF 精確分析出的分類與項目
+// 根據需求更新分類：僅保留「安全圍籬」與「組合房屋」大項
 const CATEGORIES = {
     FENCE: {
         id: 'FENCE',
@@ -42,7 +42,7 @@ const CATEGORIES = {
     },
     MODULAR: {
         id: 'MODULAR',
-        label: '組合房屋 - 主結構',
+        label: '組合房屋',
         defaultUnit: '坪',
         items: [
             "基礎框架 + 周邊模板",
@@ -58,38 +58,16 @@ const CATEGORIES = {
             "W1窗",
             "天溝、落水管",
             "屋頂防颱",
-            "吊裝運費"
-        ]
-    },
-    RENOVATION: {
-        id: 'RENOVATION',
-        label: '裝修工程',
-        defaultUnit: '坪',
-        items: [
+            "吊裝運費",
             "天花板",
             "2F-2分夾板+PVC地磚",
             "1F地坪-底料+PVC地磚",
             "牆板隔間",
             "走道止滑毯",
-            "百葉窗"
-        ]
-    },
-    OTHER_ENG: {
-        id: 'OTHER_ENG',
-        label: '其他工程',
-        defaultUnit: '式',
-        items: [
+            "百葉窗",
             "土尾工",
-            "整體粉光"
-        ]
-    },
-    DISMANTLE: {
-        id: 'DISMANTLE',
-        label: '拆除工程',
-        defaultUnit: '坪',
-        items: [
-            "組合房屋拆除",
-            "吊裝運費"
+            "整體粉光",
+            "組合房屋拆除"
         ]
     }
 };
@@ -106,7 +84,7 @@ const EngineeringPlanning: React.FC<EngineeringPlanningProps> = ({ project, curr
   const [estDaysFence, setEstDaysFence] = useState('12');
   const [estDaysModular, setEstDaysModular] = useState('20');
 
-  const [customItem, setCustomItem] = useState({ name: '', action: 'install' as 'install'|'dismantle', quantity: '', unit: '' });
+  const [customItem, setCustomItem] = useState({ name: '', action: 'install' as 'install'|'dismantle', spec: '', quantity: '', unit: '', itemNote: '' });
 
   const [isSigning, setIsSigning] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -186,32 +164,23 @@ const EngineeringPlanning: React.FC<EngineeringPlanningProps> = ({ project, curr
 
         const firstCell = row.getCell(1).value?.toString().trim();
         const itemName = row.getCell(2).value?.toString().trim();
+        const itemSpec = row.getCell(3).value?.toString().trim() || '';
         const itemQty = row.getCell(4).value?.toString().trim() || '';
         const itemUnit = row.getCell(5).value?.toString().trim() || '';
 
-        // 偵測估價單中的大分類
+        // 偵測估價單中的大分類，並對應到新分類
         if (itemName?.includes('安全圍籬')) currentCategory = 'FENCE';
-        else if (itemName?.includes('組合房屋')) currentCategory = 'MODULAR';
-        else if (itemName?.includes('裝修工程')) currentCategory = 'RENOVATION';
-        else if (itemName?.includes('其他工程')) currentCategory = 'OTHER_ENG';
-        else if (itemName?.includes('拆除工程')) currentCategory = 'DISMANTLE';
+        else if (itemName?.includes('組合房屋') || itemName?.includes('裝修工程') || itemName?.includes('其他工程') || itemName?.includes('拆除工程')) currentCategory = 'MODULAR';
 
         if (itemName && !isNaN(Number(firstCell)) && firstCell !== '') {
-            let matchedCat = currentCategory;
-            // 嘗試自動歸類
-            for (const [catKey, catVal] of Object.entries(CATEGORIES)) {
-                if (catVal.items.some(i => itemName.includes(i) || i.includes(itemName))) {
-                    matchedCat = catKey;
-                    break;
-                }
-            }
-
             importedItems.push({
                 name: itemName,
                 action: 'install',
+                spec: itemSpec,
                 quantity: itemQty,
                 unit: itemUnit,
-                category: matchedCat
+                category: currentCategory,
+                itemNote: ''
             });
         }
       });
@@ -220,7 +189,7 @@ const EngineeringPlanning: React.FC<EngineeringPlanningProps> = ({ project, curr
         setItems(prev => {
             const combined = [...prev];
             importedItems.forEach(newItem => {
-                if (!combined.some(i => i.name === newItem.name && i.category === newItem.category)) {
+                if (!combined.some(i => i.name === newItem.name && i.category === newItem.category && i.spec === newItem.spec)) {
                     combined.push(newItem);
                 }
             });
@@ -250,9 +219,11 @@ const EngineeringPlanning: React.FC<EngineeringPlanningProps> = ({ project, curr
       setItems([...items, { 
           name: cat.items[0], 
           action: 'install', 
+          spec: '',
           quantity: '', 
           unit: cat.defaultUnit,
-          category: catId 
+          category: catId,
+          itemNote: ''
       }]);
   };
 
@@ -261,11 +232,13 @@ const EngineeringPlanning: React.FC<EngineeringPlanningProps> = ({ project, curr
       setItems([...items, { 
           name: customItem.name, 
           action: customItem.action, 
+          spec: customItem.spec,
           quantity: customItem.quantity,
           unit: customItem.unit,
-          category: 'OTHER'
+          category: 'MODULAR',
+          itemNote: customItem.itemNote
       }]);
-      setCustomItem({ name: '', action: 'install', quantity: '', unit: '' });
+      setCustomItem({ name: '', action: 'install', spec: '', quantity: '', unit: '', itemNote: '' });
   };
 
   const updateItem = (index: number, field: keyof CompletionItem, value: any) => {
@@ -273,11 +246,9 @@ const EngineeringPlanning: React.FC<EngineeringPlanningProps> = ({ project, curr
       newItems[index] = { ...newItems[index], [field]: value };
       if (field === 'name') {
            const currentCatId = newItems[index].category;
-           if (currentCatId !== 'OTHER') {
-             const cat = CATEGORIES[currentCatId as keyof typeof CATEGORIES];
-             if (cat && cat.defaultUnit) {
-                 newItems[index].unit = cat.defaultUnit;
-             }
+           const cat = CATEGORIES[currentCatId as keyof typeof CATEGORIES];
+           if (cat && cat.defaultUnit) {
+               newItems[index].unit = cat.defaultUnit;
            }
       }
       setItems(newItems);
@@ -334,13 +305,10 @@ const EngineeringPlanning: React.FC<EngineeringPlanningProps> = ({ project, curr
     container.style.position = 'fixed';
     container.style.top = '-9999px';
     container.style.left = '-9999px';
-    container.style.width = '800px'; 
+    container.style.width = '1100px'; // 稍微加寬以容納新欄位
     container.style.backgroundColor = '#ffffff';
     container.style.zIndex = '-1';
     document.body.appendChild(container);
-
-    const checkMark = `<span style="font-family: Arial; font-size: 16px;">&#9745;</span>`;
-    const emptyBox = `<span style="font-family: Arial; font-size: 16px;">&#9744;</span>`;
 
     const renderCategorySection = (catKey: string) => {
         const cat = CATEGORIES[catKey as keyof typeof CATEGORIES];
@@ -348,26 +316,26 @@ const EngineeringPlanning: React.FC<EngineeringPlanningProps> = ({ project, curr
         if (categoryItems.length === 0) return '';
         const rows = categoryItems.map((item, idx) => `
             <tr>
-                <td style="border: 1px solid #000; padding: 6px; text-align: center;">${idx + 1}</td>
-                <td style="border: 1px solid #000; padding: 6px; font-size: 14px;">${item.name}</td>
-                <td style="border: 1px solid #000; padding: 6px; text-align: center;">${item.action === 'install' ? checkMark : emptyBox} 裝</td>
-                <td style="border: 1px solid #000; padding: 6px; text-align: center;">${item.action === 'dismantle' ? checkMark : emptyBox} 拆</td>
-                <td style="border: 1px solid #000; padding: 6px; text-align: center;">${item.quantity}</td>
-                <td style="border: 1px solid #000; padding: 6px; text-align: center;">${item.unit}</td>
+                <td style="border: 1px solid #000; padding: 6px; text-align: center; font-size: 11px;">${item.action === 'install' ? '裝' : item.action === 'dismantle' ? '拆' : '-'}</td>
+                <td style="border: 1px solid #000; padding: 6px; font-size: 12px; font-weight: bold;">${item.name}</td>
+                <td style="border: 1px solid #000; padding: 6px; font-size: 11px;">${item.spec || ''}</td>
+                <td style="border: 1px solid #000; padding: 6px; font-size: 11px;">${item.itemNote || ''}</td>
+                <td style="border: 1px solid #000; padding: 6px; text-align: center; font-size: 12px; font-weight: bold;">${item.quantity}</td>
+                <td style="border: 1px solid #000; padding: 6px; text-align: center; font-size: 12px;">${item.unit}</td>
             </tr>
         `).join('');
         return `
-            <div style="margin-bottom: 20px;">
-                <div style="font-weight: bold; font-size: 16px; margin-bottom: 5px; background-color: #f1f5f9; padding: 5px; border-left: 4px solid #0f172a;">${cat.label}</div>
+            <div style="margin-bottom: 25px;">
+                <div style="font-weight: bold; font-size: 16px; margin-bottom: 8px; background-color: #f1f5f9; padding: 8px; border-left: 5px solid #0f172a;">${cat.label}</div>
                 <table style="width: 100%; border-collapse: collapse;">
                     <thead>
                         <tr style="background-color: #f8fafc;">
-                            <th style="border: 1px solid #000; padding: 5px; width: 5%;">#</th>
-                            <th style="border: 1px solid #000; padding: 5px; width: 45%;">項目名稱</th>
-                            <th style="border: 1px solid #000; padding: 5px; width: 12%;">裝</th>
-                            <th style="border: 1px solid #000; padding: 5px; width: 12%;">拆</th>
-                            <th style="border: 1px solid #000; padding: 5px; width: 13%;">數量</th>
-                            <th style="border: 1px solid #000; padding: 5px; width: 13%;">單位</th>
+                            <th style="border: 1px solid #000; padding: 8px; width: 6%;">施作</th>
+                            <th style="border: 1px solid #000; padding: 8px; width: 30%;">品名</th>
+                            <th style="border: 1px solid #000; padding: 8px; width: 18%;">規格</th>
+                            <th style="border: 1px solid #000; padding: 8px; width: 22%;">注意</th>
+                            <th style="border: 1px solid #000; padding: 8px; width: 12%;">數量</th>
+                            <th style="border: 1px solid #000; padding: 8px; width: 12%;">單位</th>
                         </tr>
                     </thead>
                     <tbody>${rows}</tbody>
@@ -380,36 +348,36 @@ const EngineeringPlanning: React.FC<EngineeringPlanningProps> = ({ project, curr
     
     container.innerHTML = `
         <div style="font-family: 'Microsoft JhengHei', sans-serif; padding: 40px; color: #000; background: white;">
-            <div style="text-align: center; margin-bottom: 20px;">
-                <h1 style="font-size: 26px; font-weight: bold; margin: 0;">合家興實業有限公司</h1>
-                <h2 style="font-size: 20px; font-weight: normal; margin: 5px 0; text-decoration: underline;">工 程 規 劃 書 (估 價 預 估)</h2>
+            <div style="text-align: center; margin-bottom: 30px;">
+                <h1 style="font-size: 28px; font-weight: bold; margin: 0;">合家興實業有限公司</h1>
+                <h2 style="font-size: 22px; font-weight: normal; margin: 10px 0; text-decoration: underline; letter-spacing: 2px;">工 程 規 劃 書 (估 價 預 估)</h2>
             </div>
-            <div style="display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 14px;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 15px; font-size: 15px;">
                 <div><span style="font-weight: bold;">規劃日期：</span> ${reportDate}</div>
                 <div><span style="font-weight: bold;">案場名稱：</span> ${project.name}</div>
             </div>
-            <div style="border: 1px solid #000; padding: 10px; margin-bottom: 20px; font-size: 14px; background-color: #fffbeb;">
-                <span style="font-weight: bold;">工期預估：</span> 圍籬 ${estDaysFence} 日 / 組合屋 ${estDaysModular} 日 (請於施工前 7 日通知)
+            <div style="border: 2px solid #000; padding: 15px; margin-bottom: 25px; font-size: 15px; background-color: #fffbeb;">
+                <span style="font-weight: bold;">工期預估：</span> 圍籬 ${estDaysFence} 日 / 組合屋 ${estDaysModular} 日 (請於施工前 7 日通知安排)
             </div>
-            ${items.length > 0 ? categoriesHtml : '<div style="text-align: center; padding: 40px; border: 1px solid #ccc;">尚未加入任何規劃項目</div>'}
-            <div style="border: 1px solid #000; padding: 10px; min-height: 100px; margin-bottom: 20px; margin-top: 20px;">
-                <div style="font-weight: bold; margin-bottom: 5px;">規劃說明與備註：</div>
-                <div style="white-space: pre-wrap;">${notes || '無'}</div>
+            ${items.length > 0 ? categoriesHtml : '<div style="text-align: center; padding: 50px; border: 1px solid #ccc;">尚未加入任何規劃項目</div>'}
+            <div style="border: 1px solid #000; padding: 15px; min-height: 120px; margin-bottom: 30px; margin-top: 20px;">
+                <div style="font-weight: bold; margin-bottom: 8px; border-bottom: 1px solid #ddd; padding-bottom: 5px;">規劃說明與技術備註：</div>
+                <div style="white-space: pre-wrap; font-size: 14px; line-height: 1.6;">${notes || '無'}</div>
             </div>
-             <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-top: 40px;">
-                <div style="width: 40%;">
-                    <div style="font-weight: bold; margin-bottom: 5px;">規劃負責人：</div>
-                    <div style="border-bottom: 1px solid #000; padding: 5px; font-size: 16px;">${worker || ''}</div>
+             <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-top: 50px;">
+                <div style="width: 45%;">
+                    <div style="font-weight: bold; margin-bottom: 8px;">規劃負責人 (Estimator)：</div>
+                    <div style="border-bottom: 2px solid #000; padding: 8px; font-size: 18px; font-weight: bold;">${worker || ''}</div>
                 </div>
                 <div style="text-align: center;">
-                    <div style="font-weight: bold; margin-bottom: 10px;">核准簽署：</div>
-                    ${signatureUrl ? `<img src="${signatureUrl}" style="max-height: 80px; max-width: 200px;" />` : '<div style="height: 80px; width: 200px; border-bottom: 1px solid #000;"></div>'}
+                    <div style="font-weight: bold; margin-bottom: 15px;">核准簽署 (Approval)：</div>
+                    ${signatureUrl ? `<img src="${signatureUrl}" style="max-height: 100px; max-width: 250px;" />` : '<div style="height: 100px; width: 250px; border-bottom: 2px solid #000;"></div>'}
                 </div>
             </div>
         </div>
     `;
 
-    await new Promise(resolve => setTimeout(resolve, 500));
+    await new Promise(resolve => setTimeout(resolve, 800));
     try {
         const canvas = await html2canvas(container, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
         const imgData = canvas.toDataURL('image/jpeg', 0.95);
@@ -498,7 +466,7 @@ const EngineeringPlanning: React.FC<EngineeringPlanningProps> = ({ project, curr
 
           <div className="p-6 space-y-6 overflow-x-auto pb-4">
               {(Object.keys(CATEGORIES) as Array<keyof typeof CATEGORIES>).map(catKey => {
-                  const cat = CATEGORIES[catKey as keyof typeof CATEGORIES];
+                  const cat = CATEGORIES[catKey];
                   const categoryItems = items
                       .map((item, index) => ({ item, index }))
                       .filter(({ item }) => item.category === catKey);
@@ -514,9 +482,10 @@ const EngineeringPlanning: React.FC<EngineeringPlanningProps> = ({ project, curr
                                 <table className="w-full text-left border-collapse">
                                     <thead className="bg-slate-50 text-slate-500 text-[10px] uppercase font-bold tracking-widest">
                                         <tr>
-                                            <th className="px-3 py-2 w-10 text-center">#</th>
-                                            <th className="px-3 py-2 min-w-[200px]">項目名稱</th>
-                                            <th className="px-3 py-2 w-24">施作動作</th>
+                                            <th className="px-3 py-2 w-20 text-center">施作</th>
+                                            <th className="px-3 py-2 min-w-[200px]">品名</th>
+                                            <th className="px-3 py-2 min-w-[150px]">規格</th>
+                                            <th className="px-3 py-2 min-w-[150px]">注意</th>
                                             <th className="px-3 py-2 w-20 text-center">數量</th>
                                             <th className="px-3 py-2 w-20">單位</th>
                                             {isEditing && <th className="px-3 py-2 w-10 text-center">刪</th>}
@@ -525,7 +494,19 @@ const EngineeringPlanning: React.FC<EngineeringPlanningProps> = ({ project, curr
                                     <tbody className="divide-y divide-slate-100 text-sm">
                                         {categoryItems.map(({ item, index }) => (
                                             <tr key={index} className="hover:bg-slate-50 transition-colors">
-                                                <td className="px-3 py-2 text-center text-slate-400 font-mono text-[10px]">{index + 1}</td>
+                                                <td className="px-3 py-2 text-center">
+                                                    {isEditing ? (
+                                                        <select 
+                                                            value={item.action} 
+                                                            onChange={(e) => updateItem(index, 'action', e.target.value)}
+                                                            className="w-full bg-transparent border-b border-transparent hover:border-slate-300 focus:border-indigo-500 focus:outline-none py-1 text-xs font-bold"
+                                                        >
+                                                            <option value="install">裝</option>
+                                                            <option value="dismantle">拆</option>
+                                                            <option value="none">無</option>
+                                                        </select>
+                                                    ) : <span className={`text-[10px] font-black px-2 py-0.5 rounded border uppercase ${item.action === 'install' ? 'bg-blue-50 text-blue-700 border-blue-200' : item.action === 'dismantle' ? 'bg-rose-50 text-rose-700 border-rose-200' : 'bg-slate-50 text-slate-500 border-slate-200'}`}>{item.action === 'install' ? '安裝' : item.action === 'dismantle' ? '拆除' : '-'}</span>}
+                                                </td>
                                                 <td className="px-3 py-2">
                                                     {isEditing ? (
                                                         <select 
@@ -540,16 +521,25 @@ const EngineeringPlanning: React.FC<EngineeringPlanningProps> = ({ project, curr
                                                 </td>
                                                 <td className="px-3 py-2">
                                                     {isEditing ? (
-                                                        <select 
-                                                            value={item.action} 
-                                                            onChange={(e) => updateItem(index, 'action', e.target.value)}
+                                                        <input 
+                                                            type="text" 
+                                                            value={item.spec || ''} 
+                                                            onChange={(e) => updateItem(index, 'spec', e.target.value)}
+                                                            className="w-full bg-transparent border-b border-transparent hover:border-slate-300 focus:border-indigo-500 focus:outline-none py-1"
+                                                            placeholder="規格"
+                                                        />
+                                                    ) : <span className="text-slate-600">{item.spec || '-'}</span>}
+                                                </td>
+                                                <td className="px-3 py-2">
+                                                    {isEditing ? (
+                                                        <input 
+                                                            type="text" 
+                                                            value={item.itemNote || ''} 
+                                                            onChange={(e) => updateItem(index, 'itemNote', e.target.value)}
                                                             className="w-full bg-transparent border-b border-transparent hover:border-slate-300 focus:border-indigo-500 focus:outline-none py-1 text-xs"
-                                                        >
-                                                            <option value="install">安裝 (Install)</option>
-                                                            <option value="dismantle">拆除 (Dismantle)</option>
-                                                            <option value="none">無</option>
-                                                        </select>
-                                                    ) : <span className={`text-[10px] font-black px-2 py-0.5 rounded border uppercase ${item.action === 'install' ? 'bg-blue-50 text-blue-700 border-blue-200' : item.action === 'dismantle' ? 'bg-rose-50 text-rose-700 border-rose-200' : 'bg-slate-50 text-slate-500 border-slate-200'}`}>{item.action === 'install' ? '安裝' : item.action === 'dismantle' ? '拆除' : '-'}</span>}
+                                                            placeholder="注意內容"
+                                                        />
+                                                    ) : <span className="text-slate-500 text-xs">{item.itemNote || '-'}</span>}
                                                 </td>
                                                 <td className="px-3 py-2">
                                                     {isEditing ? (
@@ -600,25 +590,27 @@ const EngineeringPlanning: React.FC<EngineeringPlanningProps> = ({ project, curr
 
               {isEditing && (
                  <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 mt-8 shadow-lg">
-                    <h4 className="text-[10px] font-black text-slate-400 mb-3 uppercase tracking-[0.2em]">手動追加規劃 (其他類別)</h4>
+                    <h4 className="text-[10px] font-black text-slate-400 mb-3 uppercase tracking-[0.2em]">手動追加規劃</h4>
                     <div className="grid grid-cols-12 gap-3">
-                        <div className="col-span-12 md:col-span-4"><input type="text" placeholder="輸入自訂項目名稱" className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-xl text-sm text-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all" value={customItem.name} onChange={e => setCustomItem({...customItem, name: e.target.value})} /></div>
-                        <div className="col-span-6 md:col-span-3">
+                        <div className="col-span-6 md:col-span-2">
                             <select className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-xl text-sm text-white focus:ring-2 focus:ring-indigo-500 outline-none cursor-pointer" value={customItem.action} onChange={e => setCustomItem({...customItem, action: e.target.value as any})}>
-                                <option value="install">安裝 (Install)</option>
-                                <option value="dismantle">拆除 (Dismantle)</option>
+                                <option value="install">安裝 (裝)</option>
+                                <option value="dismantle">拆除 (拆)</option>
                             </select>
                         </div>
-                        <div className="col-span-3 md:col-span-2"><input type="text" placeholder="數量" className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-xl text-sm text-white focus:ring-2 focus:ring-indigo-500 outline-none" value={customItem.quantity} onChange={e => setCustomItem({...customItem, quantity: e.target.value})} /></div>
-                        <div className="col-span-3 md:col-span-2"><input type="text" placeholder="單位" className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-xl text-sm text-white focus:ring-2 focus:ring-indigo-500 outline-none" value={customItem.unit} onChange={e => setCustomItem({...customItem, unit: e.target.value})} /></div>
+                        <div className="col-span-6 md:col-span-2"><input type="text" placeholder="品名" className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-xl text-sm text-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all" value={customItem.name} onChange={e => setCustomItem({...customItem, name: e.target.value})} /></div>
+                        <div className="col-span-12 md:col-span-2"><input type="text" placeholder="規格" className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-xl text-sm text-white focus:ring-2 focus:ring-indigo-500 outline-none" value={customItem.spec} onChange={e => setCustomItem({...customItem, spec: e.target.value})} /></div>
+                        <div className="col-span-6 md:col-span-2"><input type="text" placeholder="注意內容" className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-xl text-sm text-white focus:ring-2 focus:ring-indigo-500 outline-none" value={customItem.itemNote} onChange={e => setCustomItem({...customItem, itemNote: e.target.value})} /></div>
+                        <div className="col-span-3 md:col-span-1"><input type="text" placeholder="數量" className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-xl text-sm text-white focus:ring-2 focus:ring-indigo-500 outline-none text-center" value={customItem.quantity} onChange={e => setCustomItem({...customItem, quantity: e.target.value})} /></div>
+                        <div className="col-span-3 md:col-span-2"><input type="text" placeholder="單位" className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-xl text-sm text-white focus:ring-2 focus:ring-indigo-500 outline-none text-center" value={customItem.unit} onChange={e => setCustomItem({...customItem, unit: e.target.value})} /></div>
                         <div className="col-span-12 md:col-span-1"><button onClick={handleAddCustomItem} disabled={!customItem.name} className="w-full h-full bg-white text-slate-900 rounded-xl flex items-center justify-center disabled:opacity-50 hover:bg-slate-100 transition-all active:scale-95 font-black min-h-[40px] shadow-sm"><PlusIcon className="w-5 h-5" /></button></div>
                     </div>
                 </div>
               )}
 
               <div className="pt-8 border-t border-slate-100">
-                  <label className="block text-xs font-black text-slate-400 mb-2 uppercase tracking-widest">規劃備註與技術說明 (Notes)</label>
-                  <textarea className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl h-32 resize-none disabled:bg-slate-50 disabled:text-slate-400 text-sm font-medium focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all shadow-inner" value={notes} onChange={e => setNotes(e.target.value)} disabled={!isEditing} placeholder="請輸入工程規劃細節、施工條件說明 or 物料規格備註..."></textarea>
+                  <label className="block text-xs font-black text-slate-400 mb-2 uppercase tracking-widest">規劃全域說明與備註 (General Notes)</label>
+                  <textarea className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl h-32 resize-none disabled:bg-slate-50 disabled:text-slate-400 text-sm font-medium focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all shadow-inner" value={notes} onChange={e => setNotes(e.target.value)} disabled={!isEditing} placeholder="請輸入工程規劃細節、施工條件說明 or 全域物料規格備註..."></textarea>
               </div>
 
               <div className="flex flex-col md:flex-row gap-8 border-t border-slate-100 pt-8 mt-4 items-end">
