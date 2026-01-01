@@ -94,6 +94,7 @@ const App: React.FC = () => {
   const [monthRemarks, setMonthRemarks] = useState<MonthSummaryRemark[]>([]);
 
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [subcontractors, setSubcontractors] = useState<Supplier[]>([]);
   const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>([]);
 
   const [dirHandle, setDirHandle] = useState<FileSystemDirectoryHandle | null>(null);
@@ -135,6 +136,7 @@ const App: React.FC = () => {
           if (cachedState.overtime) setOvertime(cachedState.overtime);
           if (cachedState.monthRemarks) setMonthRemarks(cachedState.monthRemarks);
           if (cachedState.suppliers) setSuppliers(cachedState.suppliers);
+          if (cachedState.subcontractors) setSubcontractors(cachedState.subcontractors);
           if (cachedState.purchaseOrders) setPurchaseOrders(cachedState.purchaseOrders);
           if (cachedState.lastSaved) {
             setLastSyncTime(new Date(cachedState.lastSaved).toLocaleTimeString('zh-TW', { hour12: false }));
@@ -219,6 +221,7 @@ const App: React.FC = () => {
     if (Array.isArray(data.overtime)) setOvertime(data.overtime);
     if (Array.isArray(data.monthRemarks)) setMonthRemarks(data.monthRemarks);
     if (Array.isArray(data.suppliers)) setSuppliers(data.suppliers);
+    if (Array.isArray(data.subcontractors)) setSubcontractors(data.subcontractors);
     if (Array.isArray(data.purchaseOrders)) setPurchaseOrders(data.purchaseOrders);
     if (data.lastUpdateInfo) setLastUpdateInfo(data.lastUpdateInfo);
   };
@@ -245,7 +248,7 @@ const App: React.FC = () => {
   const handleManualSaveAs = async () => {
     try {
       const appState = {
-        projects, users: allUsers, auditLogs, weeklySchedules, dailyDispatches, globalTeamConfigs, employees, attendance, overtime, monthRemarks, suppliers, purchaseOrders, lastUpdateInfo, lastSaved: new Date().toISOString()
+        projects, users: allUsers, auditLogs, weeklySchedules, dailyDispatches, globalTeamConfigs, employees, attendance, overtime, monthRemarks, suppliers, subcontractors, purchaseOrders, lastUpdateInfo, lastSaved: new Date().toISOString()
       };
       const jsonStr = JSON.stringify(appState, null, 2);
       const blob = new Blob([jsonStr], { type: 'application/json' });
@@ -520,9 +523,9 @@ const App: React.FC = () => {
     if (!isInitialized) return;
     const saveAll = async () => {
         try {
-            await saveAppStateToIdb({ projects, users: allUsers, auditLogs, weeklySchedules, dailyDispatches, globalTeamConfigs, employees, attendance, overtime, monthRemarks, suppliers, purchaseOrders, lastUpdateInfo, lastSaved: new Date().toISOString() });
+            await saveAppStateToIdb({ projects, users: allUsers, auditLogs, weeklySchedules, dailyDispatches, globalTeamConfigs, employees, attendance, overtime, monthRemarks, suppliers, subcontractors, purchaseOrders, lastUpdateInfo, lastSaved: new Date().toISOString() });
             if (dirHandle && dirPermission === 'granted') {
-                syncToLocal(dirHandle, { projects, users: allUsers, auditLogs, weeklySchedules, dailyDispatches, globalTeamConfigs, employees, attendance, overtime, monthRemarks, suppliers, purchaseOrders });
+                syncToLocal(dirHandle, { projects, users: allUsers, auditLogs, weeklySchedules, dailyDispatches, globalTeamConfigs, employees, attendance, overtime, monthRemarks, suppliers, subcontractors, purchaseOrders });
             }
         } catch (e) {
             console.error('自動儲存失敗', e);
@@ -530,12 +533,12 @@ const App: React.FC = () => {
     };
     const timer = setTimeout(saveAll, 500);
     return () => clearTimeout(timer);
-  }, [projects, allUsers, auditLogs, weeklySchedules, dailyDispatches, globalTeamConfigs, employees, attendance, overtime, monthRemarks, suppliers, purchaseOrders, dirHandle, dirPermission, isInitialized, lastUpdateInfo]);
+  }, [projects, allUsers, auditLogs, weeklySchedules, dailyDispatches, globalTeamConfigs, employees, attendance, overtime, monthRemarks, suppliers, subcontractors, purchaseOrders, dirHandle, dirPermission, isInitialized, lastUpdateInfo]);
 
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [view, setView] = useState<'engineering' | 'engineering_hub' | 'driving_time' | 'weekly_schedule' | 'daily_dispatch' | 'engineering_groups' | 'construction' | 'modular_house' | 'maintenance' | 'purchasing_hub' | 'purchasing_management' | 'purchasing_materials' | 'purchasing_suppliers' | 'purchasing_orders' | 'hr' | 'equipment' | 'report' | 'users'>('engineering');
+  const [view, setView] = useState<'engineering' | 'engineering_hub' | 'driving_time' | 'weekly_schedule' | 'daily_dispatch' | 'engineering_groups' | 'construction' | 'modular_house' | 'maintenance' | 'purchasing_hub' | 'purchasing_management' | 'purchasing_materials' | 'purchasing_suppliers' | 'purchasing_subcontractors' | 'purchasing_orders' | 'hr' | 'equipment' | 'report' | 'users'>('engineering');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   const handleLogin = (user: User) => { setCurrentUser(user); setView('engineering'); };
@@ -717,6 +720,7 @@ const App: React.FC = () => {
       case 'purchasing_management': return '採購管理';
       case 'purchasing_materials': return '材料請購';
       case 'purchasing_suppliers': return '供應商清冊';
+      case 'purchasing_subcontractors': return '協力廠商清冊';
       case 'purchasing_orders': return '採購單管理';
       case 'hr': return '人事管理模組';
       case 'equipment': return '設備／工具模組';
@@ -825,13 +829,35 @@ const App: React.FC = () => {
            view === 'purchasing_suppliers' ? (
               <div className="flex flex-col flex-1 min-h-0">
                 <div className="px-6 pt-4"><button onClick={() => setView('purchasing_hub')} className="flex items-center gap-2 text-slate-500 hover:text-blue-600 font-bold text-xs"><ArrowLeftIcon className="w-3 h-3" /> 返回採購</button></div>
-                <div className="flex-1 overflow-hidden"><SupplierList suppliers={suppliers} onUpdateSuppliers={setSuppliers} /></div>
+                <div className="flex-1 overflow-hidden">
+                  <SupplierList 
+                    title="供應商清冊" 
+                    typeLabel="供應商"
+                    themeColor="emerald"
+                    suppliers={suppliers} 
+                    onUpdateSuppliers={setSuppliers} 
+                  />
+                </div>
               </div>
            ) :
+           view === 'purchasing_subcontractors' ? (
+            <div className="flex flex-col flex-1 min-h-0">
+              <div className="px-6 pt-4"><button onClick={() => setView('purchasing_hub')} className="flex items-center gap-2 text-slate-500 hover:text-blue-600 font-bold text-xs"><ArrowLeftIcon className="w-3 h-3" /> 返回採購</button></div>
+              <div className="flex-1 overflow-hidden">
+                <SupplierList 
+                  title="協力廠商清冊" 
+                  typeLabel="協力廠商"
+                  themeColor="indigo"
+                  suppliers={subcontractors} 
+                  onUpdateSuppliers={setSubcontractors} 
+                />
+              </div>
+            </div>
+         ) :
            view === 'purchasing_orders' ? (
               <div className="flex flex-col flex-1 min-h-0">
                 <div className="px-6 pt-4"><button onClick={() => setView('purchasing_hub')} className="flex items-center gap-2 text-slate-500 hover:text-blue-600 font-bold text-xs"><ArrowLeftIcon className="w-3 h-3" /> 返回採購</button></div>
-                <div className="flex-1 overflow-hidden"><PurchaseOrders projects={projects} suppliers={suppliers} purchaseOrders={purchaseOrders} onUpdatePurchaseOrders={setPurchaseOrders} onUpdateProject={handleUpdateProject} /></div>
+                <div className="flex-1 overflow-hidden"><PurchaseOrders projects={projects} suppliers={[...suppliers, ...subcontractors]} purchaseOrders={purchaseOrders} onUpdatePurchaseOrders={setPurchaseOrders} onUpdateProject={handleUpdateProject} /></div>
               </div>
            ) :
            view === 'hr' ? (

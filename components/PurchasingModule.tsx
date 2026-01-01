@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { BoxIcon, FileTextIcon, UsersIcon, ClipboardListIcon } from './Icons';
 
@@ -35,6 +34,13 @@ const PurchasingModule: React.FC<PurchasingModuleProps> = ({ onNavigate }) => {
       icon: <UsersIcon className="w-6 h-6" />, 
       color: 'bg-emerald-50 text-emerald-600', 
       desc: '管理廠商資訊、聯絡方式與產品清單' 
+    },
+    { 
+      id: 'purchasing_subcontractors', 
+      label: '協力廠商', 
+      icon: <UsersIcon className="w-6 h-6" />, 
+      color: 'bg-indigo-50 text-indigo-600', 
+      desc: '管理長期合作之點工、吊卡等協力夥伴' 
     },
   ];
 

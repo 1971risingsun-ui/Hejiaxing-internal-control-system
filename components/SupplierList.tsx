@@ -1,17 +1,28 @@
-
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { Supplier } from '../types';
-import { SearchIcon, PlusIcon, MapPinIcon, UserIcon, PhoneIcon, BoxIcon, TrashIcon, EditIcon, XIcon, CheckCircleIcon, UsersIcon } from './Icons';
+import { SearchIcon, PlusIcon, MapPinIcon, UserIcon, PhoneIcon, BoxIcon, TrashIcon, EditIcon, XIcon, CheckCircleIcon, UsersIcon, FileTextIcon, LoaderIcon } from './Icons';
+import ExcelJS from 'exceljs';
 
 interface SupplierListProps {
+  title?: string;
+  typeLabel?: string;
+  themeColor?: 'emerald' | 'indigo' | 'blue' | 'orange';
   suppliers: Supplier[];
   onUpdateSuppliers: (list: Supplier[]) => void;
 }
 
-const SupplierList: React.FC<SupplierListProps> = ({ suppliers, onUpdateSuppliers }) => {
+const SupplierList: React.FC<SupplierListProps> = ({ 
+    title = '供應商清冊', 
+    typeLabel = '供應商', 
+    themeColor = 'emerald',
+    suppliers, 
+    onUpdateSuppliers 
+}) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isAdding, setIsAdding] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
   const [formData, setFormData] = useState<Omit<Supplier, 'id'>>({
     name: '',
@@ -24,6 +35,17 @@ const SupplierList: React.FC<SupplierListProps> = ({ suppliers, onUpdateSupplier
   });
 
   const [tempProduct, setTempProduct] = useState('');
+  const [tempUnit, setTempUnit] = useState('');
+
+  // 根據 themeColor 動態設定 CSS class
+  const colorConfig = useMemo(() => {
+    switch (themeColor) {
+        case 'indigo': return { bg: 'bg-indigo-600', hover: 'hover:bg-indigo-700', light: 'bg-indigo-100', text: 'text-indigo-600', border: 'border-indigo-200', ring: 'focus:ring-indigo-500', shadow: 'shadow-indigo-100', labelBg: 'bg-indigo-50', labelText: 'text-indigo-700', btnLight: 'bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100' };
+        case 'orange': return { bg: 'bg-orange-600', hover: 'hover:bg-orange-700', light: 'bg-orange-100', text: 'text-orange-600', border: 'border-orange-200', ring: 'focus:ring-orange-500', shadow: 'shadow-orange-100', labelBg: 'bg-orange-50', labelText: 'text-orange-700', btnLight: 'bg-orange-50 text-orange-700 border-orange-200 hover:bg-orange-100' };
+        case 'blue': return { bg: 'bg-blue-600', hover: 'hover:bg-blue-700', light: 'bg-blue-100', text: 'text-blue-600', border: 'border-blue-200', ring: 'focus:ring-blue-500', shadow: 'shadow-blue-100', labelBg: 'bg-blue-50', labelText: 'text-blue-700', btnLight: 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100' };
+        default: return { bg: 'bg-emerald-600', hover: 'hover:bg-emerald-700', light: 'bg-emerald-100', text: 'text-emerald-600', border: 'border-emerald-200', ring: 'focus:ring-emerald-500', shadow: 'shadow-emerald-100', labelBg: 'bg-emerald-50', labelText: 'text-emerald-700', btnLight: 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100' };
+    }
+  }, [themeColor]);
 
   // 模糊搜尋邏輯
   const filteredSuppliers = useMemo(() => {
@@ -70,13 +92,116 @@ const SupplierList: React.FC<SupplierListProps> = ({ suppliers, onUpdateSupplier
     setIsAdding(true);
   };
 
+  const handleImportExcel = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsImporting(true);
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const workbook = new ExcelJS.Workbook();
+      await workbook.xlsx.load(arrayBuffer);
+
+      let updatedList = [...suppliers];
+      let importCount = 0;
+      let skippedCount = 0;
+
+      workbook.eachSheet((worksheet) => {
+        const supplierName = worksheet.name.trim();
+        if (!supplierName || supplierName.startsWith('Sheet')) return;
+
+        const headers: Record<string, number> = {};
+        worksheet.getRow(1).eachCell((cell, colNumber) => {
+          const text = cell.value?.toString().trim();
+          if (text) headers[text] = colNumber;
+        });
+
+        const nameCol = headers['品名'];
+        const unitCol = headers['單位'];
+
+        if (!nameCol) return;
+
+        const existingIdx = updatedList.findIndex(s => s.name === supplierName);
+        
+        // 建立該廠商現有的「品名」集合（去除括號單位部分）以便比對
+        const existingProductNames = new Set<string>();
+        if (existingIdx > -1) {
+          updatedList[existingIdx].productList.forEach(p => {
+            const nameOnly = p.includes(' (') ? p.split(' (')[0].trim() : p.trim();
+            existingProductNames.add(nameOnly);
+          });
+        }
+
+        const importedProducts: string[] = [];
+        const seenInThisSheet = new Set<string>();
+
+        worksheet.eachRow((row, rowNumber) => {
+          if (rowNumber === 1) return;
+          const pName = row.getCell(nameCol).value?.toString().trim();
+          const pUnit = unitCol ? row.getCell(unitCol).value?.toString().trim() : '';
+          
+          if (pName) {
+            // 比對是否已存在相同品名 (不論單位) 或 在本次匯入中重複
+            if (!existingProductNames.has(pName) && !seenInThisSheet.has(pName)) {
+                const formatted = pUnit ? `${pName} (${pUnit})` : pName;
+                importedProducts.push(formatted);
+                seenInThisSheet.add(pName);
+            } else {
+                skippedCount++;
+            }
+          }
+        });
+
+        if (importedProducts.length > 0) {
+          if (existingIdx > -1) {
+            updatedList[existingIdx] = { 
+                ...updatedList[existingIdx], 
+                productList: [...updatedList[existingIdx].productList, ...importedProducts] 
+            };
+          } else {
+            updatedList.push({
+              id: crypto.randomUUID(),
+              name: supplierName,
+              address: '',
+              contact: '',
+              companyPhone: '',
+              mobilePhone: '',
+              lineId: '',
+              productList: importedProducts
+            });
+          }
+          importCount++;
+        }
+      });
+
+      if (importCount > 0) {
+        onUpdateSuppliers(updatedList);
+        let msg = `匯入完成！共處理 ${importCount} 間${typeLabel}。`;
+        if (skippedCount > 0) msg += `\n(已自動跳過 ${skippedCount} 項重複品名)`;
+        alert(msg);
+      } else if (skippedCount > 0) {
+        alert(`匯入結束。所有項目品名皆已存在，共跳過 ${skippedCount} 項。`);
+      } else {
+        alert('找不到有效的數據（需包含「品名」欄位，且工作表名稱非預設值）');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Excel 匯入失敗，請檢查檔案格式');
+    } finally {
+      setIsImporting(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
   const addProduct = () => {
     if (!tempProduct.trim()) return;
+    const finalProduct = tempUnit.trim() ? `${tempProduct.trim()} (${tempUnit.trim()})` : tempProduct.trim();
     setFormData({
       ...formData,
-      productList: [...formData.productList, tempProduct.trim()]
+      productList: [...formData.productList, finalProduct]
     });
     setTempProduct('');
+    setTempUnit('');
   };
 
   const removeProduct = (index: number) => {
@@ -90,12 +215,12 @@ const SupplierList: React.FC<SupplierListProps> = ({ suppliers, onUpdateSupplier
       <div className="p-4 md:p-6 pb-2">
         <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
           <div className="flex items-center gap-4 w-full md:w-auto">
-            <div className="bg-emerald-100 p-2 rounded-xl">
-              <UsersIcon className="w-6 h-6 text-emerald-600" />
+            <div className={`${colorConfig.light} p-2 rounded-xl`}>
+              <UsersIcon className={`w-6 h-6 ${colorConfig.text}`} />
             </div>
             <div>
-              <h2 className="text-base font-black text-slate-800">供應商清冊</h2>
-              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest leading-none">Supplier Directory</p>
+              <h2 className="text-base font-black text-slate-800">{title}</h2>
+              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest leading-none">{typeLabel} Directory</p>
             </div>
           </div>
           
@@ -104,19 +229,41 @@ const SupplierList: React.FC<SupplierListProps> = ({ suppliers, onUpdateSupplier
               <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
               <input 
                 type="text" 
-                placeholder="搜尋供應商、產品或 LINE..." 
+                placeholder={`搜尋${typeLabel}、產品或 LINE...`}
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 outline-none font-medium"
+                className={`w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm ${colorConfig.ring} outline-none font-medium`}
               />
             </div>
+
+            <input 
+              type="file" 
+              accept=".xlsx, .xls" 
+              ref={fileInputRef} 
+              className="hidden" 
+              onChange={handleImportExcel} 
+            />
+            
+            <button 
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isImporting}
+              className={`flex items-center justify-center gap-2 px-3 h-10 rounded-xl border font-bold text-xs transition-all active:scale-95 ${colorConfig.btnLight}`}
+              title="匯入 Excel"
+            >
+              {isImporting ? <LoaderIcon className="w-4 h-4 animate-spin" /> : <FileTextIcon className="w-4 h-4" />}
+              <span className="hidden sm:inline">匯入清冊</span>
+            </button>
+
             <button 
               onClick={() => {
                 setEditingId(null);
                 setFormData({ name: '', address: '', contact: '', companyPhone: '', mobilePhone: '', lineId: '', productList: [] });
+                setTempProduct('');
+                setTempUnit('');
                 setIsAdding(true);
               }}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white w-10 h-10 rounded-xl shadow-lg shadow-emerald-100 flex items-center justify-center transition-all active:scale-95 flex-shrink-0"
+              className={`${colorConfig.bg} ${colorConfig.hover} text-white w-10 h-10 rounded-xl shadow-lg ${colorConfig.shadow} flex items-center justify-center transition-all active:scale-95 flex-shrink-0`}
+              title="手動新增"
             >
               <PlusIcon className="w-6 h-6" />
             </button>
@@ -126,51 +273,59 @@ const SupplierList: React.FC<SupplierListProps> = ({ suppliers, onUpdateSupplier
 
       <div className="flex-1 overflow-auto px-4 md:px-6 pb-6 custom-scrollbar">
         {isAdding && (
-          <div className="mb-6 bg-white p-6 rounded-2xl border border-emerald-200 shadow-xl animate-fade-in">
+          <div className={`mb-6 bg-white p-6 rounded-2xl border ${colorConfig.border} shadow-xl animate-fade-in`}>
             <div className="flex justify-between items-center mb-6">
-              <h3 className="font-bold text-lg text-slate-800">{editingId ? '編輯供應商資訊' : '新增供應商'}</h3>
+              <h3 className="font-bold text-lg text-slate-800">{editingId ? `編輯${typeLabel}資訊` : `新增${typeLabel}`}</h3>
               <button onClick={() => setIsAdding(false)} className="text-slate-400 hover:text-slate-600 p-1"><XIcon className="w-5 h-5" /></button>
             </div>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">供應商名稱</label>
-                  <input required type="text" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 font-bold" />
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">{typeLabel}名稱</label>
+                  <input required type="text" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className={`w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none ${colorConfig.ring} font-bold`} />
                 </div>
                 <div>
                   <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">聯絡人</label>
-                  <input type="text" value={formData.contact} onChange={e => setFormData({...formData, contact: e.target.value})} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 font-bold" />
+                  <input type="text" value={formData.contact} onChange={e => setFormData({...formData, contact: e.target.value})} className={`w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none ${colorConfig.ring} font-bold`} />
                 </div>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">公司電話</label>
-                  <input type="text" value={formData.companyPhone} onChange={e => setFormData({...formData, companyPhone: e.target.value})} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 font-bold" />
+                  <input type="text" value={formData.companyPhone} onChange={e => setFormData({...formData, companyPhone: e.target.value})} className={`w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none ${colorConfig.ring} font-bold`} />
                 </div>
                 <div>
                   <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">手機</label>
-                  <input type="text" value={formData.mobilePhone} onChange={e => setFormData({...formData, mobilePhone: e.target.value})} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 font-bold" />
+                  <input type="text" value={formData.mobilePhone} onChange={e => setFormData({...formData, mobilePhone: e.target.value})} className={`w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none ${colorConfig.ring} font-bold`} />
                 </div>
                 <div>
                   <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">LINE ID</label>
-                  <input type="text" value={formData.lineId} onChange={e => setFormData({...formData, lineId: e.target.value})} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 font-bold" />
+                  <input type="text" value={formData.lineId} onChange={e => setFormData({...formData, lineId: e.target.value})} className={`w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none ${colorConfig.ring} font-bold`} />
                 </div>
               </div>
               <div>
                 <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">地址</label>
-                <input type="text" value={formData.address} onChange={e => setFormData({...formData, address: e.target.value})} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 font-bold" />
+                <input type="text" value={formData.address} onChange={e => setFormData({...formData, address: e.target.value})} className={`w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none ${colorConfig.ring} font-bold`} />
               </div>
               
               <div>
-                <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">產品清單 (條列式)</label>
+                <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">主要業務 / 產品 (條列式)</label>
                 <div className="flex gap-2 mb-3">
                   <input 
                     type="text" 
                     value={tempProduct}
                     onChange={(e) => setTempProduct(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addProduct())}
-                    placeholder="輸入產品名稱後點擊右側加入..."
-                    className="flex-1 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 font-medium"
+                    placeholder="輸入業務內容或產品名稱..."
+                    className={`flex-1 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none ${colorConfig.ring} font-medium`}
+                  />
+                  <input 
+                    type="text" 
+                    value={tempUnit}
+                    onChange={(e) => setTempUnit(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addProduct())}
+                    placeholder="單位"
+                    className={`w-20 px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none ${colorConfig.ring} font-medium text-center`}
                   />
                   <button type="button" onClick={addProduct} className="bg-slate-800 text-white px-4 rounded-xl font-bold flex items-center gap-2 transition-all active:scale-95">
                     <PlusIcon className="w-4 h-4" /> 加入
@@ -178,14 +333,14 @@ const SupplierList: React.FC<SupplierListProps> = ({ suppliers, onUpdateSupplier
                 </div>
                 <div className="flex flex-wrap gap-2 min-h-[40px] p-3 bg-slate-50 rounded-xl border border-slate-100 shadow-inner">
                   {formData.productList.map((p, idx) => (
-                    <span key={idx} className="bg-white border border-emerald-200 text-emerald-700 px-3 py-1 rounded-lg text-sm font-bold flex items-center gap-2 shadow-sm animate-scale-in">
+                    <span key={idx} className={`bg-white border ${colorConfig.border} ${colorConfig.labelText} px-3 py-1 rounded-lg text-sm font-bold flex items-center gap-2 shadow-sm animate-scale-in`}>
                       {p}
                       <button type="button" onClick={() => removeProduct(idx)} className="text-slate-300 hover:text-red-500 transition-colors">
                         <XIcon className="w-3.5 h-3.5" />
                       </button>
                     </span>
                   ))}
-                  {formData.productList.length === 0 && <span className="text-slate-400 text-sm font-medium italic">尚未加入任何產品</span>}
+                  {formData.productList.length === 0 && <span className="text-slate-400 text-sm font-medium italic">尚未加入任何紀錄</span>}
                 </div>
               </div>
 
@@ -204,10 +359,10 @@ const SupplierList: React.FC<SupplierListProps> = ({ suppliers, onUpdateSupplier
             <table className="w-full text-left border-collapse min-w-[800px]">
               <thead className="bg-slate-50 text-slate-500 text-[10px] uppercase font-black tracking-widest border-b border-slate-200 sticky top-0 z-10">
                 <tr>
-                  <th className="px-6 py-4">供應商名稱</th>
+                  <th className="px-6 py-4">{typeLabel}名稱</th>
                   <th className="px-6 py-4">LINE</th>
-                  <th className="px-6 py-4">主要產品 (清單首項)</th>
-                  <th className="px-6 py-4">公司電話</th>
+                  <th className="px-6 py-4">業務類別 (首項)</th>
+                  <th className="px-6 py-4">聯絡電話</th>
                   <th className="px-6 py-4 text-right">操作</th>
                 </tr>
               </thead>
@@ -219,12 +374,12 @@ const SupplierList: React.FC<SupplierListProps> = ({ suppliers, onUpdateSupplier
                     className="hover:bg-slate-50/50 transition-colors group cursor-pointer"
                   >
                     <td className="px-6 py-4">
-                      <div className="font-black text-slate-800 text-sm group-hover:text-emerald-600 transition-colors">{s.name}</div>
+                      <div className={`font-black text-slate-800 text-sm group-hover:${colorConfig.text} transition-colors`}>{s.name}</div>
                       <div className="text-[10px] text-slate-400 font-bold truncate max-w-[200px] mt-0.5">{s.contact ? `聯絡人: ${s.contact}` : '無聯絡人資訊'}</div>
                     </td>
                     <td className="px-6 py-4">
                       {s.lineId ? (
-                        <span className="bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-lg text-xs font-black border border-emerald-100">
+                        <span className={`${colorConfig.labelBg} ${colorConfig.labelText} px-2.5 py-1 rounded-lg text-xs font-black border ${colorConfig.border}`}>
                           {s.lineId}
                         </span>
                       ) : (
@@ -234,7 +389,7 @@ const SupplierList: React.FC<SupplierListProps> = ({ suppliers, onUpdateSupplier
                     <td className="px-6 py-4">
                       {s.productList && s.productList.length > 0 ? (
                         <div className="flex items-center gap-2">
-                          <BoxIcon className="w-3.5 h-3.5 text-emerald-500" />
+                          <BoxIcon className={`w-3.5 h-3.5 ${colorConfig.text}`} />
                           <span className="text-sm font-bold text-slate-600 truncate max-w-[200px]">{s.productList[0]}</span>
                           {s.productList.length > 1 && (
                             <span className="bg-slate-100 text-slate-400 text-[9px] px-1.5 py-0.5 rounded font-bold">
@@ -243,17 +398,17 @@ const SupplierList: React.FC<SupplierListProps> = ({ suppliers, onUpdateSupplier
                           )}
                         </div>
                       ) : (
-                        <span className="text-slate-300 text-xs italic">無登錄產品</span>
+                        <span className="text-slate-300 text-xs italic">無類別資訊</span>
                       )}
                     </td>
                     <td className="px-6 py-4 text-sm font-bold text-slate-600">
-                      {s.companyPhone || '-'}
+                      {s.mobilePhone || s.companyPhone || '-'}
                     </td>
                     <td className="px-6 py-4 text-right" onClick={(e) => e.stopPropagation()}>
                       <div className="flex justify-end gap-1">
                         <button 
                           onClick={() => handleEdit(s)} 
-                          className="p-2 text-slate-300 hover:text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all"
+                          className={`p-2 text-slate-300 hover:${colorConfig.text} hover:${colorConfig.labelBg} rounded-xl transition-all`}
                           title="編輯"
                         >
                           <EditIcon className="w-4 h-4" />
@@ -274,9 +429,9 @@ const SupplierList: React.FC<SupplierListProps> = ({ suppliers, onUpdateSupplier
                     <td colSpan={5} className="py-24 text-center">
                       <div className="flex flex-col items-center justify-center text-slate-400">
                         <UsersIcon className="w-12 h-12 mb-3 opacity-10" />
-                        <p className="text-sm font-bold">沒有找到符合搜尋條件的供應商</p>
+                        <p className="text-sm font-bold">沒有找到符合搜尋條件的資料</p>
                         {searchTerm && (
-                          <button onClick={() => setSearchTerm('')} className="mt-3 text-emerald-600 text-xs font-black underline">清除搜尋</button>
+                          <button onClick={() => setSearchTerm('')} className={`mt-3 ${colorConfig.text} text-xs font-black underline`}>清除搜尋</button>
                         )}
                       </div>
                     </td>
@@ -286,7 +441,7 @@ const SupplierList: React.FC<SupplierListProps> = ({ suppliers, onUpdateSupplier
             </table>
           </div>
           <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 text-[10px] font-bold text-slate-400 uppercase tracking-widest flex justify-between items-center">
-            <span>總計 {filteredSuppliers.length} 家供應商</span>
+            <span>總計 {filteredSuppliers.length} 筆資料</span>
             {searchTerm && <span>篩選結果</span>}
           </div>
         </div>
