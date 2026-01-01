@@ -85,6 +85,29 @@ const EngineeringPlanning: React.FC<EngineeringPlanningProps> = ({ project, curr
 
   const hasReport = (project.planningReports || []).some(r => r.date === reportDate);
 
+  // 安全取得 Excel 儲存格字串
+  const getSafeText = (cell: ExcelJS.Cell): string => {
+    const val = cell.value;
+    if (val === null || val === undefined) return '';
+    
+    // 處理 RichText
+    if (typeof val === 'object' && 'richText' in val) {
+      return (val as any).richText.map((segment: any) => segment.text || '').join('');
+    }
+    
+    // 處理 Hyperlink
+    if (typeof val === 'object' && 'text' in val && 'hyperlink' in val) {
+      return String((val as any).text || '');
+    }
+
+    // 處理 Formula
+    if (typeof val === 'object' && 'result' in val) {
+      return String((val as any).result || '');
+    }
+
+    return String(val);
+  };
+
   useEffect(() => {
     const existingReport = (project.planningReports || []).find(r => r.date === reportDate);
     
@@ -111,10 +134,10 @@ const EngineeringPlanning: React.FC<EngineeringPlanningProps> = ({ project, curr
       const newReport: CompletionReportType = {
           id: (project.planningReports || []).find(r => r.date === reportDate)?.id || crypto.randomUUID(),
           date: reportDate,
-          worker: '', // 移除負責人介面，保留空值以維持結構相容性
+          worker: '', 
           items,
           notes: combinedNotes,
-          signature: '', // 移除簽章功能
+          signature: '', 
           timestamp: Date.now()
       };
 
@@ -138,17 +161,38 @@ const EngineeringPlanning: React.FC<EngineeringPlanningProps> = ({ project, curr
       const arrayBuffer = await file.arrayBuffer();
       const workbook = new ExcelJS.Workbook();
       await workbook.xlsx.load(arrayBuffer);
-      const worksheet = workbook.getWorksheet(1);
-      if (!worksheet) throw new Error('找不到工作表');
+      
+      const allWorksheets = workbook.worksheets;
+      if (allWorksheets.length === 0) throw new Error('Excel 檔案內無工作表');
+
+      // 規則修正：從右側（最後一個工作表）開始搜尋
+      let worksheet = null;
+      for (let i = allWorksheets.length - 1; i >= 0; i--) {
+        const ws = allWorksheets[i];
+        const row8 = ws.getRow(8);
+        let found = false;
+        row8.eachCell((cell) => {
+            if (getSafeText(cell).trim() === '品名') found = true;
+        });
+        if (found) {
+            worksheet = ws;
+            break;
+        }
+      }
+
+      // 如果都沒找到符合第 8 列「品名」規範的，預設抓最右側的工作表
+      if (!worksheet) {
+          worksheet = allWorksheets[allWorksheets.length - 1];
+      }
 
       const importedItems: CompletionItem[] = [];
       let currentSubCat = 'FENCE_MAIN';
       
-      // 讀取第 8 列作為欄位名稱
+      // 定位第 8 列的標題位置
       const headers: Record<string, number> = {};
       const headerRow = worksheet.getRow(8);
       headerRow.eachCell((cell, colNumber) => {
-          const text = cell.value?.toString().trim();
+          const text = getSafeText(cell).trim();
           if (text) headers[text] = colNumber;
       });
 
@@ -157,19 +201,19 @@ const EngineeringPlanning: React.FC<EngineeringPlanningProps> = ({ project, curr
       const qtyCol = headers['數量'];
       const unitCol = headers['單位'];
 
-      if (!nameCol) throw new Error('Excel 格式錯誤：找不到「品名」欄位');
+      if (!nameCol) throw new Error(`在工作表「${worksheet.name}」的第 8 列找不到「品名」欄位，請確認格式是否正確`);
 
-      // 從第 9 列開始判讀內容
+      // 從第 9 列開始判讀
       worksheet.eachRow((row, rowNumber) => {
         if (rowNumber <= 8) return;
 
-        const firstCell = row.getCell(1).value?.toString().trim();
-        const itemName = row.getCell(nameCol).value?.toString().trim() || '';
-        const itemSpec = specCol ? row.getCell(specCol).value?.toString().trim() || '' : '';
-        const itemQty = qtyCol ? row.getCell(qtyCol).value?.toString().trim() || '' : '';
-        const itemUnit = unitCol ? row.getCell(unitCol).value?.toString().trim() || '' : '';
+        const firstCell = getSafeText(row.getCell(1)).trim();
+        const itemName = getSafeText(row.getCell(nameCol)).trim();
+        const itemSpec = specCol ? getSafeText(row.getCell(specCol)).trim() : '';
+        const itemQty = qtyCol ? getSafeText(row.getCell(qtyCol)).trim() : '';
+        const itemUnit = unitCol ? getSafeText(row.getCell(unitCol)).trim() : '';
 
-        // 分類關鍵字偵測
+        // 規則：偵測品名文字以切換子分類
         if (itemName === '安全圍籬及休息區') {
             currentSubCat = 'FENCE_MAIN';
             return;
@@ -187,7 +231,7 @@ const EngineeringPlanning: React.FC<EngineeringPlanningProps> = ({ project, curr
             return;
         }
 
-        // 判斷是否為有效數據列（通常項次欄位為數字）
+        // 有效項目判定：第一欄（項次）必須為數字且品名不為空
         if (itemName && firstCell && !isNaN(Number(firstCell))) {
             importedItems.push({
                 name: itemName,
@@ -205,16 +249,16 @@ const EngineeringPlanning: React.FC<EngineeringPlanningProps> = ({ project, curr
         setItems(prev => {
             const combined = [...prev];
             importedItems.forEach(newItem => {
-                // 檢查是否已存在相同項目，避免重複匯入
+                // 檢查重複（同分類同品名同規格）
                 if (!combined.some(i => i.name === newItem.name && i.category === newItem.category && i.spec === newItem.spec)) {
                     combined.push(newItem);
                 }
             });
             return combined;
         });
-        alert(`成功匯入 ${importedItems.length} 個規劃項目`);
+        alert(`成功從「${worksheet.name}」匯入 ${importedItems.length} 個規劃項目`);
       } else {
-        alert('未偵測到有效項目，請確認 Excel 第 8 列是否為正確欄位標題');
+        alert('未偵測到有效項目。請確認第 8 列為欄位標題，且第 9 列起的第一欄包含數字項次。');
       }
     } catch (err: any) {
       console.error(err);
