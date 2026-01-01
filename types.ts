@@ -1,4 +1,3 @@
-
 export enum ProjectStatus {
   PLANNING = '規劃中',
   IN_PROGRESS = '進行中',
@@ -174,6 +173,7 @@ export interface Project {
   constructionItems: ConstructionItem[];
   constructionSignatures: ConstructionSignature[];
   completionReports: CompletionReport[];
+  planningReports: CompletionReport[];
 }
 
 export interface AuditLog {

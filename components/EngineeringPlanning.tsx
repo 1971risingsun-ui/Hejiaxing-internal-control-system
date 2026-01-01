@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { Project, User, CompletionReport as CompletionReportType, CompletionItem } from '../types';
 import { PlusIcon, FileTextIcon, TrashIcon, PenToolIcon, XIcon, StampIcon, CheckCircleIcon, EditIcon, LoaderIcon, ClockIcon, DownloadIcon, UploadIcon } from './Icons';
@@ -499,7 +498,7 @@ const EngineeringPlanning: React.FC<EngineeringPlanningProps> = ({ project, curr
 
           <div className="p-6 space-y-6 overflow-x-auto pb-4">
               {(Object.keys(CATEGORIES) as Array<keyof typeof CATEGORIES>).map(catKey => {
-                  const cat = CATEGORIES[catKey];
+                  const cat = CATEGORIES[catKey as keyof typeof CATEGORIES];
                   const categoryItems = items
                       .map((item, index) => ({ item, index }))
                       .filter(({ item }) => item.category === catKey);
@@ -643,7 +642,7 @@ const EngineeringPlanning: React.FC<EngineeringPlanningProps> = ({ project, curr
               {isEditing ? (
                   <>
                     {hasReport && <button onClick={() => setIsEditing(false)} className="px-6 py-2 rounded-xl text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 shadow-sm font-bold transition-all active:scale-95">取消</button>}
-                    <button onClick={handleSave} className="px-8 py-2 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 shadow-lg shadow-indigo-100 font-black flex items-center gap-2 transition-all active:scale-95"><CheckCircleIcon className="w-5 h-5" /> 提交規劃並儲存</button>
+                    <button onClick={handleSave} className="px-8 py-2 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 shadow-lg shadow-indigo-100 font-black flex items-center gap-2 transition-all active:scale-95"><CheckCircleIcon className="w-4 h-4" /> 提交規劃並儲存</button>
                   </>
               ) : <button onClick={() => setIsEditing(true)} className="px-8 py-2 rounded-xl bg-slate-900 text-white hover:bg-black shadow-lg shadow-slate-200 font-black flex items-center gap-2 transition-all active:scale-95"><EditIcon className="w-5 h-5" /> 編輯規劃內容</button>}
           </div>

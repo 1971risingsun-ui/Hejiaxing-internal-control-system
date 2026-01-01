@@ -87,7 +87,8 @@ const AddProjectModal: React.FC<AddProjectModalProps> = ({ onClose, onAdd, defau
       attachments: attachments,
       constructionItems: [],
       constructionSignatures: [],
-      completionReports: []
+      completionReports: [],
+      planningReports: []
     };
 
     onAdd(newProject);
