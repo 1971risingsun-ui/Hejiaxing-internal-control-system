@@ -148,6 +148,19 @@ export interface DailyDispatch {
   }>;
 }
 
+export interface FenceMaterialItem {
+  id: string;
+  name: string;
+  spec: string;
+  quantity: number;
+  unit: string;
+}
+
+export interface FenceMaterialSheet {
+  category: string;
+  items: FenceMaterialItem[];
+}
+
 export interface Project {
   id: string;
   name: string;
@@ -176,6 +189,7 @@ export interface Project {
   constructionSignatures: ConstructionSignature[];
   completionReports: CompletionReport[];
   planningReports: CompletionReport[];
+  fenceMaterialSheets?: Record<string, FenceMaterialSheet>; // Key: item_name + spec + category
 }
 
 export interface AuditLog {
