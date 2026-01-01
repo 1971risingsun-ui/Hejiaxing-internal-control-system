@@ -77,7 +77,7 @@ const EngineeringPlanning: React.FC<EngineeringPlanningProps> = ({ project, curr
   const [estDaysFence, setEstDaysFence] = useState('12');
   const [estDaysModular, setEstDaysModular] = useState('20');
 
-  const [customItem, setCustomItem] = useState({ name: '', action: 'install' as 'install'|'dismantle', spec: '', quantity: '', unit: '', itemNote: '' });
+  const [customItem, setCustomItem] = useState({ name: '', spec: '', quantity: '', unit: '', itemNote: '' });
 
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
@@ -299,14 +299,14 @@ const EngineeringPlanning: React.FC<EngineeringPlanningProps> = ({ project, curr
       if (!customItem.name) return;
       setItems([...items, { 
           name: customItem.name, 
-          action: customItem.action, 
+          action: 'install', 
           spec: customItem.spec,
           quantity: customItem.quantity,
           unit: customItem.unit,
           category: targetSubCat,
           itemNote: customItem.itemNote
       }]);
-      setCustomItem({ name: '', action: 'install', spec: '', quantity: '', unit: '', itemNote: '' });
+      setCustomItem({ name: '', spec: '', quantity: '', unit: '', itemNote: '' });
   };
 
   const updateItem = (index: number, field: keyof CompletionItem, value: any) => {
@@ -355,9 +355,8 @@ const EngineeringPlanning: React.FC<EngineeringPlanningProps> = ({ project, curr
 
             const rows = subItems.map((item, idx) => `
                 <tr>
-                    <td style="border: 1px solid #000; padding: 6px; text-align: center; font-size: 12px;">${item.action === 'install' ? '裝' : item.action === 'dismantle' ? '拆' : '-'}</td>
                     <td style="border: 1px solid #000; padding: 6px; font-size: 13px; font-weight: bold;">${item.name}</td>
-                    <td style="border: 1px solid #000; padding: 6px; font-size: 12px;">${item.spec || ''}</td>
+                    <td style="border: 1px solid #000; padding: 6px; font-size: 12px; white-space: pre-wrap;">${item.spec || ''}</td>
                     <td style="border: 1px solid #000; padding: 6px; font-size: 12px;">${item.itemNote || ''}</td>
                     <td style="border: 1px solid #000; padding: 6px; text-align: center; font-size: 13px; font-weight: bold;">${item.quantity}</td>
                     <td style="border: 1px solid #000; padding: 6px; text-align: center; font-size: 13px;">${item.unit}</td>
@@ -370,9 +369,8 @@ const EngineeringPlanning: React.FC<EngineeringPlanningProps> = ({ project, curr
                     <table style="width: 100%; border-collapse: collapse; margin-bottom: 10px;">
                         <thead>
                             <tr style="background-color: #f8fafc;">
-                                <th style="border: 1px solid #000; padding: 8px; width: 6%;">施作</th>
                                 <th style="border: 1px solid #000; padding: 8px; width: 30%;">品名</th>
-                                <th style="border: 1px solid #000; padding: 8px; width: 18%;">規格</th>
+                                <th style="border: 1px solid #000; padding: 8px; width: 24%;">規格</th>
                                 <th style="border: 1px solid #000; padding: 8px; width: 22%;">注意</th>
                                 <th style="border: 1px solid #000; padding: 8px; width: 12%;">數量</th>
                                 <th style="border: 1px solid #000; padding: 8px; width: 12%;">單位</th>
@@ -393,7 +391,7 @@ const EngineeringPlanning: React.FC<EngineeringPlanningProps> = ({ project, curr
         <div style="font-family: 'Microsoft JhengHei', sans-serif; padding: 40px; color: #000; background: white;">
             <div style="text-align: center; margin-bottom: 30px;">
                 <h1 style="font-size: 28px; font-weight: bold; margin: 0;">合家興實業有限公司</h1>
-                <h2 style="font-size: 22px; font-weight: normal; margin: 10px 0; text-decoration: underline; letter-spacing: 2px;">工 程 規 劃 書 (估 價 預 估)</h2>
+                <h2 style="font-size: 22px; font-weight: normal; margin: 10px 0; text-decoration: underline; letter-spacing: 2px;">工 程 規 規劃 書 (估 價 預 估)</h2>
             </div>
             <div style="display: flex; justify-content: space-between; margin-bottom: 15px; font-size: 15px;">
                 <div><span style="font-weight: bold;">規劃日期：</span> ${reportDate}</div>
@@ -525,9 +523,8 @@ const EngineeringPlanning: React.FC<EngineeringPlanningProps> = ({ project, curr
                                         <table className="w-full text-left border-collapse">
                                             <thead className="bg-slate-50 text-slate-500 text-[10px] uppercase font-bold tracking-widest">
                                                 <tr>
-                                                    <th className="px-3 py-2 w-20 text-center">施作</th>
                                                     <th className="px-3 py-2 min-w-[200px]">品名</th>
-                                                    <th className="px-3 py-2 min-w-[150px]">規格</th>
+                                                    <th className="px-3 py-2 min-w-[180px]">規格</th>
                                                     <th className="px-3 py-2 min-w-[150px]">注意</th>
                                                     <th className="px-3 py-2 w-20 text-center">數量</th>
                                                     <th className="px-3 py-2 w-20">單位</th>
@@ -537,19 +534,6 @@ const EngineeringPlanning: React.FC<EngineeringPlanningProps> = ({ project, curr
                                             <tbody className="divide-y divide-slate-100 text-sm">
                                                 {subItems.map(({ item, index }) => (
                                                     <tr key={index} className="hover:bg-slate-50 transition-colors">
-                                                        <td className="px-3 py-2 text-center">
-                                                            {isEditing ? (
-                                                                <select 
-                                                                    value={item.action} 
-                                                                    onChange={(e) => updateItem(index, 'action', e.target.value)}
-                                                                    className="w-full bg-transparent border-b border-transparent hover:border-slate-300 focus:border-indigo-500 focus:outline-none py-1 text-xs font-bold"
-                                                                >
-                                                                    <option value="install">裝</option>
-                                                                    <option value="dismantle">拆</option>
-                                                                    <option value="none">無</option>
-                                                                </select>
-                                                            ) : <span className={`text-[10px] font-black px-2 py-0.5 rounded border uppercase ${item.action === 'install' ? 'bg-blue-50 text-blue-700 border-blue-200' : item.action === 'dismantle' ? 'bg-rose-50 text-rose-700 border-rose-200' : 'bg-slate-50 text-slate-500 border-slate-200'}`}>{item.action === 'install' ? '安裝' : item.action === 'dismantle' ? '拆除' : '-'}</span>}
-                                                        </td>
                                                         <td className="px-3 py-2">
                                                             {isEditing ? (
                                                                 <select 
@@ -564,14 +548,14 @@ const EngineeringPlanning: React.FC<EngineeringPlanningProps> = ({ project, curr
                                                         </td>
                                                         <td className="px-3 py-2">
                                                             {isEditing ? (
-                                                                <input 
-                                                                    type="text" 
+                                                                <textarea 
+                                                                    rows={2}
                                                                     value={item.spec || ''} 
                                                                     onChange={(e) => updateItem(index, 'spec', e.target.value)}
-                                                                    className="w-full bg-transparent border-b border-transparent hover:border-slate-300 focus:border-indigo-500 focus:outline-none py-1"
-                                                                    placeholder="規格"
+                                                                    className="w-full bg-transparent border-b border-transparent hover:border-slate-300 focus:border-indigo-500 focus:outline-none py-1 text-xs resize-none"
+                                                                    placeholder="規格 (支援多行)"
                                                                 />
-                                                            ) : <span className="text-slate-600">{item.spec || '-'}</span>}
+                                                            ) : <span className="text-slate-600 text-xs whitespace-pre-wrap">{item.spec || '-'}</span>}
                                                         </td>
                                                         <td className="px-3 py-2">
                                                             {isEditing ? (
@@ -653,17 +637,11 @@ const EngineeringPlanning: React.FC<EngineeringPlanningProps> = ({ project, curr
                                 ))}
                             </select>
                         </div>
-                        <div className="col-span-6 md:col-span-2">
-                            <select className="w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-sm text-white focus:ring-2 focus:ring-indigo-500 outline-none" value={customItem.action} onChange={e => setCustomItem({...customItem, action: e.target.value as any})}>
-                                <option value="install">安裝 (裝)</option>
-                                <option value="dismantle">拆除 (拆)</option>
-                            </select>
-                        </div>
-                        <div className="col-span-6 md:col-span-2"><input type="text" placeholder="品名" className="w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-sm text-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all" value={customItem.name} onChange={e => setCustomItem({...customItem, name: e.target.value})} /></div>
-                        <div className="col-span-12 md:col-span-2"><input type="text" placeholder="規格" className="w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-sm text-white focus:ring-2 focus:ring-indigo-500 outline-none" value={customItem.spec} onChange={e => setCustomItem({...customItem, spec: e.target.value})} /></div>
-                        <div className="col-span-6 md:col-span-2"><input type="text" placeholder="注意內容" className="w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-sm text-white focus:ring-2 focus:ring-indigo-500 outline-none" value={customItem.itemNote} onChange={e => setCustomItem({...customItem, itemNote: e.target.value})} /></div>
-                        <div className="col-span-3 md:col-span-1"><input type="text" placeholder="數量" className="w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-sm text-white focus:ring-2 focus:ring-indigo-500 outline-none text-center" value={customItem.quantity} onChange={e => setCustomItem({...customItem, quantity: e.target.value})} /></div>
-                        <div className="col-span-3 md:col-span-1"><input type="text" placeholder="單位" className="w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-sm text-white focus:ring-2 focus:ring-indigo-500 outline-none text-center" value={customItem.unit} onChange={e => setCustomItem({...customItem, unit: e.target.value})} /></div>
+                        <div className="col-span-12 md:col-span-2"><input type="text" placeholder="品名" className="w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-sm text-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all" value={customItem.name} onChange={e => setCustomItem({...customItem, name: e.target.value})} /></div>
+                        <div className="col-span-12 md:col-span-3"><textarea rows={1} placeholder="規格 (可多行)" className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-xl text-sm text-white focus:ring-2 focus:ring-indigo-500 outline-none resize-none" value={customItem.spec} onChange={e => setCustomItem({...customItem, spec: e.target.value})} /></div>
+                        <div className="col-span-12 md:col-span-2"><input type="text" placeholder="注意內容" className="w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-sm text-white focus:ring-2 focus:ring-indigo-500 outline-none" value={customItem.itemNote} onChange={e => setCustomItem({...customItem, itemNote: e.target.value})} /></div>
+                        <div className="col-span-6 md:col-span-1"><input type="text" placeholder="數量" className="w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-sm text-white focus:ring-2 focus:ring-indigo-500 outline-none text-center" value={customItem.quantity} onChange={e => setCustomItem({...customItem, quantity: e.target.value})} /></div>
+                        <div className="col-span-6 md:col-span-1"><input type="text" placeholder="單位" className="w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-sm text-white focus:ring-2 focus:ring-indigo-500 outline-none text-center" value={customItem.unit} onChange={e => setCustomItem({...customItem, unit: e.target.value})} /></div>
                         <div className="col-span-12"><button onClick={() => {
                             const subcat = (document.getElementById('extra-target-subcat') as HTMLSelectElement).value;
                             if(!subcat) { alert("請選擇歸類小項"); return; }
