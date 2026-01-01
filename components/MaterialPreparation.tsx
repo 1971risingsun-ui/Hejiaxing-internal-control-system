@@ -1,13 +1,16 @@
 import React, { useState, useMemo } from 'react';
-import { Project, User } from '../types';
-import { BoxIcon, TruckIcon, ClipboardListIcon } from './Icons';
+import { Project, User, CompletionItem } from '../types';
+import { BoxIcon, TruckIcon, ClipboardListIcon, TrashIcon, UsersIcon } from './Icons';
 
 interface MaterialPreparationProps {
   project: Project;
   currentUser: User;
+  onUpdateProject: (updatedProject: Project) => void;
 }
 
-const MaterialPreparation: React.FC<MaterialPreparationProps> = ({ project }) => {
+const SUBCONTRACTOR_KEYWORDS = ['怪手', '告示牌', '安衛貼紙', '美化帆布', '噪音管制看板', '監測告示牌', '寫字'];
+
+const MaterialPreparation: React.FC<MaterialPreparationProps> = ({ project, onUpdateProject }) => {
   const [activeSubTab, setActiveSubTab] = useState<'fence' | 'modular'>('fence');
 
   // 取得最新的報價單內容
@@ -18,9 +21,19 @@ const MaterialPreparation: React.FC<MaterialPreparationProps> = ({ project }) =>
 
   const planningItems = latestPlanningReport?.items || [];
 
-  // 過濾圍籬項目 (安全圍籬及休息區)
-  const fenceItems = useMemo(() => {
-    return planningItems.filter(item => item.category === 'FENCE_MAIN');
+  // 過濾圍籬項目並分流
+  const { fenceMainItems, fenceSubcontractorItems } = useMemo(() => {
+    const allFence = planningItems.filter(item => item.category === 'FENCE_MAIN');
+    const main: CompletionItem[] = [];
+    const sub: CompletionItem[] = [];
+    
+    allFence.forEach(item => {
+      const isSub = SUBCONTRACTOR_KEYWORDS.some(kw => (item.name || '').includes(kw));
+      if (isSub) sub.push(item);
+      else main.push(item);
+    });
+    
+    return { fenceMainItems: main, fenceSubcontractorItems: sub };
   }, [planningItems]);
 
   // 過濾組合屋項目 (組合房屋下的所有子分類)
@@ -29,8 +42,25 @@ const MaterialPreparation: React.FC<MaterialPreparationProps> = ({ project }) =>
     return planningItems.filter(item => modularCats.includes(item.category));
   }, [planningItems]);
 
-  const renderTable = (items: any[]) => {
-    if (items.length === 0) {
+  const handleDeleteItem = (itemToDelete: CompletionItem) => {
+    if (!latestPlanningReport || !window.confirm(`確定要移除「${itemToDelete.name}」嗎？`)) return;
+
+    const updatedItems = latestPlanningReport.items.filter(item => 
+      !(item.name === itemToDelete.name && item.category === itemToDelete.category && item.spec === itemToDelete.spec)
+    );
+
+    const updatedReports = project.planningReports.map(report => 
+      report.id === latestPlanningReport.id ? { ...report, items: updatedItems, timestamp: Date.now() } : report
+    );
+
+    onUpdateProject({
+      ...project,
+      planningReports: updatedReports
+    });
+  };
+
+  const renderTable = (items: CompletionItem[], title?: string, icon?: React.ReactNode) => {
+    if (items.length === 0 && !title) {
       return (
         <div className="py-20 text-center text-slate-400 bg-white rounded-xl border border-dashed border-slate-200">
           <BoxIcon className="w-12 h-12 mx-auto mb-3 opacity-20" />
@@ -40,41 +70,61 @@ const MaterialPreparation: React.FC<MaterialPreparationProps> = ({ project }) =>
       );
     }
 
+    if (items.length === 0 && title) return null;
+
     return (
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead className="bg-slate-50 text-slate-500 text-[10px] uppercase font-black tracking-widest border-b border-slate-200">
-              <tr>
-                <th className="px-6 py-4 min-w-[200px]">品名</th>
-                <th className="px-6 py-4 min-w-[150px]">規格</th>
-                <th className="px-6 py-4 w-24 text-center">數量</th>
-                <th className="px-6 py-4 w-20">單位</th>
-                <th className="px-6 py-4">備註</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {items.map((item, idx) => (
-                <tr key={idx} className="hover:bg-slate-50 transition-colors">
-                  <td className="px-6 py-4">
-                    <div className="font-bold text-slate-800">{item.name}</div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="text-slate-600 text-xs whitespace-pre-wrap">{item.spec || '-'}</div>
-                  </td>
-                  <td className="px-6 py-4 text-center">
-                    <div className="font-black text-blue-600">{item.quantity}</div>
-                  </td>
-                  <td className="px-6 py-4 text-slate-500 text-xs">
-                    {item.unit}
-                  </td>
-                  <td className="px-6 py-4 text-slate-500 text-xs">
-                    {item.itemNote || '-'}
-                  </td>
+      <div className="space-y-3">
+        {title && (
+            <div className="flex items-center gap-2 px-1">
+                {icon}
+                <h3 className="font-bold text-slate-700 text-sm">{title}</h3>
+            </div>
+        )}
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead className="bg-slate-50 text-slate-500 text-[10px] uppercase font-black tracking-widest border-b border-slate-200">
+                <tr>
+                  <th className="px-6 py-4 min-w-[200px]">品名</th>
+                  <th className="px-6 py-4 min-w-[150px]">規格</th>
+                  <th className="px-6 py-4 w-24 text-center">數量</th>
+                  <th className="px-6 py-4 w-20">單位</th>
+                  <th className="px-6 py-4">備註</th>
+                  <th className="px-6 py-4 w-12 text-center text-slate-300">刪除</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {items.map((item, idx) => (
+                  <tr key={idx} className="hover:bg-slate-50 transition-colors group">
+                    <td className="px-6 py-4">
+                      <div className="font-bold text-slate-800">{item.name}</div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="text-slate-600 text-xs whitespace-pre-wrap">{item.spec || '-'}</div>
+                    </td>
+                    <td className="px-6 py-4 text-center">
+                      <div className="font-black text-blue-600">{item.quantity}</div>
+                    </td>
+                    <td className="px-6 py-4 text-slate-500 text-xs">
+                      {item.unit}
+                    </td>
+                    <td className="px-6 py-4 text-slate-500 text-xs">
+                      {item.itemNote || '-'}
+                    </td>
+                    <td className="px-6 py-4 text-center">
+                        <button 
+                            onClick={() => handleDeleteItem(item)}
+                            className="text-slate-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
+                            title="從報價單移除此項"
+                        >
+                            <TrashIcon className="w-4 h-4" />
+                        </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     );
@@ -116,8 +166,13 @@ const MaterialPreparation: React.FC<MaterialPreparationProps> = ({ project }) =>
         </button>
       </div>
 
-      <div>
-        {activeSubTab === 'fence' ? renderTable(fenceItems) : renderTable(modularItems)}
+      <div className="space-y-10">
+        {activeSubTab === 'fence' ? (
+            <>
+              {renderTable(fenceMainItems)}
+              {renderTable(fenceSubcontractorItems, "協力廠商安排", <UsersIcon className="w-4 h-4 text-indigo-500" />)}
+            </>
+        ) : renderTable(modularItems)}
       </div>
 
       {!latestPlanningReport && (

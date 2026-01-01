@@ -170,7 +170,7 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ project, currentUser, onB
         {activeTab === 'construction' && <ConstructionRecord project={project} currentUser={currentUser} onUpdateProject={onUpdateProject} />}
         {activeTab === 'completion' && supportsCompletionReport && <CompletionReport project={project} currentUser={currentUser} onUpdateProject={onUpdateProject} />}
         {activeTab === 'materials' && <ProjectMaterials project={project} currentUser={currentUser} onUpdateProject={onUpdateProject} />}
-        {activeTab === 'preparation' && <MaterialPreparation project={project} currentUser={currentUser} />}
+        {activeTab === 'preparation' && <MaterialPreparation project={project} currentUser={currentUser} onUpdateProject={onUpdateProject} />}
         {activeTab === 'planning' && <EngineeringPlanning project={project} currentUser={currentUser} onUpdateProject={onUpdateProject} />}
       </div>
       
