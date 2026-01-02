@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Project, User, CompletionReport as CompletionReportType, CompletionItem } from '../types';
-import { PlusIcon, FileTextIcon, TrashIcon, XIcon, CheckCircleIcon, EditIcon, LoaderIcon, ClockIcon, DownloadIcon, UploadIcon } from './Icons';
+import { PlusIcon, FileTextIcon, TrashIcon, XIcon, CheckCircleIcon, EditIcon, LoaderIcon, ClockIcon, DownloadIcon, UploadIcon, CopyIcon } from './Icons';
 import { downloadBlob } from '../utils/fileHelpers';
 import ExcelJS from 'exceljs';
 
@@ -152,6 +152,12 @@ const EngineeringPlanning: React.FC<EngineeringPlanningProps> = ({ project, curr
       setIsEditing(false);
   };
 
+  const handleDeleteReport = () => {
+    if (!window.confirm(`確定要刪除 ${reportDate} 的整份報價單嗎？`)) return;
+    const updatedReports = (project.planningReports || []).filter(r => r.date !== reportDate);
+    onUpdateProject({ ...project, planningReports: updatedReports });
+  };
+
   const handleImportExcel = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -272,6 +278,13 @@ const EngineeringPlanning: React.FC<EngineeringPlanningProps> = ({ project, curr
   const handleDeleteItem = (index: number) => {
       const newItems = [...items];
       newItems.splice(index, 1);
+      setItems(newItems);
+  };
+
+  const handleDuplicateItem = (index: number) => {
+      const itemToCopy = items[index];
+      const newItems = [...items];
+      newItems.splice(index + 1, 0, { ...itemToCopy });
       setItems(newItems);
   };
 
@@ -447,6 +460,15 @@ const EngineeringPlanning: React.FC<EngineeringPlanningProps> = ({ project, curr
                     <FileTextIcon className="w-5 h-5 text-indigo-600" /> 報價單 (Quotation / Engineering Planning)
                   </h3>
                   <div className="flex gap-2">
+                       {hasReport && (
+                          <button 
+                            onClick={handleDeleteReport}
+                            className="p-2 rounded-full text-slate-500 hover:text-red-600 hover:bg-red-50 transition-colors"
+                            title="刪除整份報價單"
+                          >
+                            <TrashIcon className="w-5 h-5" />
+                          </button>
+                       )}
                        <input type="file" accept=".xlsx, .xls" ref={fileInputRef} className="hidden" onChange={handleImportExcel} />
                        <button 
                             onClick={() => fileInputRef.current?.click()}
@@ -528,7 +550,7 @@ const EngineeringPlanning: React.FC<EngineeringPlanningProps> = ({ project, curr
                                                     <th className="px-3 py-2 min-w-[150px]">注意</th>
                                                     <th className="px-3 py-2 w-20 text-center">數量</th>
                                                     <th className="px-3 py-2 w-20">單位</th>
-                                                    {isEditing && <th className="px-3 py-2 w-10 text-center">刪</th>}
+                                                    {isEditing && <th className="px-3 py-2 w-20 text-center">操作</th>}
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y divide-slate-100 text-sm">
@@ -592,7 +614,22 @@ const EngineeringPlanning: React.FC<EngineeringPlanningProps> = ({ project, curr
                                                         </td>
                                                         {isEditing && (
                                                             <td className="px-3 py-2 text-center">
-                                                                <button onClick={() => handleDeleteItem(index)} className="text-slate-300 hover:text-red-500 transition-colors p-1"><TrashIcon className="w-3.5 h-3.5" /></button>
+                                                                <div className="flex items-center justify-center gap-2">
+                                                                    <button 
+                                                                        onClick={() => handleDuplicateItem(index)} 
+                                                                        className="text-slate-300 hover:text-indigo-600 transition-colors p-1"
+                                                                        title="複製品項"
+                                                                    >
+                                                                        <CopyIcon className="w-3.5 h-3.5" />
+                                                                    </button>
+                                                                    <button 
+                                                                        onClick={() => handleDeleteItem(index)} 
+                                                                        className="text-slate-300 hover:text-red-500 transition-colors p-1"
+                                                                        title="刪除品項"
+                                                                    >
+                                                                        <TrashIcon className="w-3.5 h-3.5" />
+                                                                    </button>
+                                                                </div>
                                                             </td>
                                                         )}
                                                     </tr>
