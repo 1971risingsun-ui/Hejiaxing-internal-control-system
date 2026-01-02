@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Project, ProjectStatus, User, UserRole, ProjectType, GlobalTeamConfigs } from '../types';
+import { Project, ProjectStatus, User, UserRole, ProjectType, GlobalTeamConfigs, SystemRules } from '../types';
 import { ArrowLeftIcon, CalendarIcon, MapPinIcon, ExternalLinkIcon, ClipboardListIcon, BoxIcon, EditIcon, FileTextIcon, PlusIcon, XIcon, UsersIcon, CheckCircleIcon, TruckIcon } from './Icons';
 import ProjectOverview from './ProjectOverview';
 import ConstructionRecord from './ConstructionRecord';
@@ -16,9 +16,10 @@ interface ProjectDetailProps {
   onEditProject: (project: Project) => void;
   onAddToSchedule?: (date: string, teamId: number, taskName: string) => boolean;
   globalTeamConfigs?: GlobalTeamConfigs;
+  systemRules: SystemRules;
 }
 
-const ProjectDetail: React.FC<ProjectDetailProps> = ({ project, currentUser, onBack, onUpdateProject, onEditProject, onAddToSchedule, globalTeamConfigs }) => {
+const ProjectDetail: React.FC<ProjectDetailProps> = ({ project, currentUser, onBack, onUpdateProject, onEditProject, onAddToSchedule, globalTeamConfigs, systemRules }) => {
   const [activeTab, setActiveTab] = useState<'overview' | 'materials' | 'construction' | 'completion' | 'preparation' | 'planning'>('overview');
   
   // 排程相關狀態
@@ -170,7 +171,7 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ project, currentUser, onB
         {activeTab === 'construction' && <ConstructionRecord project={project} currentUser={currentUser} onUpdateProject={onUpdateProject} />}
         {activeTab === 'completion' && supportsCompletionReport && <CompletionReport project={project} currentUser={currentUser} onUpdateProject={onUpdateProject} />}
         {activeTab === 'materials' && <ProjectMaterials project={project} currentUser={currentUser} onUpdateProject={onUpdateProject} />}
-        {activeTab === 'preparation' && <MaterialPreparation project={project} currentUser={currentUser} onUpdateProject={onUpdateProject} />}
+        {activeTab === 'preparation' && <MaterialPreparation project={project} currentUser={currentUser} onUpdateProject={onUpdateProject} systemRules={systemRules} />}
         {activeTab === 'planning' && <EngineeringPlanning project={project} currentUser={currentUser} onUpdateProject={onUpdateProject} />}
       </div>
       
