@@ -18,7 +18,8 @@ import HRManagement from './components/HRManagement';
 import PurchasingModule from './components/PurchasingModule';
 import SupplierList from './components/SupplierList';
 import PurchaseOrders from './components/PurchaseOrders';
-import { HomeIcon, UserIcon, LogOutIcon, ShieldIcon, MenuIcon, XIcon, ChevronRightIcon, WrenchIcon, UploadIcon, LoaderIcon, ClipboardListIcon, LayoutGridIcon, BoxIcon, DownloadIcon, FileTextIcon, CheckCircleIcon, AlertIcon, XCircleIcon, UsersIcon, TruckIcon, BriefcaseIcon, ArrowLeftIcon, CalendarIcon, ClockIcon, NavigationIcon, SaveIcon, ExternalLinkIcon, RefreshIcon } from './components/Icons';
+import GlobalProduction from './components/GlobalProduction';
+import { HomeIcon, UserIcon, LogOutIcon, ShieldIcon, MenuIcon, XIcon, ChevronRightIcon, WrenchIcon, UploadIcon, LoaderIcon, ClipboardListIcon, LayoutGridIcon, BoxIcon, DownloadIcon, FileTextIcon, CheckCircleIcon, AlertIcon, XCircleIcon, UsersIcon, TruckIcon, BriefcaseIcon, ArrowLeftIcon, CalendarIcon, ClockIcon, NavigationIcon, SaveIcon, ExternalLinkIcon, RefreshIcon, PenToolIcon } from './components/Icons';
 import { getDirectoryHandle, saveDbToLocal, loadDbFromLocal, getHandleFromIdb, clearHandleFromIdb, saveAppStateToIdb, loadAppStateFromIdb, saveHandleToIdb } from './utils/fileSystem';
 import { downloadBlob } from './utils/fileHelpers';
 import ExcelJS from 'exceljs';
@@ -538,7 +539,7 @@ const App: React.FC = () => {
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [view, setView] = useState<'engineering' | 'engineering_hub' | 'driving_time' | 'weekly_schedule' | 'daily_dispatch' | 'engineering_groups' | 'construction' | 'modular_house' | 'maintenance' | 'purchasing_hub' | 'purchasing_management' | 'purchasing_materials' | 'purchasing_suppliers' | 'purchasing_subcontractors' | 'purchasing_orders' | 'hr' | 'equipment' | 'report' | 'users'>('engineering');
+  const [view, setView] = useState<'engineering' | 'engineering_hub' | 'driving_time' | 'weekly_schedule' | 'daily_dispatch' | 'engineering_groups' | 'construction' | 'modular_house' | 'maintenance' | 'purchasing_hub' | 'purchasing_management' | 'purchasing_materials' | 'purchasing_suppliers' | 'purchasing_subcontractors' | 'purchasing_orders' | 'production' | 'hr' | 'equipment' | 'report' | 'users'>('engineering');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   const handleLogin = (user: User) => { setCurrentUser(user); setView('engineering'); };
@@ -643,7 +644,11 @@ const App: React.FC = () => {
             <UsersIcon className="w-5 h-5" /> 
             <span className="font-medium">人事</span>
           </button>
-          <button onClick={() => { setSelectedProject(null); setView('equipment'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'equipment' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
+          <button onClick={() => { setSelectedProject(null); setView('production'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'production' ? 'bg-blue-600 text-white shadow-md shadow-blue-900/20' : 'text-slate-400 hover:bg-slate-800'}`}>
+            <PenToolIcon className="w-5 h-5" /> 
+            <span className="font-medium">生產／備料</span>
+          </button>
+          <button onClick={() => { setSelectedProject(null); setView('equipment'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'equipment' ? 'bg-blue-600 text-white shadow-md shadow-blue-900/20' : 'text-slate-400 hover:bg-slate-800'}`}>
             <WrenchIcon className="w-5 h-5" /> 
             <span className="font-medium">設備／工具</span>
           </button>
@@ -722,6 +727,7 @@ const App: React.FC = () => {
       case 'purchasing_suppliers': return '供應商清冊';
       case 'purchasing_subcontractors': return '協力廠商清冊';
       case 'purchasing_orders': return '採購單管理';
+      case 'production': return '生產／備料總覽';
       case 'hr': return '人事管理模組';
       case 'equipment': return '設備／工具模組';
       case 'construction': return '圍籬案件';
@@ -874,6 +880,11 @@ const App: React.FC = () => {
                 onUpdateMonthRemarks={setMonthRemarks}
                />
              </div>
+           ) :
+           view === 'production' ? (
+            <div className="flex-1 overflow-hidden">
+               <GlobalProduction projects={projects} onUpdateProject={handleUpdateProject} />
+            </div>
            ) :
            view === 'driving_time' ? (
             <div className="flex flex-col flex-1 min-h-0">

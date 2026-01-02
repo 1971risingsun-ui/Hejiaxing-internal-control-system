@@ -102,6 +102,7 @@ export interface CompletionItem {
   category: string;
   spec?: string;
   itemNote?: string;
+  productionDate?: string; // 新增：生產備料日期
 }
 
 export interface CompletionReport {
