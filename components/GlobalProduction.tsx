@@ -1,15 +1,23 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Project, CompletionItem, FenceMaterialItem, FenceMaterialSheet } from '../types';
-import { PenToolIcon, BoxIcon, CalendarIcon, TrashIcon, PlusIcon } from './Icons';
+import { PenToolIcon, BoxIcon, CalendarIcon, TrashIcon, PlusIcon, ChevronRightIcon } from './Icons';
 
 interface GlobalProductionProps {
   projects: Project[];
   onUpdateProject: (updatedProject: Project) => void;
 }
 
+type SortKey = 'projectName' | 'date' | 'name';
+type SortDirection = 'asc' | 'desc' | null;
+
 const PRODUCTION_KEYWORDS = ['防溢座', '施工大門', '小門', '巨'];
 
 const GlobalProduction: React.FC<GlobalProductionProps> = ({ projects, onUpdateProject }) => {
+  const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: SortDirection }>({
+    key: 'date',
+    direction: 'asc',
+  });
+
   // 自動判斷分類並產生預設項目 (同步 MaterialPreparation 的邏輯)
   const getDefaultMaterialItems = (itemName: string, quantity: string): { category: string; items: FenceMaterialItem[] } | null => {
     const baseQty = parseFloat(quantity) || 0;
@@ -57,9 +65,19 @@ const GlobalProduction: React.FC<GlobalProductionProps> = ({ projects, onUpdateP
 
   const getItemKey = (item: CompletionItem) => `${item.name}_${item.category}_${item.spec || 'no-spec'}`;
 
+  const handleSort = (key: SortKey) => {
+    let direction: SortDirection = 'asc';
+    if (sortConfig.key === key && sortConfig.direction === 'asc') {
+      direction = 'desc';
+    } else if (sortConfig.key === key && sortConfig.direction === 'desc') {
+      direction = null; // 恢復預設
+    }
+    setSortConfig({ key, direction });
+  };
+
   // 彙整所有案件的生產備料項目
   const productionItems = useMemo(() => {
-    const list: { project: Project; item: CompletionItem; itemIdx: number; reportIdx: number }[] = [];
+    let list: { project: Project; item: CompletionItem; itemIdx: number; reportIdx: number }[] = [];
     
     projects.forEach(project => {
       if (!project.planningReports || project.planningReports.length === 0) return;
@@ -80,12 +98,43 @@ const GlobalProduction: React.FC<GlobalProductionProps> = ({ projects, onUpdateP
       });
     });
     
-    return list.sort((a, b) => {
-        const dateA = a.item.productionDate || '9999-12-31';
-        const dateB = b.item.productionDate || '9999-12-31';
-        return dateA.localeCompare(dateB);
-    });
-  }, [projects]);
+    if (sortConfig.direction) {
+      list.sort((a, b) => {
+        let valA = '';
+        let valB = '';
+
+        switch (sortConfig.key) {
+          case 'projectName':
+            valA = a.project.name;
+            valB = b.project.name;
+            break;
+          case 'date':
+            valA = a.item.productionDate || '9999-12-31';
+            valB = b.item.productionDate || '9999-12-31';
+            break;
+          case 'name':
+            valA = a.item.name;
+            valB = b.item.name;
+            break;
+        }
+
+        if (sortConfig.direction === 'asc') {
+          return valA.localeCompare(valB, 'zh-Hant');
+        } else {
+          return valB.localeCompare(valA, 'zh-Hant');
+        }
+      });
+    } else {
+        // 預設排序（依日期）
+        list.sort((a, b) => {
+            const dateA = a.item.productionDate || '9999-12-31';
+            const dateB = b.item.productionDate || '9999-12-31';
+            return dateA.localeCompare(dateB);
+        });
+    }
+    
+    return list;
+  }, [projects, sortConfig]);
 
   const handleUpdateItemDate = (projId: string, reportIdx: number, itemIdx: number, newDate: string) => {
     const project = projects.find(p => p.id === projId);
@@ -106,6 +155,13 @@ const GlobalProduction: React.FC<GlobalProductionProps> = ({ projects, onUpdateP
     const updatedSheets = { ...(project.fenceMaterialSheets || {}) };
     updatedSheets[itemKey] = updatedSheet;
     onUpdateProject({ ...project, fenceMaterialSheets: updatedSheets });
+  };
+
+  const renderSortIcon = (key: SortKey) => {
+    if (sortConfig.key !== key) return <div className="flex flex-col opacity-20 ml-1"><ChevronRightIcon className="w-2 h-2 -rotate-90" /><ChevronRightIcon className="w-2 h-2 rotate-90" /></div>;
+    if (sortConfig.direction === 'asc') return <div className="flex flex-col ml-1 text-indigo-600"><ChevronRightIcon className="w-2 h-2 -rotate-90" /><ChevronRightIcon className="w-2 h-2 rotate-90 opacity-20" /></div>;
+    if (sortConfig.direction === 'desc') return <div className="flex flex-col ml-1 text-indigo-600"><ChevronRightIcon className="w-2 h-2 -rotate-90 opacity-20" /><ChevronRightIcon className="w-2 h-2 rotate-90" /></div>;
+    return <div className="flex flex-col opacity-20 ml-1"><ChevronRightIcon className="w-2 h-2 -rotate-90" /><ChevronRightIcon className="w-2 h-2 rotate-90" /></div>;
   };
 
   return (
@@ -130,9 +186,21 @@ const GlobalProduction: React.FC<GlobalProductionProps> = ({ projects, onUpdateP
           <table className="w-full text-left border-collapse min-w-[1100px]">
             <thead className="bg-slate-50 text-slate-500 text-[10px] uppercase font-black tracking-widest border-b border-slate-200 sticky top-0 z-10">
               <tr>
-                <th className="px-6 py-4 w-44">案件名稱</th>
-                <th className="px-6 py-4 w-40">預計生產日期</th>
-                <th className="px-6 py-4">品名</th>
+                <th className="px-6 py-4 w-44">
+                  <button onClick={() => handleSort('projectName')} className="flex items-center hover:text-indigo-600 transition-colors uppercase tracking-widest">
+                    案件名稱 {renderSortIcon('projectName')}
+                  </button>
+                </th>
+                <th className="px-6 py-4 w-40">
+                  <button onClick={() => handleSort('date')} className="flex items-center hover:text-indigo-600 transition-colors uppercase tracking-widest">
+                    預計生產日期 {renderSortIcon('date')}
+                  </button>
+                </th>
+                <th className="px-6 py-4">
+                  <button onClick={() => handleSort('name')} className="flex items-center hover:text-indigo-600 transition-colors uppercase tracking-widest">
+                    品名 {renderSortIcon('name')}
+                  </button>
+                </th>
                 <th className="px-6 py-4">規格</th>
                 <th className="px-6 py-4 w-24 text-center">數量</th>
                 <th className="px-6 py-4 w-20">單位</th>
@@ -288,7 +356,7 @@ const GlobalProduction: React.FC<GlobalProductionProps> = ({ projects, onUpdateP
           <span>共計 {productionItems.length} 項生產清單</span>
           <span className="animate-pulse flex items-center gap-1">
             <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full"></div>
-            連動報價單與自動材料換算
+            點擊表頭可進行排序 (連動報價單與材料單)
           </span>
         </div>
       </div>
