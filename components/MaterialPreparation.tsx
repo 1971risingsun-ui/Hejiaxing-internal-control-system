@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { Project, User, CompletionItem, FenceMaterialItem, FenceMaterialSheet } from '../types';
-import { BoxIcon, TruckIcon, ClipboardListIcon, TrashIcon, UsersIcon, PlusIcon } from './Icons';
+import { BoxIcon, TruckIcon, ClipboardListIcon, TrashIcon, UsersIcon, PlusIcon, PenToolIcon } from './Icons';
 
 interface MaterialPreparationProps {
   project: Project;
@@ -9,6 +9,7 @@ interface MaterialPreparationProps {
 }
 
 const SUBCONTRACTOR_KEYWORDS = ['怪手', '告示牌', '安衛貼紙', '美化帆布', '噪音管制看板', '監測告示牌', '寫字'];
+const PRODUCTION_KEYWORDS = ['防溢座', '施工大門', '小門', '巨'];
 
 const MaterialPreparation: React.FC<MaterialPreparationProps> = ({ project, onUpdateProject }) => {
   const [activeSubTab, setActiveSubTab] = React.useState<'fence' | 'modular'>('fence');
@@ -22,18 +23,27 @@ const MaterialPreparation: React.FC<MaterialPreparationProps> = ({ project, onUp
   const planningItems = latestPlanningReport?.items || [];
 
   // 過濾圍籬項目並分流
-  const { fenceMainItems, fenceSubcontractorItems } = useMemo(() => {
+  const { fenceMainItems, fenceProductionItems, fenceSubcontractorItems } = useMemo(() => {
     const allFence = planningItems.filter(item => item.category === 'FENCE_MAIN');
     const main: CompletionItem[] = [];
+    const prod: CompletionItem[] = [];
     const sub: CompletionItem[] = [];
     
     allFence.forEach(item => {
-      const isSub = SUBCONTRACTOR_KEYWORDS.some(kw => (item.name || '').includes(kw));
+      const name = item.name || '';
+      const isSub = SUBCONTRACTOR_KEYWORDS.some(kw => name.includes(kw));
+      const isProd = PRODUCTION_KEYWORDS.some(kw => name.includes(kw));
+      
       if (isSub) sub.push(item);
+      else if (isProd) prod.push(item);
       else main.push(item);
     });
     
-    return { fenceMainItems: main, fenceSubcontractorItems: sub };
+    return { 
+        fenceMainItems: main, 
+        fenceProductionItems: prod, 
+        fenceSubcontractorItems: sub 
+    };
   }, [planningItems]);
 
   // 過濾組合屋項目並按類別分組
@@ -163,7 +173,7 @@ const MaterialPreparation: React.FC<MaterialPreparationProps> = ({ project, onUp
                         <td className="px-6 py-4">
                           <div className="font-bold text-slate-800 flex items-center gap-2">
                             {item.name}
-                            {activeCategory && <span className="bg-indigo-100 text-indigo-600 text-[9px] px-1.5 py-0.5 rounded font-black uppercase tracking-tighter">自動備料: {activeCategory}</span>}
+                            {activeCategory && <span className="bg-indigo-100 text-indigo-600 text-[9px] px-1.5 py-0.5 rounded font-black tracking-tighter">自動備料: {activeCategory}</span>}
                           </div>
                         </td>
                         <td className="px-6 py-4 text-slate-600 text-xs whitespace-pre-wrap">{item.spec || '-'}</td>
@@ -274,7 +284,7 @@ const MaterialPreparation: React.FC<MaterialPreparationProps> = ({ project, onUp
              <TruckIcon className="w-6 h-6" />
            </div>
            <div>
-             <h2 className="text-lg font-black text-slate-800">備料/安排 (Preparation)</h2>
+             <h2 className="text-lg font-black text-slate-800">材料清單 (Material List)</h2>
              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest leading-none">依品名自動導入預設材料計算公式</p>
            </div>
         </div>
@@ -299,6 +309,7 @@ const MaterialPreparation: React.FC<MaterialPreparationProps> = ({ project, onUp
         {activeSubTab === 'fence' ? (
           <>
             {renderTable(fenceMainItems, undefined, undefined, true)}
+            {renderTable(fenceProductionItems, "生產/備料", <PenToolIcon className="w-4 h-4 text-blue-500" />, true)}
             {renderTable(fenceSubcontractorItems, "協力廠商安排", <UsersIcon className="w-4 h-4 text-indigo-500" />)}
           </>
         ) : (

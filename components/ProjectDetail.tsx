@@ -157,7 +157,7 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ project, currentUser, onB
             <BoxIcon className="w-4 h-4" /> 材料請購 ({project.materials?.length || 0})
           </button>
           <button className={`pb-3 text-sm font-bold border-b-2 transition-colors whitespace-nowrap flex items-center gap-2 ${activeTab === 'preparation' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`} onClick={() => setActiveTab('preparation')}>
-            <TruckIcon className="w-4 h-4" /> 備料/安排
+            <TruckIcon className="w-4 h-4" /> 材料清單
           </button>
           <button className={`pb-3 text-sm font-bold border-b-2 transition-colors whitespace-nowrap flex items-center gap-2 ${activeTab === 'planning' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`} onClick={() => setActiveTab('planning')}>
             <FileTextIcon className="w-4 h-4" /> 報價單 ({(project.planningReports || []).length})
