@@ -43,7 +43,7 @@ const SupplierList: React.FC<SupplierListProps> = ({
         case 'indigo': return { bg: 'bg-indigo-600', hover: 'hover:bg-indigo-700', light: 'bg-indigo-100', text: 'text-indigo-600', border: 'border-indigo-200', ring: 'focus:ring-indigo-500', shadow: 'shadow-indigo-100', labelBg: 'bg-indigo-50', labelText: 'text-indigo-700', btnLight: 'bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100' };
         case 'orange': return { bg: 'bg-orange-600', hover: 'hover:bg-orange-700', light: 'bg-orange-100', text: 'text-orange-600', border: 'border-orange-200', ring: 'focus:ring-orange-500', shadow: 'shadow-orange-100', labelBg: 'bg-orange-50', labelText: 'text-orange-700', btnLight: 'bg-orange-50 text-orange-700 border-orange-200 hover:bg-orange-100' };
         case 'blue': return { bg: 'bg-blue-600', hover: 'hover:bg-blue-700', light: 'bg-blue-100', text: 'text-blue-600', border: 'border-blue-200', ring: 'focus:ring-blue-500', shadow: 'shadow-blue-100', labelBg: 'bg-blue-50', labelText: 'text-blue-700', btnLight: 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100' };
-        default: return { bg: 'bg-emerald-600', hover: 'hover:bg-emerald-700', light: 'bg-emerald-100', text: 'text-emerald-600', border: 'border-emerald-200', ring: 'focus:ring-emerald-500', shadow: 'shadow-emerald-100', labelBg: 'bg-emerald-50', labelText: 'text-emerald-700', btnLight: 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100' };
+        default: return { bg: 'bg-emerald-600', hover: 'hover:bg-emerald-700', light: 'bg-emerald-100', text: 'text-emerald-600', border: 'border-emerald-200', ring: 'focus:ring-emerald-500', shadow: 'shadow-emerald-100', labelBg: 'bg-emerald-50', labelText: 'text-emerald-700', btnLight: 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-indigo-100' };
     }
   }, [themeColor]);
 
@@ -125,33 +125,66 @@ const SupplierList: React.FC<SupplierListProps> = ({
       let updatedList = [...suppliers];
       const tempImportMap: Record<string, Set<string>> = {};
 
+      // 遍歷所有工作表
       workbook.eachSheet((worksheet) => {
-        const headers: Record<string, number> = {};
-        worksheet.getRow(1).eachCell((cell, colNumber) => {
-          const text = getSafeText(cell).trim();
-          if (text) headers[text] = colNumber;
-        });
+        let headers: Record<string, number> = {};
+        let headerRowNumber = -1;
+
+        // 搜尋前 20 列找出包含「廠商」的標題列
+        for (let i = 1; i <= Math.min(20, worksheet.rowCount); i++) {
+          const row = worksheet.getRow(i);
+          const rowHeaders: Record<string, number> = {};
+          let foundVendor = false;
+          
+          row.eachCell((cell, colNumber) => {
+            const text = getSafeText(cell).trim();
+            if (text) {
+              rowHeaders[text] = colNumber;
+              if (text === '廠商') foundVendor = true;
+            }
+          });
+
+          if (foundVendor) {
+            headers = rowHeaders;
+            headerRowNumber = i;
+            break;
+          }
+        }
 
         const vendorCol = headers['廠商'];
-        const itemCol = headers['品項(規格)'];
+        const comboCol = headers['品項(規格)'];
+        const itemCol = headers['品項'];
+        const specCol = headers['規格'];
 
-        if (!vendorCol || !itemCol) return;
+        // 若此工作表找不到必要欄位則跳過
+        if (!vendorCol || (!comboCol && !itemCol)) return;
 
+        // 從標題列的下一列開始讀取數據
         worksheet.eachRow((row, rowNumber) => {
-          if (rowNumber === 1) return;
-          const vName = getSafeText(row.getCell(vendorCol)).trim();
-          const iName = getSafeText(row.getCell(itemCol)).trim();
+          if (rowNumber <= headerRowNumber) return;
           
-          if (vName && iName) {
+          const vName = getSafeText(row.getCell(vendorCol)).trim();
+          if (!vName) return;
+
+          let fullItem = '';
+          if (comboCol) {
+            fullItem = getSafeText(row.getCell(comboCol)).trim();
+          } else if (itemCol) {
+            const iName = getSafeText(row.getCell(itemCol)).trim();
+            const sName = specCol ? getSafeText(row.getCell(specCol)).trim() : '';
+            fullItem = sName ? `${iName}(${sName})` : iName;
+          }
+          
+          if (vName && fullItem) {
             if (!tempImportMap[vName]) tempImportMap[vName] = new Set<string>();
-            tempImportMap[vName].add(iName);
+            tempImportMap[vName].add(fullItem);
           }
         });
       });
 
       const vendorNames = Object.keys(tempImportMap);
       if (vendorNames.length === 0) {
-        alert('找不到有效的數據（需包含「廠商」與「品項(規格)」欄位）');
+        alert('在 Excel 的所有工作表中皆找不到有效的數據（需包含「廠商」與「品項」相關欄位）');
         setIsImporting(false);
         return;
       }
@@ -191,11 +224,11 @@ const SupplierList: React.FC<SupplierListProps> = ({
       });
 
       onUpdateSuppliers(updatedList);
-      alert(`匯入完成！共處理 ${importCount} 間${typeLabel}，新增/更新共 ${totalMergedItems} 項業務類別。`);
+      alert(`匯入完成！已檢視所有工作表，共處理 ${importCount} 間${typeLabel}，新增/更新共 ${totalMergedItems} 項業務類別。`);
       
     } catch (err) {
       console.error(err);
-      alert('Excel 匯入失敗，請檢查檔案格式是否包含「廠商」與「品項(規格)」欄位。');
+      alert('Excel 匯入失敗，請檢查檔案格式。');
     } finally {
       setIsImporting(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
