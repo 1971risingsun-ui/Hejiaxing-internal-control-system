@@ -1,17 +1,15 @@
 import React, { useMemo } from 'react';
-import { Project, User, CompletionItem, FenceMaterialItem, FenceMaterialSheet } from '../types';
+import { Project, User, CompletionItem, FenceMaterialItem, FenceMaterialSheet, SystemRules } from '../types';
 import { BoxIcon, TruckIcon, ClipboardListIcon, TrashIcon, UsersIcon, PlusIcon, PenToolIcon } from './Icons';
 
 interface MaterialPreparationProps {
   project: Project;
   currentUser: User;
   onUpdateProject: (updatedProject: Project) => void;
+  systemRules: SystemRules;
 }
 
-const SUBCONTRACTOR_KEYWORDS = ['怪手', '告示牌', '安衛貼紙', '美化帆布', '噪音管制看板', '監測告示牌', '寫字'];
-const PRODUCTION_KEYWORDS = ['防溢座', '施工大門', '小門', '巨'];
-
-const MaterialPreparation: React.FC<MaterialPreparationProps> = ({ project, onUpdateProject }) => {
+const MaterialPreparation: React.FC<MaterialPreparationProps> = ({ project, onUpdateProject, systemRules }) => {
   const [activeSubTab, setActiveSubTab] = React.useState<'fence' | 'modular'>('fence');
 
   // 取得最新的報價單內容
@@ -22,7 +20,7 @@ const MaterialPreparation: React.FC<MaterialPreparationProps> = ({ project, onUp
 
   const planningItems = latestPlanningReport?.items || [];
 
-  // 過濾圍籬項目並分流
+  // 過濾圍籬項目並分流 (使用動態關鍵字)
   const { fenceMainItems, fenceProductionItems, fenceSubcontractorItems } = useMemo(() => {
     const allFence = planningItems.filter(item => item.category === 'FENCE_MAIN');
     const main: CompletionItem[] = [];
@@ -31,8 +29,8 @@ const MaterialPreparation: React.FC<MaterialPreparationProps> = ({ project, onUp
     
     allFence.forEach(item => {
       const name = item.name || '';
-      const isSub = SUBCONTRACTOR_KEYWORDS.some(kw => name.includes(kw));
-      const isProd = PRODUCTION_KEYWORDS.some(kw => name.includes(kw));
+      const isSub = systemRules.subcontractorKeywords.some(kw => name.includes(kw));
+      const isProd = systemRules.productionKeywords.some(kw => name.includes(kw));
       
       if (isSub) sub.push(item);
       else if (isProd) prod.push(item);
@@ -44,7 +42,7 @@ const MaterialPreparation: React.FC<MaterialPreparationProps> = ({ project, onUp
         fenceProductionItems: prod, 
         fenceSubcontractorItems: sub 
     };
-  }, [planningItems]);
+  }, [planningItems, systemRules]);
 
   // 過濾組合屋項目並按類別分組
   const { 
@@ -63,49 +61,40 @@ const MaterialPreparation: React.FC<MaterialPreparationProps> = ({ project, onUp
 
   const getItemKey = (item: CompletionItem) => `${item.name}_${item.category}_${item.spec || 'no-spec'}`;
 
-  // 自動判斷分類並產生預設項目
+  // 動態換算材料項目
   const getDefaultMaterialItems = (itemName: string, quantity: string): { category: string; items: FenceMaterialItem[] } | null => {
     const baseQty = parseFloat(quantity) || 0;
     if (baseQty <= 0) return null;
 
-    if (itemName.includes('甲種圍籬')) {
+    // 從系統規則中尋找匹配的關鍵字
+    const formulaConfig = systemRules.materialFormulas.find(f => itemName.includes(f.keyword));
+    if (!formulaConfig) return null;
+
+    const generatedItems: FenceMaterialItem[] = formulaConfig.items.map(formulaItem => {
+      let calcQty = 0;
+      try {
+        // 安全地評估數學公式
+        // eslint-disable-next-line no-new-func
+        const func = new Function('baseQty', 'Math', `return ${formulaItem.formula}`);
+        calcQty = func(baseQty, Math);
+      } catch (e) {
+        console.error(`公式解析失敗: ${formulaItem.formula}`, e);
+        calcQty = baseQty; // 失敗時回退到基本數量
+      }
+
       return {
-        category: '圍籬',
-        items: [
-          { id: crypto.randomUUID(), name: '立柱', spec: '', quantity: Math.ceil(baseQty / 2.4 + 1), unit: '支' },
-          { id: crypto.randomUUID(), name: '二橫', spec: '', quantity: Math.ceil((baseQty / 2.4 + 1) * 2), unit: '支' },
-          { id: crypto.randomUUID(), name: '三橫', spec: '', quantity: Math.ceil((baseQty / 2.4 + 1) * 3), unit: '支' },
-          { id: crypto.randomUUID(), name: '斜撐', spec: '', quantity: Math.ceil(baseQty / 2.4 + 1), unit: '支' },
-          { id: crypto.randomUUID(), name: '圍籬板', spec: '', quantity: Math.ceil(baseQty / 0.75), unit: '片' },
-          { id: crypto.randomUUID(), name: '2.4m圍籬板', spec: '', quantity: Math.ceil(baseQty / 0.95), unit: '片' },
-        ]
+        id: crypto.randomUUID(),
+        name: formulaItem.name,
+        spec: '',
+        quantity: isNaN(calcQty) ? 0 : calcQty,
+        unit: formulaItem.unit
       };
-    } else if (itemName.includes('防溢座')) {
-      return {
-        category: '防溢座',
-        items: [
-          { id: crypto.randomUUID(), name: '單模', spec: '', quantity: Math.ceil(baseQty / 1.5), unit: '片' },
-          { id: crypto.randomUUID(), name: '雙模', spec: '', quantity: Math.ceil((baseQty / 1.5) * 2), unit: '片' },
-          { id: crypto.randomUUID(), name: '假模', spec: '', quantity: Math.ceil(baseQty / 2.4), unit: '片' },
-        ]
-      };
-    } else if (itemName.includes('轉角')) {
-      return {
-        category: '轉角',
-        items: [
-          { id: crypto.randomUUID(), name: '透明板', spec: '', quantity: Math.ceil(baseQty / 0.75), unit: '片' },
-        ]
-      };
-    } else if (itemName.includes('安全走廊')) {
-      return {
-        category: '安全走廊',
-        items: [
-          { id: crypto.randomUUID(), name: '骨料', spec: '', quantity: Math.ceil(baseQty / 2.4) + 1, unit: '組' },
-          { id: crypto.randomUUID(), name: '安走板', spec: '', quantity: Math.ceil(baseQty / 0.75), unit: '片' },
-        ]
-      };
-    }
-    return null;
+    });
+
+    return {
+      category: formulaConfig.category,
+      items: generatedItems
+    };
   };
 
   const updateMaterialSheet = (itemKey: string, updatedSheet: FenceMaterialSheet) => {
@@ -163,7 +152,6 @@ const MaterialPreparation: React.FC<MaterialPreparationProps> = ({ project, onUp
                   const existingSheet = project.fenceMaterialSheets?.[itemKey];
                   const autoData = showDetails ? getDefaultMaterialItems(item.name, item.quantity) : null;
                   
-                  // 如果資料庫沒存，但符合關鍵字自動判斷規則，則即時顯示預設內容
                   const activeItems = existingSheet?.items || autoData?.items || [];
                   const activeCategory = existingSheet?.category || autoData?.category || '';
 

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { App as CapacitorApp } from '@capacitor/app';
-import { Project, ProjectStatus, User, UserRole, MaterialStatus, AuditLog, ProjectType, Attachment, WeeklySchedule as WeeklyScheduleType, DailyDispatch as DailyDispatchType, GlobalTeamConfigs, Employee, AttendanceRecord, OvertimeRecord, MonthSummaryRemark, Supplier, PurchaseOrder, SitePhoto } from './types';
+import { Project, ProjectStatus, User, UserRole, MaterialStatus, AuditLog, ProjectType, Attachment, WeeklySchedule as WeeklyScheduleType, DailyDispatch as DailyDispatchType, GlobalTeamConfigs, Employee, AttendanceRecord, OvertimeRecord, MonthSummaryRemark, Supplier, PurchaseOrder, SitePhoto, SystemRules } from './types';
 import ProjectList from './components/ProjectList';
 import ProjectDetail from './components/ProjectDetail';
 import UserManagement from './components/UserManagement';
@@ -31,6 +31,53 @@ export const generateId = () => {
     }
   } catch (e) {}
   return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+};
+
+const DEFAULT_SYSTEM_RULES: SystemRules = {
+  productionKeywords: ['防溢座', '施工大門', '小門', '巨'],
+  subcontractorKeywords: ['怪手', '告示牌', '安衛貼紙', '美化帆布', '噪音管制看板', '監測告示牌', '寫字'],
+  materialFormulas: [
+    {
+      id: 'f-1',
+      keyword: '甲種圍籬',
+      category: '圍籬',
+      items: [
+        { id: 'fi-1', name: '立柱', formula: 'Math.ceil(baseQty / 2.4 + 1)', unit: '支' },
+        { id: 'fi-2', name: '二橫', formula: 'Math.ceil((baseQty / 2.4 + 1) * 2)', unit: '支' },
+        { id: 'fi-3', name: '三橫', formula: 'Math.ceil((baseQty / 2.4 + 1) * 3)', unit: '支' },
+        { id: 'fi-4', name: '斜撐', formula: 'Math.ceil(baseQty / 2.4 + 1)', unit: '支' },
+        { id: 'fi-5', name: '圍籬板', formula: 'Math.ceil(baseQty / 0.75)', unit: '片' },
+        { id: 'fi-6', name: '2.4m圍籬板', formula: 'Math.ceil(baseQty / 0.95)', unit: '片' },
+      ]
+    },
+    {
+      id: 'f-2',
+      keyword: '防溢座',
+      category: '防溢座',
+      items: [
+        { id: 'fi-7', name: '單模', formula: 'Math.ceil(baseQty / 1.5)', unit: '片' },
+        { id: 'fi-8', name: '雙模', formula: 'Math.ceil((baseQty / 1.5) * 2)', unit: '片' },
+        { id: 'fi-9', name: '假模', formula: 'Math.ceil(baseQty / 2.4)', unit: '片' },
+      ]
+    },
+    {
+      id: 'f-3',
+      keyword: '轉角',
+      category: '轉角',
+      items: [
+        { id: 'fi-10', name: '透明板', formula: 'Math.ceil(baseQty / 0.75)', unit: '片' },
+      ]
+    },
+    {
+      id: 'f-4',
+      keyword: '安全走廊',
+      category: '安全走廊',
+      items: [
+        { id: 'fi-11', name: '骨料', formula: 'Math.ceil(baseQty / 2.4 + 1)', unit: '組' },
+        { id: 'fi-12', name: '安走板', formula: 'Math.ceil(baseQty / 0.75)', unit: '片' },
+      ]
+    }
+  ]
 };
 
 const bufferToBase64 = (buffer: ArrayBuffer, mimeType: string): Promise<string> => {
@@ -88,6 +135,7 @@ const App: React.FC = () => {
   const [weeklySchedules, setWeeklySchedules] = useState<WeeklyScheduleType[]>([]);
   const [dailyDispatches, setDailyDispatches] = useState<DailyDispatchType[]>([]);
   const [globalTeamConfigs, setGlobalTeamConfigs] = useState<GlobalTeamConfigs>({});
+  const [systemRules, setSystemRules] = useState<SystemRules>(DEFAULT_SYSTEM_RULES);
   
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
@@ -132,6 +180,7 @@ const App: React.FC = () => {
           if (Array.isArray(cachedState.weeklySchedules)) setWeeklySchedules(cachedState.weeklySchedules);
           if (Array.isArray(cachedState.dailyDispatches)) setDailyDispatches(cachedState.dailyDispatches);
           if (cachedState.globalTeamConfigs) setGlobalTeamConfigs(cachedState.globalTeamConfigs);
+          if (cachedState.systemRules) setSystemRules(cachedState.systemRules);
           if (cachedState.employees) setEmployees(cachedState.employees);
           if (cachedState.attendance) setAttendance(cachedState.attendance);
           if (cachedState.overtime) setOvertime(cachedState.overtime);
@@ -217,6 +266,7 @@ const App: React.FC = () => {
     if (Array.isArray(data.weeklySchedules)) setWeeklySchedules(data.weeklySchedules);
     if (Array.isArray(data.dailyDispatches)) setDailyDispatches(data.dailyDispatches);
     if (data.globalTeamConfigs) setGlobalTeamConfigs(data.globalTeamConfigs);
+    if (data.systemRules) setSystemRules(data.systemRules);
     if (Array.isArray(data.employees)) setEmployees(data.employees);
     if (Array.isArray(data.attendance)) setAttendance(data.attendance);
     if (Array.isArray(data.overtime)) setOvertime(data.overtime);
@@ -249,7 +299,7 @@ const App: React.FC = () => {
   const handleManualSaveAs = async () => {
     try {
       const appState = {
-        projects, users: allUsers, auditLogs, weeklySchedules, dailyDispatches, globalTeamConfigs, employees, attendance, overtime, monthRemarks, suppliers, subcontractors, purchaseOrders, lastUpdateInfo, lastSaved: new Date().toISOString()
+        projects, users: allUsers, auditLogs, weeklySchedules, dailyDispatches, globalTeamConfigs, systemRules, employees, attendance, overtime, monthRemarks, suppliers, subcontractors, purchaseOrders, lastUpdateInfo, lastSaved: new Date().toISOString()
       };
       const jsonStr = JSON.stringify(appState, null, 2);
       const blob = new Blob([jsonStr], { type: 'application/json' });
@@ -524,9 +574,9 @@ const App: React.FC = () => {
     if (!isInitialized) return;
     const saveAll = async () => {
         try {
-            await saveAppStateToIdb({ projects, users: allUsers, auditLogs, weeklySchedules, dailyDispatches, globalTeamConfigs, employees, attendance, overtime, monthRemarks, suppliers, subcontractors, purchaseOrders, lastUpdateInfo, lastSaved: new Date().toISOString() });
+            await saveAppStateToIdb({ projects, users: allUsers, auditLogs, weeklySchedules, dailyDispatches, globalTeamConfigs, systemRules, employees, attendance, overtime, monthRemarks, suppliers, subcontractors, purchaseOrders, lastUpdateInfo, lastSaved: new Date().toISOString() });
             if (dirHandle && dirPermission === 'granted') {
-                syncToLocal(dirHandle, { projects, users: allUsers, auditLogs, weeklySchedules, dailyDispatches, globalTeamConfigs, employees, attendance, overtime, monthRemarks, suppliers, subcontractors, purchaseOrders });
+                syncToLocal(dirHandle, { projects, users: allUsers, auditLogs, weeklySchedules, dailyDispatches, globalTeamConfigs, systemRules, employees, attendance, overtime, monthRemarks, suppliers, subcontractors, purchaseOrders });
             }
         } catch (e) {
             console.error('自動儲存失敗', e);
@@ -534,7 +584,7 @@ const App: React.FC = () => {
     };
     const timer = setTimeout(saveAll, 500);
     return () => clearTimeout(timer);
-  }, [projects, allUsers, auditLogs, weeklySchedules, dailyDispatches, globalTeamConfigs, employees, attendance, overtime, monthRemarks, suppliers, subcontractors, purchaseOrders, dirHandle, dirPermission, isInitialized, lastUpdateInfo]);
+  }, [projects, allUsers, auditLogs, weeklySchedules, dailyDispatches, globalTeamConfigs, systemRules, employees, attendance, overtime, monthRemarks, suppliers, subcontractors, purchaseOrders, dirHandle, dirPermission, isInitialized, lastUpdateInfo]);
 
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
@@ -815,6 +865,8 @@ const App: React.FC = () => {
               onConnectDirectory={() => handleDirectoryAction(true)}
               dirPermission={dirPermission}
               isWorkspaceLoading={isWorkspaceLoading}
+              systemRules={systemRules}
+              onUpdateSystemRules={setSystemRules}
             />
           ) : 
            view === 'report' ? (<div className="flex-1 overflow-auto"><GlobalWorkReport projects={projects} currentUser={currentUser} onUpdateProject={handleUpdateProject} /></div>) : 
@@ -883,7 +935,7 @@ const App: React.FC = () => {
            ) :
            view === 'production' ? (
             <div className="flex-1 overflow-hidden">
-               <GlobalProduction projects={projects} onUpdateProject={handleUpdateProject} />
+               <GlobalProduction projects={projects} onUpdateProject={handleUpdateProject} systemRules={systemRules} />
             </div>
            ) :
            view === 'driving_time' ? (
@@ -911,7 +963,7 @@ const App: React.FC = () => {
             </div>
            ) :
            view === 'equipment' ? (<div className="flex-1 overflow-auto">{renderEquipmentView()}</div>) :
-           selectedProject ? (<div className="flex-1 overflow-hidden"><ProjectDetail project={selectedProject} currentUser={currentUser} onBack={() => setSelectedProject(null)} onUpdateProject={handleUpdateProject} onEditProject={setEditingProject} onAddToSchedule={handleAddToSchedule} globalTeamConfigs={globalTeamConfigs} /></div>) : 
+           selectedProject ? (<div className="flex-1 overflow-hidden"><ProjectDetail project={selectedProject} currentUser={currentUser} onBack={() => setSelectedProject(null)} onUpdateProject={handleUpdateProject} onEditProject={setEditingProject} onAddToSchedule={handleAddToSchedule} globalTeamConfigs={globalTeamConfigs} systemRules={systemRules} /></div>) : 
            (<div className="flex-1 overflow-auto"><ProjectList title={getTitle()} projects={currentViewProjects} currentUser={currentUser} lastUpdateInfo={lastUpdateInfo} onSelectProject={setSelectedProject} onAddProject={() => setIsAddModalOpen(true)} onDeleteProject={handleDeleteProject} onDuplicateProject={()=>{}} onEditProject={setEditingProject} onOpenDrivingTime={() => setIsDrivingTimeModalOpen(true)} onImportExcel={() => excelInputRef.current?.click()} onExportExcel={handleExportExcel} onAddToSchedule={handleAddToSchedule} globalTeamConfigs={globalTeamConfigs} /></div>)}
         </main>
       </div>

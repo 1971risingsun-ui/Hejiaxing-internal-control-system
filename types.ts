@@ -162,6 +162,27 @@ export interface FenceMaterialSheet {
   items: FenceMaterialItem[];
 }
 
+// 系統規則設定相關介面
+export interface MaterialFormulaItem {
+  id: string;
+  name: string;
+  formula: string; // 例如: "Math.ceil(baseQty / 2.4 + 1)"
+  unit: string;
+}
+
+export interface MaterialFormulaConfig {
+  id: string;
+  keyword: string;
+  category: string;
+  items: MaterialFormulaItem[];
+}
+
+export interface SystemRules {
+  productionKeywords: string[];
+  subcontractorKeywords: string[];
+  materialFormulas: MaterialFormulaConfig[];
+}
+
 export interface Project {
   id: string;
   name: string;

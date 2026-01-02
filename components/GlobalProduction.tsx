@@ -1,66 +1,52 @@
 import React, { useMemo, useState } from 'react';
-import { Project, CompletionItem, FenceMaterialItem, FenceMaterialSheet } from '../types';
+import { Project, CompletionItem, FenceMaterialItem, FenceMaterialSheet, SystemRules } from '../types';
 import { PenToolIcon, BoxIcon, CalendarIcon, TrashIcon, PlusIcon, ChevronRightIcon } from './Icons';
 
 interface GlobalProductionProps {
   projects: Project[];
   onUpdateProject: (updatedProject: Project) => void;
+  systemRules: SystemRules;
 }
 
 type SortKey = 'projectName' | 'date' | 'name';
 type SortDirection = 'asc' | 'desc' | null;
 
-const PRODUCTION_KEYWORDS = ['防溢座', '施工大門', '小門', '巨'];
-
-const GlobalProduction: React.FC<GlobalProductionProps> = ({ projects, onUpdateProject }) => {
+const GlobalProduction: React.FC<GlobalProductionProps> = ({ projects, onUpdateProject, systemRules }) => {
   const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: SortDirection }>({
     key: 'date',
     direction: 'asc',
   });
 
-  // 自動判斷分類並產生預設項目 (同步 MaterialPreparation 的邏輯)
+  // 自動判斷分類並產生預設項目 (使用動態公式)
   const getDefaultMaterialItems = (itemName: string, quantity: string): { category: string; items: FenceMaterialItem[] } | null => {
     const baseQty = parseFloat(quantity) || 0;
     if (baseQty <= 0) return null;
 
-    if (itemName.includes('甲種圍籬')) {
+    const formulaConfig = systemRules.materialFormulas.find(f => itemName.includes(f.keyword));
+    if (!formulaConfig) return null;
+
+    const generatedItems: FenceMaterialItem[] = formulaConfig.items.map(formulaItem => {
+      let calcQty = 0;
+      try {
+        // eslint-disable-next-line no-new-func
+        const func = new Function('baseQty', 'Math', `return ${formulaItem.formula}`);
+        calcQty = func(baseQty, Math);
+      } catch (e) {
+        calcQty = baseQty;
+      }
       return {
-        category: '圍籬',
-        items: [
-          { id: crypto.randomUUID(), name: '立柱', spec: '', quantity: Math.ceil(baseQty / 2.4 + 1), unit: '支' },
-          { id: crypto.randomUUID(), name: '二橫', spec: '', quantity: Math.ceil((baseQty / 2.4 + 1) * 2), unit: '支' },
-          { id: crypto.randomUUID(), name: '三橫', spec: '', quantity: Math.ceil((baseQty / 2.4 + 1) * 3), unit: '支' },
-          { id: crypto.randomUUID(), name: '斜撐', spec: '', quantity: Math.ceil(baseQty / 2.4 + 1), unit: '支' },
-          { id: crypto.randomUUID(), name: '圍籬板', spec: '', quantity: Math.ceil(baseQty / 0.75), unit: '片' },
-          { id: crypto.randomUUID(), name: '2.4m圍籬板', spec: '', quantity: Math.ceil(baseQty / 0.95), unit: '片' },
-        ]
+        id: crypto.randomUUID(),
+        name: formulaItem.name,
+        spec: '',
+        quantity: isNaN(calcQty) ? 0 : calcQty,
+        unit: formulaItem.unit
       };
-    } else if (itemName.includes('防溢座')) {
-      return {
-        category: '防溢座',
-        items: [
-          { id: crypto.randomUUID(), name: '單模', spec: '', quantity: Math.ceil(baseQty / 1.5), unit: '片' },
-          { id: crypto.randomUUID(), name: '雙模', spec: '', quantity: Math.ceil((baseQty / 1.5) * 2), unit: '片' },
-          { id: crypto.randomUUID(), name: '假模', spec: '', quantity: Math.ceil(baseQty / 2.4), unit: '片' },
-        ]
-      };
-    } else if (itemName.includes('轉角')) {
-      return {
-        category: '轉角',
-        items: [
-          { id: crypto.randomUUID(), name: '透明板', spec: '', quantity: Math.ceil(baseQty / 0.75), unit: '片' },
-        ]
-      };
-    } else if (itemName.includes('安全走廊')) {
-      return {
-        category: '安全走廊',
-        items: [
-          { id: crypto.randomUUID(), name: '骨料', spec: '', quantity: Math.ceil(baseQty / 2.4) + 1, unit: '組' },
-          { id: crypto.randomUUID(), name: '安走板', spec: '', quantity: Math.ceil(baseQty / 0.75), unit: '片' },
-        ]
-      };
-    }
-    return null;
+    });
+
+    return {
+      category: formulaConfig.category,
+      items: generatedItems
+    };
   };
 
   const getItemKey = (item: CompletionItem) => `${item.name}_${item.category}_${item.spec || 'no-spec'}`;
@@ -75,7 +61,7 @@ const GlobalProduction: React.FC<GlobalProductionProps> = ({ projects, onUpdateP
     setSortConfig({ key, direction });
   };
 
-  // 彙整所有案件的生產備料項目
+  // 彙整所有案件的生產備料項目 (使用動態關鍵字)
   const productionItems = useMemo(() => {
     let list: { project: Project; item: CompletionItem; itemIdx: number; reportIdx: number }[] = [];
     
@@ -90,7 +76,7 @@ const GlobalProduction: React.FC<GlobalProductionProps> = ({ projects, onUpdateP
       
       report.items.forEach((item, itemIdx) => {
         const name = item.name || '';
-        const isProd = PRODUCTION_KEYWORDS.some(kw => name.includes(kw)) && item.category === 'FENCE_MAIN';
+        const isProd = systemRules.productionKeywords.some(kw => name.includes(kw)) && item.category === 'FENCE_MAIN';
         
         if (isProd) {
           list.push({ project, item, itemIdx, reportIdx: latestReportIdx });
@@ -134,7 +120,7 @@ const GlobalProduction: React.FC<GlobalProductionProps> = ({ projects, onUpdateP
     }
     
     return list;
-  }, [projects, sortConfig]);
+  }, [projects, sortConfig, systemRules]);
 
   const handleUpdateItemDate = (projId: string, reportIdx: number, itemIdx: number, newDate: string) => {
     const project = projects.find(p => p.id === projId);
