@@ -36,10 +36,19 @@ const MaterialPreparation: React.FC<MaterialPreparationProps> = ({ project, onUp
     return { fenceMainItems: main, fenceSubcontractorItems: sub };
   }, [planningItems]);
 
-  // 過濾組合屋項目
-  const modularItems = useMemo(() => {
-    const modularCats = ['MODULAR_STRUCT', 'MODULAR_RENO', 'MODULAR_OTHER', 'MODULAR_DISMANTLE'];
-    return planningItems.filter(item => modularCats.includes(item.category));
+  // 過濾組合屋項目並按類別分組
+  const { 
+    modularStructItems, 
+    modularRenoItems, 
+    modularOtherItems, 
+    modularDismantleItems 
+  } = useMemo(() => {
+    return {
+      modularStructItems: planningItems.filter(item => item.category === 'MODULAR_STRUCT'),
+      modularRenoItems: planningItems.filter(item => item.category === 'MODULAR_RENO'),
+      modularOtherItems: planningItems.filter(item => item.category === 'MODULAR_OTHER'),
+      modularDismantleItems: planningItems.filter(item => item.category === 'MODULAR_DISMANTLE')
+    };
   }, [planningItems]);
 
   const getItemKey = (item: CompletionItem) => `${item.name}_${item.category}_${item.spec || 'no-spec'}`;
@@ -154,7 +163,7 @@ const MaterialPreparation: React.FC<MaterialPreparationProps> = ({ project, onUp
                         <td className="px-6 py-4">
                           <div className="font-bold text-slate-800 flex items-center gap-2">
                             {item.name}
-                            {activeCategory && <span className="bg-indigo-100 text-indigo-600 text-[9px] px-1.5 py-0.5 rounded font-black tracking-tighter">自動備料: {activeCategory}</span>}
+                            {activeCategory && <span className="bg-indigo-100 text-indigo-600 text-[9px] px-1.5 py-0.5 rounded font-black uppercase tracking-tighter">自動備料: {activeCategory}</span>}
                           </div>
                         </td>
                         <td className="px-6 py-4 text-slate-600 text-xs whitespace-pre-wrap">{item.spec || '-'}</td>
@@ -292,7 +301,14 @@ const MaterialPreparation: React.FC<MaterialPreparationProps> = ({ project, onUp
             {renderTable(fenceMainItems, undefined, undefined, true)}
             {renderTable(fenceSubcontractorItems, "協力廠商安排", <UsersIcon className="w-4 h-4 text-indigo-500" />)}
           </>
-        ) : renderTable(modularItems)}
+        ) : (
+          <>
+            {renderTable(modularStructItems, "主結構", <BoxIcon className="w-4 h-4 text-blue-500" />)}
+            {renderTable(modularRenoItems, "裝修工程", <PlusIcon className="w-4 h-4 text-emerald-500" />)}
+            {renderTable(modularOtherItems, "其他工程", <TruckIcon className="w-4 h-4 text-amber-500" />)}
+            {renderTable(modularDismantleItems, "拆除工程", <TrashIcon className="w-4 h-4 text-red-500" />)}
+          </>
+        )}
       </div>
 
       {!latestPlanningReport && (
