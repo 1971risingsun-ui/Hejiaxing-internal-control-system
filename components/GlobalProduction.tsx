@@ -134,6 +134,18 @@ const GlobalProduction: React.FC<GlobalProductionProps> = ({ projects, onUpdateP
     onUpdateProject({ ...project, planningReports: updatedReports });
   };
 
+  const handleToggleProduced = (projId: string, reportIdx: number, itemIdx: number) => {
+    const project = projects.find(p => p.id === projId);
+    if (!project) return;
+    
+    const updatedReports = [...project.planningReports];
+    const updatedItems = [...updatedReports[reportIdx].items];
+    updatedItems[itemIdx] = { ...updatedItems[itemIdx], isProduced: !updatedItems[itemIdx].isProduced };
+    updatedReports[reportIdx] = { ...updatedReports[reportIdx], items: updatedItems };
+    
+    onUpdateProject({ ...project, planningReports: updatedReports });
+  };
+
   const updateMaterialSheet = (projId: string, itemKey: string, updatedSheet: FenceMaterialSheet) => {
     const project = projects.find(p => p.id === projId);
     if (!project) return;
@@ -204,10 +216,18 @@ const GlobalProduction: React.FC<GlobalProductionProps> = ({ projects, onUpdateP
 
                 return (
                   <React.Fragment key={`${project.id}-${itemKey}-${idx}`}>
-                    <tr className="hover:bg-slate-50/50 transition-colors group">
+                    <tr className={`hover:bg-slate-50/50 transition-colors group ${item.isProduced ? 'opacity-60' : ''}`}>
                       <td className="px-6 py-4 align-top">
-                        <div className="font-black text-indigo-700 text-sm truncate max-w-[160px]" title={project.name}>
-                          {project.name}
+                        <div className="flex items-center gap-3">
+                          <input 
+                            type="checkbox" 
+                            checked={!!item.isProduced}
+                            onChange={() => handleToggleProduced(project.id, reportIdx, itemIdx)}
+                            className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer transition-all"
+                          />
+                          <div className={`font-black text-sm truncate max-w-[140px] transition-all ${item.isProduced ? 'text-slate-400 line-through' : 'text-indigo-700'}`} title={project.name}>
+                            {project.name}
+                          </div>
                         </div>
                       </td>
                       <td className="px-6 py-4 align-top">
@@ -222,7 +242,7 @@ const GlobalProduction: React.FC<GlobalProductionProps> = ({ projects, onUpdateP
                         </div>
                       </td>
                       <td className="px-6 py-4 align-top">
-                        <div className="font-bold text-slate-800 text-sm">{item.name}</div>
+                        <div className={`font-bold text-sm transition-all ${item.isProduced ? 'text-slate-400' : 'text-slate-800'}`}>{item.name}</div>
                       </td>
                       <td className="px-6 py-4 align-top">
                         <div className="text-xs text-slate-500 whitespace-pre-wrap max-w-[220px] leading-relaxed">
@@ -230,7 +250,7 @@ const GlobalProduction: React.FC<GlobalProductionProps> = ({ projects, onUpdateP
                         </div>
                       </td>
                       <td className="px-6 py-4 text-center align-top">
-                        <span className="font-black text-blue-600 text-sm">{item.quantity}</span>
+                        <span className={`font-black text-sm transition-all ${item.isProduced ? 'text-slate-400' : 'text-blue-600'}`}>{item.quantity}</span>
                       </td>
                       <td className="px-6 py-4 align-top">
                         <span className="text-xs text-slate-400 font-bold">{item.unit}</span>
@@ -246,7 +266,7 @@ const GlobalProduction: React.FC<GlobalProductionProps> = ({ projects, onUpdateP
                     {activeItems.length > 0 && (
                       <tr className="bg-slate-50/30">
                         <td colSpan={7} className="px-8 py-0">
-                          <div className="border-l-4 border-indigo-200 ml-6 my-2 overflow-hidden rounded-r-xl border border-slate-100 shadow-sm bg-white/50">
+                          <div className={`border-l-4 border-indigo-200 ml-6 my-2 overflow-hidden rounded-r-xl border border-slate-100 shadow-sm bg-white/50 transition-opacity ${item.isProduced ? 'opacity-50' : ''}`}>
                             <table className="w-full text-xs">
                               <thead className="bg-slate-100 text-slate-400 font-bold uppercase tracking-widest text-[9px]">
                                 <tr>

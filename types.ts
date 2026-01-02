@@ -103,6 +103,7 @@ export interface CompletionItem {
   spec?: string;
   itemNote?: string;
   productionDate?: string; // 新增：生產備料日期
+  isProduced?: boolean; // 新增：生產備料是否完成
 }
 
 export interface CompletionReport {
