@@ -270,7 +270,7 @@ const GlobalProduction: React.FC<GlobalProductionProps> = ({ projects, onUpdateP
                             <table className="w-full text-xs">
                               <thead className="bg-slate-100 text-slate-400 font-bold uppercase tracking-widest text-[9px]">
                                 <tr>
-                                  <th className="px-4 py-2 text-left">材料名稱</th>
+                                  <th className="px-4 py-2 text-left w-32">材料名稱</th>
                                   <th className="px-4 py-2 text-left">規格填寫</th>
                                   <th className="px-4 py-2 w-24 text-center">數量 (自動)</th>
                                   <th className="px-4 py-2 w-16 text-center">單位</th>
@@ -350,7 +350,7 @@ const GlobalProduction: React.FC<GlobalProductionProps> = ({ projects, onUpdateP
                 <tr>
                   <td colSpan={7} className="py-32 text-center text-slate-400">
                     <BoxIcon className="w-16 h-16 mx-auto mb-4 opacity-10" />
-                    <p className="text-base font-bold">目前沒有任何生產備料項目</p>
+                    <p className="textbase font-bold">目前沒有任何生產備料項目</p>
                     <p className="text-xs mt-1">系統會自動從報價單中篩選防溢座與大門等預作項目</p>
                   </td>
                 </tr>

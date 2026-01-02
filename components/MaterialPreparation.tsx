@@ -179,7 +179,7 @@ const MaterialPreparation: React.FC<MaterialPreparationProps> = ({ project, onUp
                               <table className="w-full text-xs">
                                 <thead className="bg-slate-100 text-slate-400 font-bold uppercase tracking-widest text-[9px]">
                                   <tr>
-                                    <th className="px-4 py-2">材料名稱</th>
+                                    <th className="px-4 py-2 w-32">材料名稱</th>
                                     <th className="px-4 py-2">規格填寫</th>
                                     <th className="px-4 py-2 w-24 text-center">數量 (自動)</th>
                                     <th className="px-4 py-2 w-16 text-center">單位</th>
