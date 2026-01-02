@@ -47,12 +47,16 @@ const SupplierList: React.FC<SupplierListProps> = ({
     }
   }, [themeColor]);
 
-  // 模糊搜尋邏輯
+  // 模糊搜尋與排序邏輯
   const filteredSuppliers = useMemo(() => {
     const search = searchTerm.toLowerCase().trim();
-    if (!search) return suppliers;
     
-    return suppliers.filter(s => 
+    // 依據 productList 長度（重複/品項次數）降序排序
+    let sortedList = [...suppliers].sort((a, b) => (b.productList?.length || 0) - (a.productList?.length || 0));
+
+    if (!search) return sortedList;
+    
+    return sortedList.filter(s => 
       s.name.toLowerCase().includes(search) || 
       s.contact.toLowerCase().includes(search) ||
       s.address.toLowerCase().includes(search) ||
@@ -92,6 +96,22 @@ const SupplierList: React.FC<SupplierListProps> = ({
     setIsAdding(true);
   };
 
+  // 安全取得 Excel 儲存格字串
+  const getSafeText = (cell: ExcelJS.Cell): string => {
+    const val = cell.value;
+    if (val === null || val === undefined) return '';
+    if (typeof val === 'object' && 'richText' in val) {
+      return (val as any).richText.map((segment: any) => segment.text || '').join('');
+    }
+    if (typeof val === 'object' && 'text' in val && 'hyperlink' in val) {
+      return String((val as any).text || '');
+    }
+    if (typeof val === 'object' && 'result' in val) {
+      return String((val as any).result || '');
+    }
+    return String(val);
+  };
+
   const handleImportExcel = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -103,90 +123,79 @@ const SupplierList: React.FC<SupplierListProps> = ({
       await workbook.xlsx.load(arrayBuffer);
 
       let updatedList = [...suppliers];
-      let importCount = 0;
-      let skippedCount = 0;
+      const tempImportMap: Record<string, Set<string>> = {};
 
       workbook.eachSheet((worksheet) => {
-        const supplierName = worksheet.name.trim();
-        if (!supplierName || supplierName.startsWith('Sheet')) return;
-
         const headers: Record<string, number> = {};
         worksheet.getRow(1).eachCell((cell, colNumber) => {
-          const text = cell.value?.toString().trim();
+          const text = getSafeText(cell).trim();
           if (text) headers[text] = colNumber;
         });
 
-        const nameCol = headers['品名'];
-        const unitCol = headers['單位'];
+        const vendorCol = headers['廠商'];
+        const itemCol = headers['品項(規格)'];
 
-        if (!nameCol) return;
-
-        const existingIdx = updatedList.findIndex(s => s.name === supplierName);
-        
-        // 建立該廠商現有的「品名」集合（去除括號單位部分）以便比對
-        const existingProductNames = new Set<string>();
-        if (existingIdx > -1) {
-          updatedList[existingIdx].productList.forEach(p => {
-            const nameOnly = p.includes(' (') ? p.split(' (')[0].trim() : p.trim();
-            existingProductNames.add(nameOnly);
-          });
-        }
-
-        const importedProducts: string[] = [];
-        const seenInThisSheet = new Set<string>();
+        if (!vendorCol || !itemCol) return;
 
         worksheet.eachRow((row, rowNumber) => {
           if (rowNumber === 1) return;
-          const pName = row.getCell(nameCol).value?.toString().trim();
-          const pUnit = unitCol ? row.getCell(unitCol).value?.toString().trim() : '';
+          const vName = getSafeText(row.getCell(vendorCol)).trim();
+          const iName = getSafeText(row.getCell(itemCol)).trim();
           
-          if (pName) {
-            // 比對是否已存在相同品名 (不論單位) 或 在本次匯入中重複
-            if (!existingProductNames.has(pName) && !seenInThisSheet.has(pName)) {
-                const formatted = pUnit ? `${pName} (${pUnit})` : pName;
-                importedProducts.push(formatted);
-                seenInThisSheet.add(pName);
-            } else {
-                skippedCount++;
-            }
+          if (vName && iName) {
+            if (!tempImportMap[vName]) tempImportMap[vName] = new Set<string>();
+            tempImportMap[vName].add(iName);
           }
         });
-
-        if (importedProducts.length > 0) {
-          if (existingIdx > -1) {
-            updatedList[existingIdx] = { 
-                ...updatedList[existingIdx], 
-                productList: [...updatedList[existingIdx].productList, ...importedProducts] 
-            };
-          } else {
-            updatedList.push({
-              id: crypto.randomUUID(),
-              name: supplierName,
-              address: '',
-              contact: '',
-              companyPhone: '',
-              mobilePhone: '',
-              lineId: '',
-              productList: importedProducts
-            });
-          }
-          importCount++;
-        }
       });
 
-      if (importCount > 0) {
-        onUpdateSuppliers(updatedList);
-        let msg = `匯入完成！共處理 ${importCount} 間${typeLabel}。`;
-        if (skippedCount > 0) msg += `\n(已自動跳過 ${skippedCount} 項重複品名)`;
-        alert(msg);
-      } else if (skippedCount > 0) {
-        alert(`匯入結束。所有項目品名皆已存在，共跳過 ${skippedCount} 項。`);
-      } else {
-        alert('找不到有效的數據（需包含「品名」欄位，且工作表名稱非預設值）');
+      const vendorNames = Object.keys(tempImportMap);
+      if (vendorNames.length === 0) {
+        alert('找不到有效的數據（需包含「廠商」與「品項(規格)」欄位）');
+        setIsImporting(false);
+        return;
       }
+
+      let importCount = 0;
+      let totalMergedItems = 0;
+
+      vendorNames.forEach(vName => {
+        const existingIdx = updatedList.findIndex(s => s.name === vName);
+        const newItems = Array.from(tempImportMap[vName]);
+
+        if (existingIdx > -1) {
+          // 合併並去重
+          const currentItems = new Set(updatedList[existingIdx].productList);
+          const beforeSize = currentItems.size;
+          newItems.forEach(item => currentItems.add(item));
+          updatedList[existingIdx] = { 
+            ...updatedList[existingIdx], 
+            productList: Array.from(currentItems) 
+          };
+          totalMergedItems += (currentItems.size - beforeSize);
+        } else {
+          // 新增
+          updatedList.push({
+            id: crypto.randomUUID(),
+            name: vName,
+            address: '',
+            contact: '',
+            companyPhone: '',
+            mobilePhone: '',
+            lineId: '',
+            productList: newItems
+          });
+          totalMergedItems += newItems.length;
+        }
+        importCount++;
+      });
+
+      onUpdateSuppliers(updatedList);
+      alert(`匯入完成！共處理 ${importCount} 間${typeLabel}，新增/更新共 ${totalMergedItems} 項業務類別。`);
+      
     } catch (err) {
       console.error(err);
-      alert('Excel 匯入失敗，請檢查檔案格式');
+      alert('Excel 匯入失敗，請檢查檔案格式是否包含「廠商」與「品項(規格)」欄位。');
     } finally {
       setIsImporting(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -196,6 +205,7 @@ const SupplierList: React.FC<SupplierListProps> = ({
   const addProduct = () => {
     if (!tempProduct.trim()) return;
     const finalProduct = tempUnit.trim() ? `${tempProduct.trim()} (${tempUnit.trim()})` : tempProduct.trim();
+    if (formData.productList.includes(finalProduct)) return;
     setFormData({
       ...formData,
       productList: [...formData.productList, finalProduct]
