@@ -270,8 +270,8 @@ const GlobalProduction: React.FC<GlobalProductionProps> = ({ projects, onUpdateP
                             <table className="w-full text-xs">
                               <thead className="bg-slate-100 text-slate-400 font-bold uppercase tracking-widest text-[9px]">
                                 <tr>
-                                  <th className="px-4 py-2 text-left w-32">材料名稱</th>
-                                  <th className="px-4 py-2 text-left w-24">規格填寫</th>
+                                  <th className="px-4 py-2 text-left w-16">材料名稱</th>
+                                  <th className="px-4 py-2 text-left w-20">規格填寫</th>
                                   <th className="px-4 py-2 w-24 text-center">數量 (自動)</th>
                                   <th className="px-4 py-2 w-16 text-center">單位</th>
                                   <th className="px-4 py-2 w-10 text-center">刪除</th>
