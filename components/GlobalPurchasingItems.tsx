@@ -44,11 +44,11 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
     subIdx?: number;
   } | null>(null);
 
-  // 當前聚焦的行資訊，用於動態生成 Datalist 選項
+  // 當前聚焦的列資訊，用於動態生成 Datalist 選項
   const [activeRowContext, setActiveRowContext] = useState<{
-    itemName: string;
-    itemNote: string;
-    selectedSupplierName: string;
+    plannedName: string;
+    plannedNote: string;
+    currentSupplierName: string;
   } | null>(null);
 
   const getDaysOffset = (dateStr: string, days: number) => {
@@ -69,42 +69,51 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
     setSortConfig({ key, direction });
   };
 
-  // 模糊比對供應商名稱的建議邏輯
+  // 輔助函式：解析用途關鍵字（處理半形逗號）
+  const getUsageKeywords = (usage: string) => {
+    if (!usage) return [];
+    return usage.split(',').map(k => k.trim().toLowerCase()).filter(k => !!k);
+  };
+
+  // 模糊比對供應商建議邏輯
   const suggestedSupplierNames = useMemo(() => {
     if (!activeRowContext) return suppliers.map(s => s.name);
     
-    const { itemName, itemNote } = activeRowContext;
-    const query = (itemName + itemNote).toLowerCase();
+    const { plannedName, plannedNote } = activeRowContext;
+    const query = (plannedName + plannedNote).toLowerCase();
 
-    // 模糊比對：品名/備註 包含 用途，或 用途 包含 品名/備註
+    // 模糊比對：產品用途關鍵字（逗號隔開）與 品名/備註 匹配
     const matched = suppliers.filter(s => 
-      s.productList?.some(p => 
-        p.usage && (query.includes(p.usage.toLowerCase()) || p.usage.toLowerCase().includes(query))
-      )
+      s.productList?.some(p => {
+        const keywords = getUsageKeywords(p.usage);
+        return keywords.some(k => query.includes(k) || k.includes(query));
+      })
     ).map(s => s.name);
 
-    // 如果沒結果，回傳全部
-    return (matched.length > 0 ? matched : suppliers.map(s => s.name)).sort((a, b) => a.localeCompare(b, 'zh-Hant'));
+    const finalNames = matched.length > 0 ? matched : suppliers.map(s => s.name);
+    return Array.from(new Set(finalNames)).sort((a, b) => a.localeCompare(b, 'zh-Hant'));
   }, [suppliers, activeRowContext]);
 
-  // 模糊比對品名的建議邏輯
+  // 品名建議邏輯：代入選定供應商中「用途關鍵字匹配」的產品名稱
   const suggestedProductNames = useMemo(() => {
     if (!activeRowContext) return [];
     
-    const { selectedSupplierName, itemName, itemNote } = activeRowContext;
-    const sup = suppliers.find(s => s.name === selectedSupplierName);
+    const { currentSupplierName, plannedName, plannedNote } = activeRowContext;
+    const sup = suppliers.find(s => s.name === currentSupplierName);
     if (!sup) return [];
 
-    const query = (itemName + itemNote).toLowerCase();
+    const query = (plannedName + plannedNote).toLowerCase();
     
-    // 優先過濾出用途匹配的產品名稱
+    // 優先過濾出用途中包含匹配關鍵字的產品名稱
     const matched = sup.productList
-      ?.filter(p => p.usage && (query.includes(p.usage.toLowerCase()) || p.usage.toLowerCase().includes(query)))
+      ?.filter(p => {
+        const keywords = getUsageKeywords(p.usage);
+        return keywords.some(k => query.includes(k) || k.includes(query));
+      })
       .map(p => p.name) || [];
 
     // 若無匹配則列出該廠商所有產品
-    const allItems = (sup.productList?.map(p => p.name) || []);
-    const results = matched.length > 0 ? matched : allItems;
+    const results = matched.length > 0 ? matched : (sup.productList?.map(p => p.name) || []);
     
     return Array.from(new Set(results)).sort((a, b) => a.localeCompare(b, 'zh-Hant'));
   }, [suppliers, activeRowContext]);
@@ -137,7 +146,7 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
         if (isFence && !isSubKeyword && !isProdKeyword) {
           const itemKey = getItemKey(item);
           const savedSheet = project.fenceMaterialSheets?.[itemKey];
-          const activeSubItems = savedSheet?.items || []; // 僅顯示已生成的備料
+          const activeSubItems = savedSheet?.items || []; 
 
           if (activeSubItems.length > 0) {
             activeSubItems.forEach((sub, subIdx) => {
@@ -166,8 +175,8 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
             valB = b.mainItem.productionDate || getDaysOffset(b.project.appointmentDate, -7) || '9999-12-31';
             break;
           case 'name':
-            valA = a.type === 'sub' ? (a.subItem?.spec || '') : a.mainItem.name;
-            valB = b.type === 'sub' ? (b.subItem?.spec || '') : b.mainItem.name;
+            valA = a.type === 'sub' ? (a.subItem?.selectedProductName || a.subItem?.spec || '') : (a.mainItem.selectedProductName || a.mainItem.name);
+            valB = b.type === 'sub' ? (b.subItem?.selectedProductName || b.subItem?.spec || '') : (b.mainItem.selectedProductName || b.mainItem.name);
             break;
         }
         if (sortConfig.direction === 'asc') return valA.localeCompare(valB, 'zh-Hant');
@@ -202,9 +211,8 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
     onUpdateProject({ ...project, planningReports: updatedReports });
   };
 
-  // 核心檢查與詢問邏輯
   const checkAndPromptAddition = (supplierInput: string, productInput: string) => {
-    if (!supplierInput || !productInput) return;
+    if (!supplierInput || !productInput || supplierInput.includes('手動輸入')) return;
     const matchedSup = suppliers.find(s => s.name === supplierInput);
     if (!matchedSup) {
       setAdditionPrompt({ type: 'new_supplier', supplierName: supplierInput, productName: productInput });
@@ -216,7 +224,7 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
     }
   };
 
-  // 更新邏輯：取消連動更新 (不自動修改報價單內容)
+  // 修改品名：僅更新採購選定品名欄位，不連動修改專案原始資料
   const handleUpdateItemName = (projId: string, reportIdx: number, itemIdx: number, nameInput: string, type: 'main' | 'sub', itemKey?: string, subIdx?: number) => {
     const project = projects.find(p => p.id === projId);
     if (!project) return;
@@ -225,25 +233,26 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
         const sheets = { ...(project.fenceMaterialSheets || {}) };
         const sheet = sheets[itemKey];
         if (!sheet) return;
-
         const newItems = [...sheet.items];
-        newItems[subIdx] = { ...newItems[subIdx], spec: nameInput };
+        // 更新 selectedProductName 而非 spec
+        newItems[subIdx] = { ...newItems[subIdx], selectedProductName: nameInput };
         sheets[itemKey] = { ...sheet, items: newItems };
         onUpdateProject({ ...project, fenceMaterialSheets: sheets });
         
-        const supplierVal = newItems[subIdx].supplierId;
-        const supplierName = suppliers.find(s => s.id === supplierVal)?.name || supplierVal || '';
-        checkAndPromptAddition(supplierName, nameInput);
+        const supVal = newItems[subIdx].supplierId;
+        const supName = suppliers.find(s => s.id === supVal)?.name || supVal || '';
+        checkAndPromptAddition(supName, nameInput);
     } else {
         const updatedReports = [...project.planningReports];
         const updatedItems = [...updatedReports[reportIdx].items];
-        updatedItems[itemIdx] = { ...updatedItems[itemIdx], name: nameInput };
+        // 更新 selectedProductName 而非 name
+        updatedItems[itemIdx] = { ...updatedItems[itemIdx], selectedProductName: nameInput };
         updatedReports[reportIdx] = { ...updatedReports[reportIdx], items: updatedItems };
         onUpdateProject({ ...project, planningReports: updatedReports });
 
-        const supplierVal = updatedItems[itemIdx].supplierId;
-        const supplierName = suppliers.find(s => s.id === supplierVal)?.name || supplierVal || '';
-        checkAndPromptAddition(supplierName, nameInput);
+        const supVal = updatedItems[itemIdx].supplierId;
+        const supName = suppliers.find(s => s.id === supVal)?.name || supVal || '';
+        checkAndPromptAddition(supName, nameInput);
     }
   };
 
@@ -258,19 +267,22 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
         const sheets = { ...(project.fenceMaterialSheets || {}) };
         const sheet = sheets[itemKey];
         if (!sheet) return;
-
         const newItems = [...sheet.items];
         newItems[subIdx] = { ...newItems[subIdx], supplierId: finalSupplierValue };
         sheets[itemKey] = { ...sheet, items: newItems };
         onUpdateProject({ ...project, fenceMaterialSheets: sheets });
-        if (newItems[subIdx].spec) checkAndPromptAddition(supplierInput, newItems[subIdx].spec);
+        if (newItems[subIdx].selectedProductName || newItems[subIdx].spec) {
+            checkAndPromptAddition(supplierInput, newItems[subIdx].selectedProductName || newItems[subIdx].spec);
+        }
     } else {
         const updatedReports = [...project.planningReports];
         const updatedItems = [...updatedReports[reportIdx].items];
         updatedItems[itemIdx] = { ...updatedItems[itemIdx], supplierId: finalSupplierValue };
         updatedReports[reportIdx] = { ...updatedReports[reportIdx], items: updatedItems };
         onUpdateProject({ ...project, planningReports: updatedReports });
-        if (updatedItems[itemIdx].name) checkAndPromptAddition(supplierInput, updatedItems[itemIdx].name);
+        if (updatedItems[itemIdx].selectedProductName || updatedItems[itemIdx].name) {
+            checkAndPromptAddition(supplierInput, updatedItems[itemIdx].selectedProductName || updatedItems[itemIdx].name);
+        }
     }
   };
 
@@ -345,7 +357,7 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
           <div className="bg-indigo-600 p-3 rounded-xl text-white shadow-lg"><ClipboardListIcon className="w-6 h-6" /></div>
           <div>
             <h1 className="text-xl font-bold text-slate-800">採購項目總覽</h1>
-            <p className="text-xs text-slate-500 font-medium">基於用途模糊匹配供應商與品名，修改內容獨立不連動</p>
+            <p className="text-xs text-slate-500 font-medium">依用途關鍵字匹配建議名單，手動修改獨立不連動原始報價設定</p>
           </div>
         </div>
       </div>
@@ -377,14 +389,19 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
                 const defaultDate = getDaysOffset(project.appointmentDate, -7);
                 const displayDate = mainItem.productionDate || defaultDate;
 
-                const rowName = type === 'sub' ? (subItem?.spec || '') : mainItem.name;
-                const rowSpec = type === 'sub' ? '' : (mainItem.spec || '-');
+                // 優先顯示選定的採購資訊，若無則顯示報價單/材料單原始資訊
+                const rowName = type === 'sub' ? (subItem?.selectedProductName || subItem?.spec || '') : (mainItem.selectedProductName || mainItem.name);
+                const rowSpec = type === 'sub' ? (subItem?.selectedProductSpec || '') : (mainItem.selectedProductSpec || mainItem.spec || '-');
+                
                 const rowQty = type === 'sub' ? subItem?.quantity : mainItem.quantity;
                 const rowUnit = type === 'sub' ? subItem?.unit : mainItem.unit;
                 const rowNote = type === 'sub' ? (subItem?.name || '-') : (mainItem.itemNote || '-');
                 
                 const currentSupplierId = type === 'sub' ? subItem?.supplierId : mainItem.supplierId;
                 const currentSupplierName = suppliers.find(s => s.id === currentSupplierId)?.name || currentSupplierId || '';
+
+                const plannedName = type === 'sub' ? (subItem?.spec || '') : mainItem.name;
+                const plannedNote = type === 'sub' ? (subItem?.name || '') : (mainItem.itemNote || '');
 
                 return (
                   <tr key={rowId} className="hover:bg-slate-50/50 transition-colors group">
@@ -403,13 +420,13 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
                             <input 
                                 list={`suppliers-datalist-${rowId}`}
                                 value={currentSupplierName} 
-                                onFocus={() => setActiveRowContext({ itemName: rowName, itemNote: rowNote, selectedSupplierName: currentSupplierName })}
+                                onFocus={() => setActiveRowContext({ plannedName, plannedNote, currentSupplierName })}
                                 onChange={(e) => handleUpdateItemSupplier(project.id, reportIdx, mainItemIdx, e.target.value, type, itemKey, subIdx)}
                                 placeholder="輸入或選取..."
                                 className="w-full pl-7 pr-2 py-1.5 bg-white border border-slate-200 rounded-lg text-[11px] font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm"
                             />
                             <datalist id={`suppliers-datalist-${rowId}`}>
-                                <option value="手動輸入新廠商..." />
+                                <option value="手動輸入新供應商..." />
                                 {suggestedSupplierNames.map(name => <option key={name} value={name} />)}
                             </datalist>
                         </div>
@@ -419,7 +436,7 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
                             <input 
                               list={`products-datalist-${rowId}`}
                               value={rowName} 
-                              onFocus={() => setActiveRowContext({ itemName: rowName, itemNote: rowNote, selectedSupplierName: currentSupplierName })}
+                              onFocus={() => setActiveRowContext({ plannedName, plannedNote, currentSupplierName })}
                               onChange={(e) => handleUpdateItemName(project.id, reportIdx, mainItemIdx, e.target.value, type, itemKey, subIdx)}
                               placeholder="輸入或選取..."
                               className="w-full px-2 py-1.5 border border-slate-200 rounded-lg text-xs font-bold bg-white outline-none focus:ring-1 focus:ring-indigo-500 shadow-sm"
@@ -430,7 +447,33 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
                             </datalist>
                         </div>
                     </td>
-                    <td className="px-6 py-4"><div className="text-xs text-slate-500 whitespace-pre-wrap max-w-[180px]">{rowSpec}</div></td>
+                    <td className="px-6 py-4">
+                        <input 
+                          type="text"
+                          value={rowSpec}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            const project = projects.find(p => p.id === entry.project.id);
+                            if (!project) return;
+                            if (type === 'sub' && itemKey !== undefined && subIdx !== undefined) {
+                                const sheets = { ...(project.fenceMaterialSheets || {}) };
+                                const sheet = sheets[itemKey];
+                                if (!sheet) return;
+                                const newItems = [...sheet.items];
+                                newItems[subIdx] = { ...newItems[subIdx], selectedProductSpec: val };
+                                sheets[itemKey] = { ...sheet, items: newItems };
+                                onUpdateProject({ ...project, fenceMaterialSheets: sheets });
+                            } else {
+                                const updatedReports = [...project.planningReports];
+                                const updatedItems = [...updatedReports[reportIdx].items];
+                                updatedItems[mainItemIdx] = { ...updatedItems[mainItemIdx], selectedProductSpec: val };
+                                updatedReports[reportIdx] = { ...updatedReports[reportIdx], items: updatedItems };
+                                onUpdateProject({ ...project, planningReports: updatedReports });
+                            }
+                          }}
+                          className="w-full px-2 py-1.5 border border-transparent hover:border-slate-200 rounded-lg text-xs text-slate-500 outline-none focus:bg-white focus:ring-1 focus:ring-indigo-500"
+                        />
+                    </td>
                     <td className="px-6 py-4 text-center"><span className="font-black text-sm text-blue-600">{rowQty}</span></td>
                     <td className="px-6 py-4 text-center"><span className="text-xs text-slate-400 font-bold">{rowUnit}</span></td>
                     <td className="px-6 py-4"><div className="text-xs text-slate-500 font-medium truncate max-w-[150px]">{rowNote}</div></td>
@@ -494,8 +537,8 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
                         {editingItem.type === 'sub' && editingItem.subItem ? (
                             <>
                                 <div>
-                                    <label className="block text-[10px] font-black text-slate-400 uppercase mb-1.5 tracking-wider">品名規格 (手動填寫)</label>
-                                    <input type="text" required value={editingItem.subItem.spec} onChange={e => setEditingItem({ ...editingItem, subItem: { ...editingItem.subItem!, spec: e.target.value } })} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500 transition-all shadow-inner" />
+                                    <label className="block text-[10px] font-black text-slate-400 uppercase mb-1.5 tracking-wider">選定品名 (手動填寫)</label>
+                                    <input type="text" required value={editingItem.subItem.selectedProductName || editingItem.subItem.spec} onChange={e => setEditingItem({ ...editingItem, subItem: { ...editingItem.subItem!, selectedProductName: e.target.value } })} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500 transition-all shadow-inner" />
                                 </div>
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
@@ -508,19 +551,19 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
                                     </div>
                                 </div>
                                 <div>
-                                    <label className="block text-[10px] font-black text-slate-400 uppercase mb-1.5 tracking-wider">注意/備註</label>
-                                    <input type="text" value={editingItem.subItem.name} onChange={e => setEditingItem({ ...editingItem, subItem: { ...editingItem.subItem!, name: e.target.value } })} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 outline-none focus:bg-white" />
+                                    <label className="block text-[10px] font-black text-slate-400 uppercase mb-1.5 tracking-wider">原始注意/備註</label>
+                                    <div className="px-4 py-2.5 bg-slate-100 rounded-xl text-sm text-slate-500">{editingItem.subItem.name}</div>
                                 </div>
                             </>
                         ) : (
                             <>
                                 <div>
-                                    <label className="block text-[10px] font-black text-slate-400 uppercase mb-1.5 tracking-wider">品名</label>
-                                    <input type="text" required value={editingItem.mainItem.name} onChange={e => setEditingItem({ ...editingItem, mainItem: { ...editingItem.mainItem, name: e.target.value } })} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500 shadow-inner" />
+                                    <label className="block text-[10px] font-black text-slate-400 uppercase mb-1.5 tracking-wider">選定品名</label>
+                                    <input type="text" required value={editingItem.mainItem.selectedProductName || editingItem.mainItem.name} onChange={e => setEditingItem({ ...editingItem, mainItem: { ...editingItem.mainItem, selectedProductName: e.target.value } })} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500 shadow-inner" />
                                 </div>
                                 <div>
-                                    <label className="block text-[10px] font-black text-slate-400 uppercase mb-1.5 tracking-wider">規格</label>
-                                    <textarea rows={2} value={editingItem.mainItem.spec || ''} onChange={e => setEditingItem({ ...editingItem, mainItem: { ...editingItem.mainItem, spec: e.target.value } })} className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-700 outline-none focus:bg-white transition-all shadow-inner" />
+                                    <label className="block text-[10px] font-black text-slate-400 uppercase mb-1.5 tracking-wider">選定規格</label>
+                                    <textarea rows={2} value={editingItem.mainItem.selectedProductSpec || editingItem.mainItem.spec || ''} onChange={e => setEditingItem({ ...editingItem, mainItem: { ...editingItem.mainItem, selectedProductSpec: e.target.value } })} className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-700 outline-none focus:bg-white transition-all shadow-inner" />
                                 </div>
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
