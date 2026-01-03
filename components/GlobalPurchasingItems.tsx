@@ -73,9 +73,9 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({ projects,
     setSortConfig({ key, direction });
   };
 
-  // 全系統建議清單 (不分案場、不分連動)
+  // 全系統建議清單 (供 Datalist 使用)
   const globalSupplierNames = useMemo(() => {
-    return suppliers.map(s => s.name).sort((a, b) => a.localeCompare(b, 'zh-Hant'));
+    return Array.from(new Set(suppliers.map(s => s.name))).sort((a, b) => a.localeCompare(b, 'zh-Hant'));
   }, [suppliers]);
 
   const globalProductNames = useMemo(() => {
@@ -183,6 +183,7 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({ projects,
     onUpdateProject({ ...project, planningReports: updatedReports });
   };
 
+  // 手動更新品名：主項目存入 name，材料子項存入 spec
   const handleUpdateItemName = (projId: string, reportIdx: number, itemIdx: number, nameInput: string, type: 'main' | 'sub', itemKey?: string, subIdx?: number) => {
     const project = projects.find(p => p.id === projId);
     if (!project) return;
@@ -208,6 +209,7 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({ projects,
     }
   };
 
+  // 手動更新供應商：匹配名稱存 ID，否則存字串
   const handleUpdateItemSupplier = (projId: string, reportIdx: number, itemIdx: number, supplierInput: string, type: 'main' | 'sub', itemKey?: string, subIdx?: number) => {
     const project = projects.find(p => p.id === projId);
     if (!project) return;
@@ -343,6 +345,7 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({ projects,
                     <td className="px-6 py-4">
                         <div className="relative">
                             <UsersIcon className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+                            {/* Fix: Use mainItemIdx instead of undefined itemIdx */}
                             <input 
                                 list="global-suppliers-datalist"
                                 value={currentSupplierName} 
@@ -354,6 +357,7 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({ projects,
                     </td>
                     <td className="px-6 py-4">
                         <div className="relative">
+                            {/* Fix: Use mainItemIdx instead of undefined itemIdx */}
                             <input 
                               list="global-products-datalist"
                               value={rowName} 
