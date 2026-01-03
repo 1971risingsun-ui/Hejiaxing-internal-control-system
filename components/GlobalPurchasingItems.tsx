@@ -28,6 +28,38 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({ projects,
 
   const getItemKey = (item: CompletionItem) => `${item.name}_${item.category}_${item.spec || 'no-spec'}`;
 
+  // 自動換算預設材料項目
+  const getDefaultMaterialItems = (itemName: string, quantity: string): { category: string; items: FenceMaterialItem[] } | null => {
+    const baseQty = parseFloat(quantity) || 0;
+    if (baseQty <= 0) return null;
+
+    const formulaConfig = systemRules.materialFormulas.find(f => itemName.includes(f.keyword));
+    if (!formulaConfig) return null;
+
+    const generatedItems: FenceMaterialItem[] = formulaConfig.items.map(formulaItem => {
+      let calcQty = 0;
+      try {
+        // eslint-disable-next-line no-new-func
+        const func = new Function('baseQty', 'Math', `return ${formulaItem.formula}`);
+        calcQty = func(baseQty, Math);
+      } catch (e) {
+        calcQty = baseQty;
+      }
+      return {
+        id: crypto.randomUUID(),
+        name: formulaItem.name,
+        spec: '',
+        quantity: isNaN(calcQty) ? 0 : calcQty,
+        unit: formulaItem.unit
+      };
+    });
+
+    return {
+      category: formulaConfig.category,
+      items: generatedItems
+    };
+  };
+
   const handleSort = (key: SortKey) => {
     let direction: SortDirection = 'asc';
     if (sortConfig.key === key && sortConfig.direction === 'asc') {
@@ -38,9 +70,15 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({ projects,
     setSortConfig({ key, direction });
   };
 
-  // 彙整採購項目 (非生產、非協力的規劃項目)
+  // 彙整採購細項 (基於材料單內容)
   const purchasingItems = useMemo(() => {
-    let list: { project: Project; item: CompletionItem; itemIdx: number; reportIdx: number }[] = [];
+    let list: { 
+        project: Project; 
+        subItem: FenceMaterialItem; 
+        mainItem: CompletionItem; 
+        mainItemIdx: number; 
+        reportIdx: number 
+    }[] = [];
     
     projects.forEach(project => {
       if (!project.planningReports || project.planningReports.length === 0) return;
@@ -53,12 +91,28 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({ projects,
       
       report.items.forEach((item, itemIdx) => {
         const name = item.name || '';
+        // 規則 1: 只要導入圍籬頁籤
+        const isFence = item.category === 'FENCE_MAIN';
+        // 規則 2: 不包含「生產/備料」和「協力廠商」
         const isSub = systemRules.subcontractorKeywords.some(kw => name.includes(kw));
         const isProd = systemRules.productionKeywords.some(kw => name.includes(kw));
         
-        // 只顯示非生產且非協力的項目 (圍籬主項、組合屋主項)
-        if (!isSub && !isProd) {
-          list.push({ project, item, itemIdx, reportIdx: latestReportIdx });
+        if (isFence && !isSub && !isProd) {
+          // 規則 3: 導入材料單內容
+          const itemKey = getItemKey(item);
+          const savedSheet = project.fenceMaterialSheets?.[itemKey];
+          const autoData = getDefaultMaterialItems(item.name, item.quantity);
+          const activeSubItems = savedSheet?.items || autoData?.items || [];
+
+          activeSubItems.forEach(sub => {
+              list.push({ 
+                  project, 
+                  subItem: sub, 
+                  mainItem: item,
+                  mainItemIdx: itemIdx, 
+                  reportIdx: latestReportIdx 
+              });
+          });
         }
       });
     });
@@ -74,12 +128,12 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({ projects,
             valB = b.project.name;
             break;
           case 'date':
-            valA = a.item.productionDate || getDaysOffset(a.project.appointmentDate, -7) || '9999-12-31';
-            valB = b.item.productionDate || getDaysOffset(b.project.appointmentDate, -7) || '9999-12-31';
+            valA = a.mainItem.productionDate || getDaysOffset(a.project.appointmentDate, -7) || '9999-12-31';
+            valB = b.mainItem.productionDate || getDaysOffset(b.project.appointmentDate, -7) || '9999-12-31';
             break;
           case 'name':
-            valA = a.item.name;
-            valB = b.item.name;
+            valA = a.subItem.spec || a.subItem.name;
+            valB = b.subItem.spec || b.subItem.name;
             break;
         }
 
@@ -88,8 +142,8 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({ projects,
       });
     } else {
         list.sort((a, b) => {
-            const dateA = a.item.productionDate || getDaysOffset(a.project.appointmentDate, -7) || '9999-12-31';
-            const dateB = b.item.productionDate || getDaysOffset(b.project.appointmentDate, -7) || '9999-12-31';
+            const dateA = a.mainItem.productionDate || getDaysOffset(a.project.appointmentDate, -7) || '9999-12-31';
+            const dateB = b.mainItem.productionDate || getDaysOffset(b.project.appointmentDate, -7) || '9999-12-31';
             return dateA.localeCompare(dateB);
         });
     }
@@ -139,7 +193,7 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({ projects,
           </div>
           <div>
             <h1 className="text-xl font-bold text-slate-800">採購項目總覽</h1>
-            <p className="text-xs text-slate-500 font-medium">彙整報價單內容，預設「預定生產日期」為預約日期前 7 天</p>
+            <p className="text-xs text-slate-500 font-medium">導入圍籬材料清單，主品項預設日期為預約日期前 7 天</p>
           </div>
         </div>
       </div>
@@ -164,28 +218,28 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({ projects,
                     品名 {renderSortIcon('name')}
                   </button>
                 </th>
-                <th className="px-6 py-4">規格</th>
+                <th className="px-6 py-4">規格 (歸屬)</th>
                 <th className="px-6 py-4 w-24 text-center">數量</th>
                 <th className="px-6 py-4 w-20">單位</th>
                 <th className="px-6 py-4">注意/備註</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {purchasingItems.length > 0 ? purchasingItems.map(({ project, item, itemIdx, reportIdx }, idx) => {
+              {purchasingItems.length > 0 ? purchasingItems.map(({ project, subItem, mainItem, mainItemIdx, reportIdx }, idx) => {
                 const defaultDate = getDaysOffset(project.appointmentDate, -7);
-                const displayDate = item.productionDate || defaultDate;
+                const displayDate = mainItem.productionDate || defaultDate;
 
                 return (
-                  <tr key={`${project.id}-${idx}`} className={`hover:bg-slate-50/50 transition-colors group ${item.isProduced ? 'opacity-60' : ''}`}>
+                  <tr key={`${project.id}-${idx}`} className={`hover:bg-slate-50/50 transition-colors group ${mainItem.isProduced ? 'opacity-60' : ''}`}>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
                         <input 
                           type="checkbox" 
-                          checked={!!item.isProduced}
-                          onChange={() => handleToggleProduced(project.id, reportIdx, itemIdx)}
+                          checked={!!mainItem.isProduced}
+                          onChange={() => handleToggleProduced(project.id, reportIdx, mainItemIdx)}
                           className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
                         />
-                        <div className={`font-black text-sm truncate max-w-[140px] ${item.isProduced ? 'text-slate-400 line-through' : 'text-indigo-700'}`}>
+                        <div className={`font-black text-sm truncate max-w-[140px] ${mainItem.isProduced ? 'text-slate-400 line-through' : 'text-indigo-700'}`}>
                           {project.name}
                         </div>
                       </div>
@@ -196,28 +250,36 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({ projects,
                         <input 
                           type="date" 
                           value={displayDate}
-                          onChange={(e) => handleUpdateItemDate(project.id, reportIdx, itemIdx, e.target.value)}
+                          onChange={(e) => handleUpdateItemDate(project.id, reportIdx, mainItemIdx, e.target.value)}
                           className="w-full pl-7 pr-2 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-700 outline-none focus:bg-white focus:ring-1 focus:ring-indigo-500"
                         />
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <div className={`font-bold text-sm ${item.isProduced ? 'text-slate-400' : 'text-slate-800'}`}>{item.name}</div>
+                      {/* 規則：「規格填寫」導入「品名」 */}
+                      <div className={`font-bold text-sm ${mainItem.isProduced ? 'text-slate-400' : 'text-slate-800'}`}>
+                        {subItem.spec || '(未填寫規格)'}
+                      </div>
                     </td>
                     <td className="px-6 py-4">
-                      <div className="text-xs text-slate-500 whitespace-pre-wrap max-w-[200px] leading-relaxed">
-                        {item.spec || '-'}
+                      <div className="text-[11px] text-slate-500 font-bold bg-slate-50 px-2 py-1 rounded border border-slate-100 truncate max-w-[180px]">
+                        {mainItem.name}
                       </div>
                     </td>
                     <td className="px-6 py-4 text-center">
-                      <span className={`font-black text-sm ${item.isProduced ? 'text-slate-400' : 'text-blue-600'}`}>{item.quantity}</span>
+                      {/* 規則：「數量 (自動)」導入「數量」 */}
+                      <span className={`font-black text-sm ${mainItem.isProduced ? 'text-slate-400' : 'text-blue-600'}`}>
+                        {subItem.quantity}
+                      </span>
                     </td>
                     <td className="px-6 py-4">
-                      <span className="text-xs text-slate-400 font-bold">{item.unit}</span>
+                      {/* 規則：「單位」導入「單位」 */}
+                      <span className="text-xs text-slate-400 font-bold">{subItem.unit}</span>
                     </td>
                     <td className="px-6 py-4">
-                      <div className="text-xs text-slate-500 italic truncate max-w-[150px]">
-                        {item.itemNote || '-'}
+                      {/* 規則：「材料名稱」導入「注意/備註」 */}
+                      <div className="text-xs text-slate-500 font-medium truncate max-w-[150px]">
+                        {subItem.name}
                       </div>
                     </td>
                   </tr>
@@ -226,7 +288,8 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({ projects,
                 <tr>
                   <td colSpan={7} className="py-32 text-center text-slate-400">
                     <BoxIcon className="w-16 h-16 mx-auto mb-4 opacity-10" />
-                    <p className="text-base font-bold">目前沒有任何待採購的規劃項目</p>
+                    <p className="text-base font-bold">目前沒有任何符合採購規則的項目</p>
+                    <p className="text-xs mt-1">系統僅導入圍籬分類下，非生產且非協力廠商的材料細項</p>
                   </td>
                 </tr>
               )}
@@ -234,8 +297,8 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({ projects,
           </table>
         </div>
         <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 text-[10px] font-bold text-slate-400 uppercase tracking-widest flex justify-between items-center">
-          <span>共計 {purchasingItems.length} 項採購規劃</span>
-          <span>日期自動連動案件預約時間</span>
+          <span>共計 {purchasingItems.length} 項採購細目</span>
+          <span>映射規則：規格填寫 $\rightarrow$ 品名，材料名稱 $\rightarrow$ 注意</span>
         </div>
       </div>
     </div>
