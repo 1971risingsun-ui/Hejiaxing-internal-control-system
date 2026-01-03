@@ -151,8 +151,8 @@ const SupplierList: React.FC<SupplierListProps> = ({
         }
 
         const vendorCol = headers['廠商'];
-        const comboCol = headers['品項(規格)'];
-        const itemCol = headers['品項'];
+        const comboCol = headers['品項(規格)'] || headers['材料名稱(規格)'];
+        const itemCol = headers['品項'] || headers['材料名稱'];
         const specCol = headers['規格'];
 
         // 若此工作表找不到必要欄位則跳過
@@ -183,7 +183,7 @@ const SupplierList: React.FC<SupplierListProps> = ({
 
       const vendorNames = Object.keys(tempImportMap);
       if (vendorNames.length === 0) {
-        alert('在 Excel 的所有工作表中皆找不到有效的數據（需包含「廠商」與「品項」相關欄位）');
+        alert('在 Excel 的所有工作表中皆找不到有效的數據（需包含「廠商」與「品項/材料名稱」相關欄位）');
         setIsImporting(false);
         return;
       }
@@ -373,7 +373,7 @@ const SupplierList: React.FC<SupplierListProps> = ({
                 {/* 新增品項輸入區 */}
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-2 mb-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
                   <div>
-                    <label className="block text-[9px] font-black text-slate-400 uppercase mb-1">品名</label>
+                    <label className="block text-[9px] font-black text-slate-400 uppercase mb-1">材料名稱</label>
                     <input 
                       type="text" 
                       placeholder="產品名稱..."
@@ -418,7 +418,7 @@ const SupplierList: React.FC<SupplierListProps> = ({
                   <table className="w-full text-left border-collapse">
                     <thead className="bg-slate-50 text-slate-400 text-[9px] font-black uppercase tracking-widest border-b border-slate-200">
                       <tr>
-                        <th className="px-4 py-2">品名</th>
+                        <th className="px-4 py-2">材料名稱</th>
                         <th className="px-4 py-2">規格</th>
                         <th className="px-4 py-2">用途</th>
                         <th className="px-4 py-2 w-12 text-center">操作</th>
@@ -442,7 +442,7 @@ const SupplierList: React.FC<SupplierListProps> = ({
                         </tr>
                       )) : (
                         <tr>
-                          <td colSpan={4} className="px-4 py-8 text-center text-slate-400 text-xs italic">尚未加入任何產品紀錄</td>
+                          <td colSpan={4} className="px-4 py-8 text-center text-slate-400 text-xs italic">尚未加入任何材料紀錄</td>
                         </tr>
                       )}
                     </tbody>
