@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef } from 'react';
 import { Supplier, ProductEntry } from '../types';
-import { SearchIcon, PlusIcon, MapPinIcon, UserIcon, PhoneIcon, BoxIcon, TrashIcon, EditIcon, XIcon, CheckCircleIcon, UsersIcon, FileTextIcon, LoaderIcon } from './Icons';
+import { SearchIcon, PlusIcon, MapPinIcon, UserIcon, PhoneIcon, BoxIcon, TrashIcon, EditIcon, XIcon, CheckCircleIcon, UsersIcon, FileTextIcon, LoaderIcon, ChevronRightIcon } from './Icons';
 import ExcelJS from 'exceljs';
 
 interface SupplierListProps {
@@ -35,6 +35,9 @@ const SupplierList: React.FC<SupplierListProps> = ({
   });
 
   const [tempProduct, setTempProduct] = useState({ name: '', spec: '', usage: '' });
+  
+  // 主要業務表格排序狀態
+  const [prodSort, setProdSort] = useState<{key: keyof ProductEntry, dir: 'asc' | 'desc' | null}>({ key: 'name', dir: null });
 
   // 根據 themeColor 動態設定 CSS class
   const colorConfig = useMemo(() => {
@@ -46,7 +49,7 @@ const SupplierList: React.FC<SupplierListProps> = ({
     }
   }, [themeColor]);
 
-  // 模糊搜尋與排序邏輯
+  // 模糊搜尋與排序邏輯 (主清單)
   const filteredSuppliers = useMemo(() => {
     const search = searchTerm.toLowerCase().trim();
     
@@ -65,6 +68,34 @@ const SupplierList: React.FC<SupplierListProps> = ({
       s.productList.some(p => p.name.toLowerCase().includes(search) || p.spec.toLowerCase().includes(search) || p.usage.toLowerCase().includes(search))
     );
   }, [suppliers, searchTerm]);
+
+  // 主要業務表格展示邏輯 (含排序處理)
+  const displayProducts = useMemo(() => {
+    const withOriginalIdx = formData.productList.map((p, i) => ({ ...p, originalIdx: i }));
+    if (!prodSort.dir) return withOriginalIdx;
+
+    return [...withOriginalIdx].sort((a, b) => {
+      const valA = (a[prodSort.key] || '').toLowerCase();
+      const valB = (b[prodSort.key] || '').toLowerCase();
+      return prodSort.dir === 'asc' ? valA.localeCompare(valB, 'zh-Hant') : valB.localeCompare(valA, 'zh-Hant');
+    });
+  }, [formData.productList, prodSort]);
+
+  const handleProdSort = (key: keyof ProductEntry) => {
+    setProdSort(prev => {
+      if (prev.key === key) {
+        if (prev.dir === 'asc') return { key, dir: 'desc' };
+        if (prev.dir === 'desc') return { key, dir: null };
+        return { key, dir: 'asc' };
+      }
+      return { key, dir: 'asc' };
+    });
+  };
+
+  const renderSortIndicator = (key: keyof ProductEntry) => {
+    if (prodSort.key !== key || !prodSort.dir) return <span className="opacity-20 ml-1">⇅</span>;
+    return <span className="ml-1 text-indigo-500 font-bold">{prodSort.dir === 'asc' ? '↑' : '↓'}</span>;
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -93,6 +124,7 @@ const SupplierList: React.FC<SupplierListProps> = ({
     });
     setEditingId(s.id);
     setIsAdding(true);
+    setProdSort({ key: 'name', dir: null }); // 重置排序
   };
 
   // 安全取得 Excel 儲存格字串
@@ -171,6 +203,7 @@ const SupplierList: React.FC<SupplierListProps> = ({
           } else if (itemCol) {
             const iName = getSafeText(row.getCell(itemCol)).trim();
             const sName = specCol ? getSafeText(row.getCell(specCol)).trim() : '';
+            // 暫時合併以便去重
             fullItem = sName ? `${iName}(${sName})` : iName;
           }
           
@@ -264,9 +297,9 @@ const SupplierList: React.FC<SupplierListProps> = ({
     setTempProduct({ name: '', spec: '', usage: '' });
   };
 
-  const removeProduct = (index: number) => {
+  const removeProduct = (originalIdx: number) => {
     const newList = [...formData.productList];
-    newList.splice(index, 1);
+    newList.splice(originalIdx, 1);
     setFormData({ ...formData, productList: newList });
   };
 
@@ -418,22 +451,37 @@ const SupplierList: React.FC<SupplierListProps> = ({
                   <table className="w-full text-left border-collapse">
                     <thead className="bg-slate-50 text-slate-400 text-[9px] font-black uppercase tracking-widest border-b border-slate-200">
                       <tr>
-                        <th className="px-4 py-2">材料名稱</th>
-                        <th className="px-4 py-2">規格</th>
-                        <th className="px-4 py-2">用途</th>
+                        <th 
+                          className="px-4 py-2 cursor-pointer hover:bg-slate-100 transition-colors"
+                          onClick={() => handleProdSort('name')}
+                        >
+                          材料名稱 {renderSortIndicator('name')}
+                        </th>
+                        <th 
+                          className="px-4 py-2 cursor-pointer hover:bg-slate-100 transition-colors"
+                          onClick={() => handleProdSort('spec')}
+                        >
+                          規格 {renderSortIndicator('spec')}
+                        </th>
+                        <th 
+                          className="px-4 py-2 cursor-pointer hover:bg-slate-100 transition-colors"
+                          onClick={() => handleProdSort('usage')}
+                        >
+                          用途 {renderSortIndicator('usage')}
+                        </th>
                         <th className="px-4 py-2 w-12 text-center">操作</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      {formData.productList.length > 0 ? formData.productList.map((p, idx) => (
-                        <tr key={idx} className="hover:bg-slate-50 transition-colors animate-scale-in">
+                      {displayProducts.length > 0 ? displayProducts.map((p) => (
+                        <tr key={p.originalIdx} className="hover:bg-slate-50 transition-colors animate-scale-in">
                           <td className="px-4 py-2 text-sm font-bold text-slate-700">{p.name}</td>
                           <td className="px-4 py-2 text-xs text-slate-500">{p.spec || '-'}</td>
                           <td className="px-4 py-2 text-xs text-slate-500">{p.usage || '-'}</td>
                           <td className="px-4 py-2 text-center">
                             <button 
                               type="button" 
-                              onClick={() => removeProduct(idx)}
+                              onClick={() => removeProduct(p.originalIdx)}
                               className="text-slate-300 hover:text-red-500 transition-colors"
                             >
                               <TrashIcon className="w-4 h-4" />
