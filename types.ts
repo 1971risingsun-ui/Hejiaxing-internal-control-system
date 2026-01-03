@@ -102,8 +102,8 @@ export interface CompletionItem {
   category: string;
   spec?: string;
   itemNote?: string;
-  productionDate?: string; // 新增：生產備料日期
-  isProduced?: boolean; // 新增：生產備料是否完成
+  productionDate?: string; 
+  isProduced?: boolean; 
 }
 
 export interface CompletionReport {
@@ -163,11 +163,10 @@ export interface FenceMaterialSheet {
   items: FenceMaterialItem[];
 }
 
-// 系統規則設定相關介面
 export interface MaterialFormulaItem {
   id: string;
   name: string;
-  formula: string; // 例如: "Math.ceil(baseQty / 2.4 + 1)"
+  formula: string; 
   unit: string;
 }
 
@@ -182,6 +181,16 @@ export interface SystemRules {
   productionKeywords: string[];
   subcontractorKeywords: string[];
   materialFormulas: MaterialFormulaConfig[];
+}
+
+export interface StockAlertItem {
+  id: string;
+  name: string;
+  spec: string;
+  quantity: string;
+  unit: string;
+  note: string;
+  timestamp: number;
 }
 
 export interface Project {
@@ -212,7 +221,7 @@ export interface Project {
   constructionSignatures: ConstructionSignature[];
   completionReports: CompletionReport[];
   planningReports: CompletionReport[];
-  fenceMaterialSheets?: Record<string, FenceMaterialSheet>; // Key: item_name + spec + category
+  fenceMaterialSheets?: Record<string, FenceMaterialSheet>; 
 }
 
 export interface AuditLog {
@@ -224,7 +233,6 @@ export interface AuditLog {
   timestamp: number;
 }
 
-// HR 相關介面
 export type EmployeeCategory = '做件' | '現場' | '廠內';
 
 export interface Employee {
@@ -236,21 +244,21 @@ export interface Employee {
 }
 
 export interface AttendanceRecord {
-  date: string; // YYYY-MM-DD
+  date: string; 
   employeeId: string;
-  status: string; // 排休, 請假, 病假, 臨時請假, 廠內, 下午回廠 或 自定義
+  status: string; 
   remark?: string;
 }
 
 export interface OvertimeRecord {
-  date: string; // YYYY-MM-DD
+  date: string; 
   employeeId: string;
   hours: number;
   remark?: string;
 }
 
 export interface MonthSummaryRemark {
-  month: string; // YYYY-MM
+  month: string; 
   employeeId: string;
   remark: string;
 }
@@ -261,7 +269,6 @@ export interface ProductEntry {
   usage: string;
 }
 
-// 供應商相關介面
 export interface Supplier {
   id: string;
   name: string;
@@ -270,10 +277,9 @@ export interface Supplier {
   companyPhone: string;
   mobilePhone: string;
   lineId?: string;
-  productList: ProductEntry[]; // 改為結構化物件陣列
+  productList: ProductEntry[]; 
 }
 
-// 採購單相關介面
 export interface PurchaseOrderItem {
   materialId: string;
   name: string;
@@ -281,14 +287,13 @@ export interface PurchaseOrderItem {
   unit: string;
   price: number;
   notes?: string;
-  // Fix: Add supplierId to PurchaseOrderItem to resolve type errors in component usage.
   supplierId: string;
 }
 
 export interface PurchaseOrder {
   id: string;
   poNumber: string;
-  date: string; // 填表日期
+  date: string; 
   projectId: string;
   projectName: string;
   supplierId: string;

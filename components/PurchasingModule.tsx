@@ -1,5 +1,5 @@
 import React from 'react';
-import { BoxIcon, FileTextIcon, UsersIcon, ClipboardListIcon } from './Icons';
+import { BoxIcon, FileTextIcon, UsersIcon, ClipboardListIcon, AlertIcon } from './Icons';
 
 interface PurchasingModuleProps {
   onNavigate: (view: any) => void;
@@ -8,31 +8,24 @@ interface PurchasingModuleProps {
 const PurchasingModule: React.FC<PurchasingModuleProps> = ({ onNavigate }) => {
   const categories = [
     { 
-      id: 'purchasing_management', 
-      label: '採購管理', 
-      icon: <FileTextIcon className="w-6 h-6" />, 
-      color: 'bg-blue-50 text-blue-600', 
-      desc: '批量匯入 Excel 請購單並追蹤進度' 
-    },
-    { 
       id: 'purchasing_items', 
       label: '採購項目', 
       icon: <ClipboardListIcon className="w-6 h-6" />, 
       color: 'bg-indigo-50 text-indigo-600', 
-      desc: '自動導入報價單清單並預估準備日期' 
+      desc: '自動導入報價單清單並預估採購日期' 
     },
     { 
-      id: 'purchasing_materials', 
-      label: '材料請購', 
-      icon: <BoxIcon className="w-6 h-6" />, 
-      color: 'bg-orange-50 text-orange-600', 
-      desc: '檢視各專案材料清單與進場狀況' 
+      id: 'stock_alert', 
+      label: '常備庫存爆量通知', 
+      icon: <AlertIcon className="w-6 h-6" />, 
+      color: 'bg-rose-50 text-rose-600', 
+      desc: '管理並提示目前常備物料之爆量過剩狀態' 
     },
     { 
       id: 'purchasing_orders', 
       label: '採購單', 
-      icon: <ClipboardListIcon className="w-6 h-6" />, 
-      color: 'bg-indigo-50 text-indigo-600', 
+      icon: <FileTextIcon className="w-6 h-6" />, 
+      color: 'bg-blue-50 text-blue-600', 
       desc: '建立對供應商的正式採購單' 
     },
     { 

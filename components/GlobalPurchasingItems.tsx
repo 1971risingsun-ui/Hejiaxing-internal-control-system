@@ -243,7 +243,7 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({ projects,
                   <button onClick={() => handleSort('projectName')} className="flex items-center hover:text-indigo-600 transition-colors">案件名稱 {renderSortIcon('projectName')}</button>
                 </th>
                 <th className="px-6 py-4 w-40">
-                  <button onClick={() => handleSort('date')} className="flex items-center hover:text-indigo-600 transition-colors">預計生產日期 {renderSortIcon('date')}</button>
+                  <button onClick={() => handleSort('date')} className="flex items-center hover:text-indigo-600 transition-colors">預計採購日期 {renderSortIcon('date')}</button>
                 </th>
                 <th className="px-6 py-4">
                   <button onClick={() => handleSort('name')} className="flex items-center hover:text-indigo-600 transition-colors">品名 {renderSortIcon('name')}</button>
