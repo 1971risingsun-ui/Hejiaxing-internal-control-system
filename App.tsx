@@ -558,62 +558,6 @@ const App: React.FC = () => {
   const [view, setView] = useState<'engineering' | 'engineering_hub' | 'driving_time' | 'weekly_schedule' | 'daily_dispatch' | 'engineering_groups' | 'construction' | 'modular_house' | 'maintenance' | 'purchasing_hub' | 'purchasing_items' | 'stock_alert' | 'purchasing_suppliers' | 'purchasing_subcontractors' | 'purchasing_orders' | 'production' | 'hr' | 'equipment' | 'report' | 'users'>('engineering');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
-  // Fix: Added missing renderEngineeringHub function to resolve "Cannot find name 'renderEngineeringHub'" error.
-  const renderEngineeringHub = () => {
-    const categories = [
-      { id: 'weekly_schedule', label: '週間工作排程', icon: <CalendarIcon className="w-6 h-6" />, color: 'bg-indigo-50 text-indigo-600', desc: '規劃並檢視全週的人員與車輛分配' },
-      { id: 'daily_dispatch', label: '明日工作排程', icon: <BriefcaseIcon className="w-6 h-6" />, color: 'bg-blue-50 text-blue-600', desc: '產生每日派工文字內容與詳細說明' },
-      { id: 'engineering_groups', label: '工程小組管理', icon: <UsersIcon className="w-6 h-6" />, color: 'bg-amber-50 text-amber-600', desc: '設定各組別的預設師傅、助手與車號' },
-      { id: 'driving_time', label: '路徑規劃估算', icon: <NavigationIcon className="w-6 h-6" />, color: 'bg-emerald-50 text-emerald-600', desc: '快速試算多個案場間的行車距離與時間' },
-    ];
-
-    return (
-      <div className="p-6 max-w-5xl mx-auto h-full animate-fade-in">
-        <div className="mb-8">
-          <h1 className="text-2xl font-black text-slate-800">工程排程控制台</h1>
-          <p className="text-sm text-slate-500 font-bold uppercase tracking-widest mt-1 opacity-60">Schedule & Logistics Hub</p>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-6">
-          {categories.map(cat => (
-            <button
-              key={cat.id}
-              onClick={() => setView(cat.id as any)}
-              className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm hover:shadow-md hover:border-blue-500 transition-all group flex flex-col items-center text-center gap-4"
-            >
-              <div className={`p-4 rounded-2xl ${cat.color} group-hover:scale-110 transition-transform`}>
-                {cat.icon}
-              </div>
-              <div className="font-bold text-slate-800 text-lg">{cat.label}</div>
-              <p className="text-xs text-slate-400 font-medium leading-relaxed">{cat.desc}</p>
-              <p className="text-[10px] text-slate-300 font-bold uppercase tracking-widest mt-auto pt-4">Dispatch Module</p>
-            </button>
-          ))}
-        </div>
-      </div>
-    );
-  };
-
-  // Fix: Added missing renderEquipmentView function to resolve "Cannot find name 'renderEquipmentView'" error.
-  const renderEquipmentView = () => {
-    return (
-      <div className="p-6 max-w-5xl mx-auto h-full flex flex-col items-center justify-center text-center animate-fade-in">
-        <div className="bg-blue-100 p-6 rounded-full mb-6">
-          <WrenchIcon className="w-12 h-12 text-blue-600" />
-        </div>
-        <h1 className="text-2xl font-black text-slate-800 mb-2">設備／工具管理模組</h1>
-        <p className="text-slate-500 max-w-md">
-          此模組目前正在開發中。未來將提供機具保養紀錄、工具借用歸還管理以及設備資產清冊追蹤功能。
-        </p>
-        <button 
-          onClick={() => setView('engineering')}
-          className="mt-8 px-8 py-3 bg-slate-900 text-white rounded-xl font-bold shadow-lg shadow-slate-200 hover:bg-black transition-all active:scale-95"
-        >
-          返回工務總覽
-        </button>
-      </div>
-    );
-  };
-
   const handleLogin = (user: User) => { setCurrentUser(user); setView('engineering'); };
   const handleLogout = () => { setCurrentUser(null); setIsSidebarOpen(false); };
   const handleDeleteProject = (id: string) => {
@@ -708,6 +652,21 @@ const App: React.FC = () => {
           <button onClick={() => { setSelectedProject(null); setView('equipment'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'equipment' ? 'bg-blue-600 text-white shadow-md shadow-blue-900/20' : 'text-slate-400 hover:bg-slate-800'}`}>
             <WrenchIcon className="w-5 h-5" /> <span className="font-medium">設備／工具</span>
           </button>
+          <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-2 mt-6 px-4">快速捷徑</div>
+          <button onClick={() => { setSelectedProject(null); setView('report'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'report' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}><ClipboardListIcon className="w-5 h-5" /> <span className="font-medium">工作回報</span></button>
+          {currentUser.role === UserRole.ADMIN && (<button onClick={() => { setView('users'); setSelectedProject(null); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'users' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}><ShieldIcon className="w-4 h-4" /> <span className="font-medium">系統權限</span></button>)}
+          <div className="pt-4 border-t border-slate-800 mt-4 space-y-2">
+            <button onClick={() => handleDirectoryAction(false)} disabled={!isBrowserSupported} className={`flex items-center gap-3 px-4 py-3 rounded-xl w-full transition-all border ${!isBrowserSupported ? 'opacity-30 border-slate-700 bg-slate-800' : isConnected ? 'bg-green-600/10 border-green-500 text-green-400' : 'bg-red-600/10 border-red-500 text-red-400'}`}>
+              {isWorkspaceLoading ? <LoaderIcon className="w-5 h-5 animate-spin" /> : isConnected ? <CheckCircleIcon className="w-5 h-5" /> : <AlertIcon className="w-5 h-5" />}
+              <div className="flex flex-col items-start text-left"><span className="text-sm font-bold">{!isBrowserSupported ? '不支援自動備份' : isConnected ? '電腦同步已開啟' : '未連結電腦目錄'}</span><span className="text-[10px] opacity-70">{isConnected && lastSyncTime ? `最後同步: ${lastSyncTime}` : 'db.json 即時同步'}</span></div>
+            </button>
+            <button onClick={() => window.open("http://192.168.1.2:8080/share.cgi?ssid=79f9da81f26d45bb8e896be3d7d95cbb", "_blank")} className="flex items-center gap-3 px-4 py-3 rounded-xl w-full transition-all bg-sky-600/10 border border-sky-500/30 text-sky-400 hover:bg-sky-600 hover:text-white group"><ExternalLinkIcon className="w-5 h-5" /><div className="flex flex-col items-start text-left"><span className="text-sm font-bold">開啟網路資料夾</span><span className="text-[10px] opacity-70">連至 QNAP 共享空間</span></div></button>
+            <div className="px-1 pt-1 border-t border-slate-800 mt-2 space-y-2">
+              <input type="file" accept=".json" ref={dbJsonInputRef} className="hidden" onChange={handleImportDbJson} />
+              <button onClick={() => dbJsonInputRef.current?.click()} className="flex items-center gap-3 px-4 py-3 rounded-xl w-full transition-all bg-orange-600/10 border border-orange-500/30 text-orange-400 hover:bg-orange-600 hover:text-white group"><UploadIcon className="w-5 h-5" /><div className="flex flex-col items-start text-left"><span className="text-sm font-bold">匯入 db.json</span><span className="text-[10px] opacity-70">還原系統備份資料</span></div></button>
+              <button onClick={handleManualSaveAs} className="flex items-center gap-3 px-4 py-3 rounded-xl w-full transition-all bg-emerald-600/10 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-600 hover:text-white group"><SaveIcon className="w-5 h-5" /><div className="flex flex-col items-start text-left"><span className="text-sm font-bold">手動另存新檔</span><span className="text-[10px] opacity-70">下載 db.json 到本機</span></div></button>
+            </div>
+          </div>
         </nav>
         <div className="p-4 border-t border-slate-800 w-full mt-auto mb-safe">
           <button onClick={handleLogout} className="flex w-full items-center justify-center gap-2 px-4 py-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors text-sm"><LogOutIcon className="w-4 h-4" /> 登出</button>
@@ -739,11 +698,34 @@ const App: React.FC = () => {
     }
   };
 
+  const renderEngineeringHub = () => {
+    const categories = [
+      { id: 'daily_dispatch', label: '明日工作排程', icon: <ClipboardListIcon className="w-6 h-6" />, color: 'bg-blue-50 text-blue-600', desc: '確認明日施工地點與人員' },
+      { id: 'driving_time', label: '估計行車時間', icon: <NavigationIcon className="w-6 h-6" />, color: 'bg-amber-50 text-amber-600', desc: '預估早上 8:00 路徑耗時' },
+      { id: 'weekly_schedule', label: '週間工作排程', icon: <CalendarIcon className="w-6 h-6" />, color: 'bg-indigo-50 text-indigo-600', desc: '規劃本週各小組派工任務' },
+      { id: 'engineering_groups', label: '工程小組設定', icon: <UsersIcon className="w-6 h-6" />, color: 'bg-emerald-50 text-emerald-600', desc: '管理師傅、助手與車號預設' },
+    ];
+    return (
+      <div className="p-6 max-w-5xl mx-auto h-full animate-fade-in">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-6">
+          {categories.map(cat => (
+            <button key={cat.id} onClick={() => setView(cat.id as any)} className="bg-white p-8 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md hover:border-blue-500 transition-all group flex flex-col items-center text-center gap-4"><div className={`p-4 rounded-xl ${cat.color} group-hover:scale-110 transition-transform`}>{cat.icon}</div><div className="font-bold text-slate-800 text-lg">{cat.label}</div><p className="text-xs text-slate-400 font-medium">{cat.desc}</p><p className="text-[10px] text-slate-300 font-bold uppercase tracking-widest mt-2">Work Schedule Hub</p></button>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
+  const renderEquipmentView = () => (
+    <div className="p-6 max-w-5xl mx-auto h-full animate-fade-in flex flex-col items-center justify-center text-center"><div className="p-6 bg-slate-100 rounded-full mb-4"><WrenchIcon className="w-12 h-12 text-slate-400" /></div><h2 className="text-2xl font-bold text-slate-800 mb-2">設備與工具管理</h2><p className="text-slate-500 max-w-md">此模組用於追蹤公司各式機具、車輛維護紀錄與工具借用狀態。功能開發中，維護計畫擬定中。</p></div>
+  );
+
   return (
     <div className="flex h-screen bg-[#f8fafc] overflow-hidden">
       <datalist id="employee-nicknames-list">{employeeNicknames.map((name, i) => <option key={i} value={name} />)}</datalist>
       <div className={`fixed inset-0 z-[100] md:hidden transition-opacity duration-300 ${isSidebarOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
         <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setIsSidebarOpen(false)} />
+        {/* Fix: Added missing opening quote to translate-x-0' to fix parser error */}
         <aside className={`absolute left-0 top-0 bottom-0 w-64 bg-slate-900 text-white flex flex-col transform transition-transform duration-300 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>{renderSidebarContent()}</aside>
       </div>
       <aside className="hidden md:flex w-64 flex-col bg-slate-900 text-white flex-shrink-0">{renderSidebarContent()}</aside>
@@ -761,7 +743,7 @@ const App: React.FC = () => {
            view === 'report' ? (<div className="flex-1 overflow-auto"><GlobalWorkReport projects={projects} currentUser={currentUser} onUpdateProject={handleUpdateProject} /></div>) : 
            view === 'engineering_hub' ? (<div className="flex-1 overflow-auto">{renderEngineeringHub()}</div>) :
            view === 'purchasing_hub' ? (<div className="flex-1 overflow-auto"><PurchasingModule onNavigate={setView} /></div>) :
-           view === 'purchasing_items' ? (<div className="flex-1 overflow-hidden"><GlobalPurchasingItems projects={projects} onUpdateProject={handleUpdateProject} systemRules={systemRules} onBack={() => setView('purchasing_hub')} suppliers={[...suppliers, ...subcontractors]} /></div>) :
+           view === 'purchasing_items' ? (<div className="flex-1 overflow-hidden"><GlobalPurchasingItems projects={projects} onUpdateProject={handleUpdateProject} systemRules={systemRules} onBack={() => setView('purchasing_hub')} /></div>) :
            view === 'stock_alert' ? (<div className="flex-1 overflow-hidden"><StockAlert items={stockAlertItems} onUpdateItems={setStockAlertItems} onBack={() => setView('purchasing_hub')} /></div>) :
            view === 'purchasing_suppliers' ? (
               <div className="flex flex-col flex-1 min-h-0">

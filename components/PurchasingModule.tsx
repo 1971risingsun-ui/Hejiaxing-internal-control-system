@@ -12,14 +12,14 @@ const PurchasingModule: React.FC<PurchasingModuleProps> = ({ onNavigate }) => {
       label: '採購項目', 
       icon: <ClipboardListIcon className="w-6 h-6" />, 
       color: 'bg-indigo-50 text-indigo-600', 
-      desc: '自動導入報價單清單並預估採購日期' 
+      desc: '自動導入報價單清單並預計採購日期' 
     },
     { 
       id: 'stock_alert', 
       label: '常備庫存爆量通知', 
       icon: <AlertIcon className="w-6 h-6" />, 
-      color: 'bg-rose-50 text-rose-600', 
-      desc: '管理並提示目前常備物料之爆量過剩狀態' 
+      color: 'bg-red-50 text-red-600', 
+      desc: '管理常規物料追加需求，及時採購不中斷' 
     },
     { 
       id: 'purchasing_orders', 
