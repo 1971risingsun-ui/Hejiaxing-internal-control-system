@@ -104,6 +104,7 @@ export interface CompletionItem {
   itemNote?: string;
   productionDate?: string; // 此處對應 UI 將顯示為採購日期
   isProduced?: boolean; 
+  supplierId?: string; // 新增：存儲選定的供應商 ID
 }
 
 export interface CompletionReport {
@@ -156,6 +157,7 @@ export interface FenceMaterialItem {
   spec: string;
   quantity: number;
   unit: string;
+  supplierId?: string; // 新增：存儲選定的供應商 ID
 }
 
 export interface FenceMaterialSheet {
