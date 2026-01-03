@@ -469,23 +469,37 @@ const SupplierList: React.FC<SupplierListProps> = ({
                         >
                           用途 {renderSortIndicator('usage')}
                         </th>
-                        <th className="px-4 py-2 w-12 text-center">操作</th>
+                        <th className="px-4 py-2 w-20 text-center">操作</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100">
+                    <tbody className="divide-y divide-slate-100 text-sm">
                       {displayProducts.length > 0 ? displayProducts.map((p) => (
                         <tr key={p.originalIdx} className="hover:bg-slate-50 transition-colors animate-scale-in">
                           <td className="px-4 py-2 text-sm font-bold text-slate-700">{p.name}</td>
                           <td className="px-4 py-2 text-xs text-slate-500">{p.spec || '-'}</td>
                           <td className="px-4 py-2 text-xs text-slate-500">{p.usage || '-'}</td>
                           <td className="px-4 py-2 text-center">
-                            <button 
-                              type="button" 
-                              onClick={() => removeProduct(p.originalIdx)}
-                              className="text-slate-300 hover:text-red-500 transition-colors"
-                            >
-                              <TrashIcon className="w-4 h-4" />
-                            </button>
+                            <div className="flex justify-center gap-1">
+                              <button 
+                                type="button" 
+                                onClick={() => {
+                                  setTempProduct({ name: p.name, spec: p.spec, usage: p.usage });
+                                  removeProduct(p.originalIdx);
+                                }}
+                                className="text-slate-300 hover:text-blue-500 transition-colors p-1"
+                                title="編輯品項"
+                              >
+                                <EditIcon className="w-4 h-4" />
+                              </button>
+                              <button 
+                                type="button" 
+                                onClick={() => removeProduct(p.originalIdx)}
+                                className="text-slate-300 hover:text-red-500 transition-colors p-1"
+                                title="刪除品項"
+                              >
+                                <TrashIcon className="w-4 h-4" />
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       )) : (
