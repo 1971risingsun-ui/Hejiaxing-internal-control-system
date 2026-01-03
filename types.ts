@@ -255,6 +255,12 @@ export interface MonthSummaryRemark {
   remark: string;
 }
 
+export interface ProductEntry {
+  name: string;
+  spec: string;
+  usage: string;
+}
+
 // 供應商相關介面
 export interface Supplier {
   id: string;
@@ -264,7 +270,7 @@ export interface Supplier {
   companyPhone: string;
   mobilePhone: string;
   lineId?: string;
-  productList: string[]; // 改為字串陣列
+  productList: ProductEntry[]; // 改為結構化物件陣列
 }
 
 // 採購單相關介面

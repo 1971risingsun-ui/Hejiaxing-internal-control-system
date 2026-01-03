@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef } from 'react';
-import { Supplier } from '../types';
+import { Supplier, ProductEntry } from '../types';
 import { SearchIcon, PlusIcon, MapPinIcon, UserIcon, PhoneIcon, BoxIcon, TrashIcon, EditIcon, XIcon, CheckCircleIcon, UsersIcon, FileTextIcon, LoaderIcon } from './Icons';
 import ExcelJS from 'exceljs';
 
@@ -34,8 +34,7 @@ const SupplierList: React.FC<SupplierListProps> = ({
     productList: []
   });
 
-  const [tempProduct, setTempProduct] = useState('');
-  const [tempUnit, setTempUnit] = useState('');
+  const [tempProduct, setTempProduct] = useState({ name: '', spec: '', usage: '' });
 
   // 根據 themeColor 動態設定 CSS class
   const colorConfig = useMemo(() => {
@@ -63,7 +62,7 @@ const SupplierList: React.FC<SupplierListProps> = ({
       s.companyPhone.includes(search) ||
       s.mobilePhone.includes(search) ||
       (s.lineId || '').toLowerCase().includes(search) ||
-      s.productList.some(p => p.toLowerCase().includes(search))
+      s.productList.some(p => p.name.toLowerCase().includes(search) || p.spec.toLowerCase().includes(search) || p.usage.toLowerCase().includes(search))
     );
   }, [suppliers, searchTerm]);
 
@@ -194,18 +193,34 @@ const SupplierList: React.FC<SupplierListProps> = ({
 
       vendorNames.forEach(vName => {
         const existingIdx = updatedList.findIndex(s => s.name === vName);
-        const newItems = Array.from(tempImportMap[vName]);
+        const newRawItems = Array.from(tempImportMap[vName]);
+        
+        // 將字串解析為 ProductEntry 物件
+        const newProductEntries: ProductEntry[] = newRawItems.map(raw => {
+          // 嘗試從 "品名(規格)" 解析
+          const match = raw.match(/^(.*?)\((.*?)\)$/);
+          if (match) {
+            return { name: match[1].trim(), spec: match[2].trim(), usage: '' };
+          }
+          return { name: raw.trim(), spec: '', usage: '' };
+        });
 
         if (existingIdx > -1) {
-          // 合併並去重
-          const currentItems = new Set(updatedList[existingIdx].productList);
-          const beforeSize = currentItems.size;
-          newItems.forEach(item => currentItems.add(item));
+          // 合併並去重 (基於品名+規格)
+          const currentList = [...updatedList[existingIdx].productList];
+          const beforeSize = currentList.length;
+          
+          newProductEntries.forEach(newEntry => {
+            if (!currentList.some(e => e.name === newEntry.name && e.spec === newEntry.spec)) {
+              currentList.push(newEntry);
+            }
+          });
+          
           updatedList[existingIdx] = { 
             ...updatedList[existingIdx], 
-            productList: Array.from(currentItems) 
+            productList: currentList 
           };
-          totalMergedItems += (currentItems.size - beforeSize);
+          totalMergedItems += (currentList.length - beforeSize);
         } else {
           // 新增
           updatedList.push({
@@ -216,9 +231,9 @@ const SupplierList: React.FC<SupplierListProps> = ({
             companyPhone: '',
             mobilePhone: '',
             lineId: '',
-            productList: newItems
+            productList: newProductEntries
           });
-          totalMergedItems += newItems.length;
+          totalMergedItems += newProductEntries.length;
         }
         importCount++;
       });
@@ -236,15 +251,17 @@ const SupplierList: React.FC<SupplierListProps> = ({
   };
 
   const addProduct = () => {
-    if (!tempProduct.trim()) return;
-    const finalProduct = tempUnit.trim() ? `${tempProduct.trim()} (${tempUnit.trim()})` : tempProduct.trim();
-    if (formData.productList.includes(finalProduct)) return;
+    if (!tempProduct.name.trim()) return;
+    if (formData.productList.some(p => p.name === tempProduct.name.trim() && p.spec === tempProduct.spec.trim())) return;
     setFormData({
       ...formData,
-      productList: [...formData.productList, finalProduct]
+      productList: [...formData.productList, { 
+        name: tempProduct.name.trim(), 
+        spec: tempProduct.spec.trim(), 
+        usage: tempProduct.usage.trim() 
+      }]
     });
-    setTempProduct('');
-    setTempUnit('');
+    setTempProduct({ name: '', spec: '', usage: '' });
   };
 
   const removeProduct = (index: number) => {
@@ -301,8 +318,7 @@ const SupplierList: React.FC<SupplierListProps> = ({
               onClick={() => {
                 setEditingId(null);
                 setFormData({ name: '', address: '', contact: '', companyPhone: '', mobilePhone: '', lineId: '', productList: [] });
-                setTempProduct('');
-                setTempUnit('');
+                setTempProduct({ name: '', spec: '', usage: '' });
                 setIsAdding(true);
               }}
               className={`${colorConfig.bg} ${colorConfig.hover} text-white w-10 h-10 rounded-xl shadow-lg ${colorConfig.shadow} flex items-center justify-center transition-all active:scale-95 flex-shrink-0`}
@@ -351,39 +367,86 @@ const SupplierList: React.FC<SupplierListProps> = ({
                 <input type="text" value={formData.address} onChange={e => setFormData({...formData, address: e.target.value})} className={`w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none ${colorConfig.ring} font-bold`} />
               </div>
               
-              <div>
-                <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">主要業務 / 產品 (條列式)</label>
-                <div className="flex gap-2 mb-3">
-                  <input 
-                    type="text" 
-                    value={tempProduct}
-                    onChange={(e) => setTempProduct(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addProduct())}
-                    placeholder="輸入業務內容或產品名稱..."
-                    className={`flex-1 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none ${colorConfig.ring} font-medium`}
-                  />
-                  <input 
-                    type="text" 
-                    value={tempUnit}
-                    onChange={(e) => setTempUnit(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addProduct())}
-                    placeholder="單位"
-                    className={`w-20 px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none ${colorConfig.ring} font-medium text-center`}
-                  />
-                  <button type="button" onClick={addProduct} className="bg-slate-800 text-white px-4 rounded-xl font-bold flex items-center gap-2 transition-all active:scale-95">
-                    <PlusIcon className="w-4 h-4" /> 加入
-                  </button>
+              <div className="pt-4 border-t border-slate-100">
+                <label className="block text-[10px] font-bold text-slate-400 uppercase mb-3">主要業務 / 產品明細</label>
+                
+                {/* 新增品項輸入區 */}
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-2 mb-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
+                  <div>
+                    <label className="block text-[9px] font-black text-slate-400 uppercase mb-1">品名</label>
+                    <input 
+                      type="text" 
+                      placeholder="產品名稱..."
+                      value={tempProduct.name}
+                      onChange={(e) => setTempProduct({...tempProduct, name: e.target.value})}
+                      className={`w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none ${colorConfig.ring} text-sm font-bold`}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[9px] font-black text-slate-400 uppercase mb-1">規格</label>
+                    <input 
+                      type="text" 
+                      placeholder="規格型號..."
+                      value={tempProduct.spec}
+                      onChange={(e) => setTempProduct({...tempProduct, spec: e.target.value})}
+                      className={`w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none ${colorConfig.ring} text-sm`}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[9px] font-black text-slate-400 uppercase mb-1">用途</label>
+                    <input 
+                      type="text" 
+                      placeholder="產品用途..."
+                      value={tempProduct.usage}
+                      onChange={(e) => setTempProduct({...tempProduct, usage: e.target.value})}
+                      className={`w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none ${colorConfig.ring} text-sm`}
+                    />
+                  </div>
+                  <div className="flex items-end">
+                    <button 
+                      type="button" 
+                      onClick={addProduct}
+                      className="w-full h-10 bg-slate-800 text-white rounded-lg font-bold flex items-center justify-center gap-2 transition-all active:scale-95 shadow-md"
+                    >
+                      <PlusIcon className="w-4 h-4" /> 加入表格
+                    </button>
+                  </div>
                 </div>
-                <div className="flex flex-wrap gap-2 min-h-[40px] p-3 bg-slate-50 rounded-xl border border-slate-100 shadow-inner">
-                  {formData.productList.map((p, idx) => (
-                    <span key={idx} className={`bg-white border ${colorConfig.border} ${colorConfig.labelText} px-3 py-1 rounded-lg text-sm font-bold flex items-center gap-2 shadow-sm animate-scale-in`}>
-                      {p}
-                      <button type="button" onClick={() => removeProduct(idx)} className="text-slate-300 hover:text-red-500 transition-colors">
-                        <XIcon className="w-3.5 h-3.5" />
-                      </button>
-                    </span>
-                  ))}
-                  {formData.productList.length === 0 && <span className="text-slate-400 text-sm font-medium italic">尚未加入任何紀錄</span>}
+
+                {/* 品項表格展示區 */}
+                <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+                  <table className="w-full text-left border-collapse">
+                    <thead className="bg-slate-50 text-slate-400 text-[9px] font-black uppercase tracking-widest border-b border-slate-200">
+                      <tr>
+                        <th className="px-4 py-2">品名</th>
+                        <th className="px-4 py-2">規格</th>
+                        <th className="px-4 py-2">用途</th>
+                        <th className="px-4 py-2 w-12 text-center">操作</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {formData.productList.length > 0 ? formData.productList.map((p, idx) => (
+                        <tr key={idx} className="hover:bg-slate-50 transition-colors animate-scale-in">
+                          <td className="px-4 py-2 text-sm font-bold text-slate-700">{p.name}</td>
+                          <td className="px-4 py-2 text-xs text-slate-500">{p.spec || '-'}</td>
+                          <td className="px-4 py-2 text-xs text-slate-500">{p.usage || '-'}</td>
+                          <td className="px-4 py-2 text-center">
+                            <button 
+                              type="button" 
+                              onClick={() => removeProduct(idx)}
+                              className="text-slate-300 hover:text-red-500 transition-colors"
+                            >
+                              <TrashIcon className="w-4 h-4" />
+                            </button>
+                          </td>
+                        </tr>
+                      )) : (
+                        <tr>
+                          <td colSpan={4} className="px-4 py-8 text-center text-slate-400 text-xs italic">尚未加入任何產品紀錄</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
                 </div>
               </div>
 
@@ -404,7 +467,7 @@ const SupplierList: React.FC<SupplierListProps> = ({
                 <tr>
                   <th className="px-6 py-4">{typeLabel}名稱</th>
                   <th className="px-6 py-4">LINE</th>
-                  <th className="px-6 py-4">業務類別 (首項)</th>
+                  <th className="px-6 py-4">主要業務 (首項)</th>
                   <th className="px-6 py-4">聯絡電話</th>
                   <th className="px-6 py-4 text-right">操作</th>
                 </tr>
@@ -433,9 +496,12 @@ const SupplierList: React.FC<SupplierListProps> = ({
                       {s.productList && s.productList.length > 0 ? (
                         <div className="flex items-center gap-2">
                           <BoxIcon className={`w-3.5 h-3.5 ${colorConfig.text}`} />
-                          <span className="text-sm font-bold text-slate-600 truncate max-w-[200px]">{s.productList[0]}</span>
+                          <div className="flex flex-col min-w-0">
+                            <span className="text-sm font-bold text-slate-600 truncate max-w-[150px]">{s.productList[0].name}</span>
+                            {s.productList[0].spec && <span className="text-[9px] text-slate-400 truncate max-w-[150px]">{s.productList[0].spec}</span>}
+                          </div>
                           {s.productList.length > 1 && (
-                            <span className="bg-slate-100 text-slate-400 text-[9px] px-1.5 py-0.5 rounded font-bold">
+                            <span className="bg-slate-100 text-slate-400 text-[9px] px-1.5 py-0.5 rounded font-bold whitespace-nowrap">
                               +{s.productList.length - 1}
                             </span>
                           )}
