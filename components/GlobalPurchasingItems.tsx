@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { Project, CompletionItem, FenceMaterialItem, FenceMaterialSheet, SystemRules } from '../types';
-import { ClipboardListIcon, BoxIcon, CalendarIcon, TrashIcon, PlusIcon, ChevronRightIcon, ArrowLeftIcon } from './Icons';
+import { ClipboardListIcon, BoxIcon, CalendarIcon, TrashIcon, PlusIcon, ChevronRightIcon, ArrowLeftIcon, EditIcon, XIcon, CheckCircleIcon } from './Icons';
 
 interface GlobalPurchasingItemsProps {
   projects: Project[];
@@ -17,6 +17,16 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({ projects,
     key: 'date',
     direction: 'asc',
   });
+  
+  // 篩選與編輯狀態
+  const [projectFilter, setProjectFilter] = useState<string>('ALL');
+  const [editingItem, setEditingItem] = useState<{
+    project: Project;
+    subItem: FenceMaterialItem;
+    mainItem: CompletionItem;
+    itemKey: string;
+    subIdx: number;
+  } | null>(null);
 
   const getDaysOffset = (dateStr: string, days: number) => {
     if (!dateStr) return '';
@@ -70,14 +80,16 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({ projects,
     setSortConfig({ key, direction });
   };
 
-  // 彙整採購細項 (基於材料單內容)
-  const purchasingItems = useMemo(() => {
+  // 彙整所有採購細項
+  const allPurchasingItems = useMemo(() => {
     let list: { 
         project: Project; 
         subItem: FenceMaterialItem; 
         mainItem: CompletionItem; 
         mainItemIdx: number; 
-        reportIdx: number 
+        reportIdx: number;
+        itemKey: string;
+        subIdx: number;
     }[] = [];
     
     projects.forEach(project => {
@@ -91,32 +103,37 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({ projects,
       
       report.items.forEach((item, itemIdx) => {
         const name = item.name || '';
-        // 規則 1: 只要導入圍籬頁籤
         const isFence = item.category === 'FENCE_MAIN';
-        // 規則 2: 不包含「生產/備料」和「協力廠商」
         const isSub = systemRules.subcontractorKeywords.some(kw => name.includes(kw));
         const isProd = systemRules.productionKeywords.some(kw => name.includes(kw));
         
         if (isFence && !isSub && !isProd) {
-          // 規則 3: 導入材料單內容
           const itemKey = getItemKey(item);
           const savedSheet = project.fenceMaterialSheets?.[itemKey];
           const autoData = getDefaultMaterialItems(item.name, item.quantity);
           const activeSubItems = savedSheet?.items || autoData?.items || [];
 
-          activeSubItems.forEach(sub => {
+          activeSubItems.forEach((sub, subIdx) => {
               list.push({ 
                   project, 
                   subItem: sub, 
                   mainItem: item,
                   mainItemIdx: itemIdx, 
-                  reportIdx: latestReportIdx 
+                  reportIdx: latestReportIdx,
+                  itemKey,
+                  subIdx
               });
           });
         }
       });
     });
     
+    // 過濾案件
+    if (projectFilter !== 'ALL') {
+        list = list.filter(i => i.project.id === projectFilter);
+    }
+
+    // 排序
     if (sortConfig.direction) {
       list.sort((a, b) => {
         let valA = '';
@@ -149,7 +166,20 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({ projects,
     }
     
     return list;
-  }, [projects, sortConfig, systemRules]);
+  }, [projects, sortConfig, systemRules, projectFilter]);
+
+  // 取得不重複的案件清單供篩選使用
+  const uniqueProjectList = useMemo(() => {
+    const map = new Map<string, string>();
+    allPurchasingItems.forEach(i => map.set(i.project.id, i.project.name));
+    // 即使沒在篩選後清單，也應該從全量抓取
+    const fullMap = new Map<string, string>();
+    projects.forEach(p => {
+        const hasItems = p.planningReports?.some(r => r.items.some(it => it.category === 'FENCE_MAIN'));
+        if (hasItems) fullMap.set(p.id, p.name);
+    });
+    return Array.from(fullMap.entries()).map(([id, name]) => ({ id, name }));
+  }, [projects, allPurchasingItems]);
 
   const handleUpdateItemDate = (projId: string, reportIdx: number, itemIdx: number, newDate: string) => {
     const project = projects.find(p => p.id === projId);
@@ -175,6 +205,34 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({ projects,
     onUpdateProject({ ...project, planningReports: updatedReports });
   };
 
+  const handleSaveModification = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingItem) return;
+
+    const { project, itemKey, subIdx, subItem } = editingItem;
+    
+    // 取得或初始化材料單
+    const sheets = { ...(project.fenceMaterialSheets || {}) };
+    let sheet = sheets[itemKey];
+    
+    if (!sheet) {
+        // 若之前是自動換算且沒存檔，需先產生
+        const autoData = getDefaultMaterialItems(editingItem.mainItem.name, editingItem.mainItem.quantity);
+        sheet = { 
+            category: autoData?.category || '其他', 
+            items: autoData?.items || [] 
+        };
+    }
+
+    const newItems = [...sheet.items];
+    newItems[subIdx] = { ...subItem };
+    
+    sheets[itemKey] = { ...sheet, items: newItems };
+    
+    onUpdateProject({ ...project, fenceMaterialSheets: sheets });
+    setEditingItem(null);
+  };
+
   const renderSortIcon = (key: SortKey) => {
     if (sortConfig.key !== key) return <div className="flex flex-col opacity-20 ml-1"><ChevronRightIcon className="w-2 h-2 -rotate-90" /><ChevronRightIcon className="w-2 h-2 rotate-90" /></div>;
     return <div className="flex flex-col ml-1 text-indigo-600"><ChevronRightIcon className={`w-2 h-2 -rotate-90 ${sortConfig.direction === 'asc' ? '' : 'opacity-20'}`} /><ChevronRightIcon className={`w-2 h-2 rotate-90 ${sortConfig.direction === 'desc' ? '' : 'opacity-20'}`} /></div>;
@@ -182,8 +240,25 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({ projects,
 
   return (
     <div className="p-4 md:p-6 max-w-7xl mx-auto flex flex-col gap-6 animate-fade-in h-full overflow-hidden">
-      <div className="flex items-center gap-2 text-slate-500 hover:text-indigo-600 font-bold text-xs cursor-pointer transition-colors w-fit" onClick={onBack}>
-        <ArrowLeftIcon className="w-3 h-3" /> 返回採購
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center gap-2 text-slate-500 hover:text-indigo-600 font-bold text-xs cursor-pointer transition-colors w-fit" onClick={onBack}>
+          <ArrowLeftIcon className="w-3 h-3" /> 返回採購
+        </div>
+
+        {/* 案件快速篩選選單 */}
+        <div className="flex items-center gap-2">
+            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest hidden sm:block">案件過濾:</label>
+            <select 
+                value={projectFilter}
+                onChange={(e) => setProjectFilter(e.target.value)}
+                className="px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-600 outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm"
+            >
+                <option value="ALL">全部案件 (顯示全部項目)</option>
+                {uniqueProjectList.map(p => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+            </select>
+        </div>
       </div>
 
       <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row justify-between items-center gap-4 flex-shrink-0">
@@ -200,7 +275,7 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({ projects,
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex-1 flex flex-col min-h-0">
         <div className="overflow-x-auto custom-scrollbar flex-1">
-          <table className="w-full text-left border-collapse min-w-[1000px]">
+          <table className="w-full text-left border-collapse min-w-[1100px]">
             <thead className="bg-slate-50 text-slate-500 text-[10px] uppercase font-black tracking-widest border-b border-slate-200 sticky top-0 z-10">
               <tr>
                 <th className="px-6 py-4 w-44">
@@ -220,12 +295,14 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({ projects,
                 </th>
                 <th className="px-6 py-4">規格 (歸屬)</th>
                 <th className="px-6 py-4 w-24 text-center">數量</th>
-                <th className="px-6 py-4 w-20">單位</th>
+                <th className="px-6 py-4 w-20 text-center">單位</th>
                 <th className="px-6 py-4">注意/備註</th>
+                <th className="px-6 py-4 w-16 text-right">操作</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {purchasingItems.length > 0 ? purchasingItems.map(({ project, subItem, mainItem, mainItemIdx, reportIdx }, idx) => {
+              {allPurchasingItems.length > 0 ? allPurchasingItems.map((entry, idx) => {
+                const { project, subItem, mainItem, mainItemIdx, reportIdx, itemKey, subIdx } = entry;
                 const defaultDate = getDaysOffset(project.appointmentDate, -7);
                 const displayDate = mainItem.productionDate || defaultDate;
 
@@ -256,7 +333,6 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({ projects,
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      {/* 規則：「規格填寫」導入「品名」 */}
                       <div className={`font-bold text-sm ${mainItem.isProduced ? 'text-slate-400' : 'text-slate-800'}`}>
                         {subItem.spec || '(未填寫規格)'}
                       </div>
@@ -267,26 +343,32 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({ projects,
                       </div>
                     </td>
                     <td className="px-6 py-4 text-center">
-                      {/* 規則：「數量 (自動)」導入「數量」 */}
                       <span className={`font-black text-sm ${mainItem.isProduced ? 'text-slate-400' : 'text-blue-600'}`}>
                         {subItem.quantity}
                       </span>
                     </td>
-                    <td className="px-6 py-4">
-                      {/* 規則：「單位」導入「單位」 */}
+                    <td className="px-6 py-4 text-center">
                       <span className="text-xs text-slate-400 font-bold">{subItem.unit}</span>
                     </td>
                     <td className="px-6 py-4">
-                      {/* 規則：「材料名稱」導入「注意/備註」 */}
                       <div className="text-xs text-slate-500 font-medium truncate max-w-[150px]">
                         {subItem.name}
                       </div>
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                        <button 
+                            onClick={() => setEditingItem({ ...entry })}
+                            className="p-2 text-slate-300 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all"
+                            title="修改細項"
+                        >
+                            <EditIcon className="w-4 h-4" />
+                        </button>
                     </td>
                   </tr>
                 );
               }) : (
                 <tr>
-                  <td colSpan={7} className="py-32 text-center text-slate-400">
+                  <td colSpan={8} className="py-32 text-center text-slate-400">
                     <BoxIcon className="w-16 h-16 mx-auto mb-4 opacity-10" />
                     <p className="text-base font-bold">目前沒有任何符合採購規則的項目</p>
                     <p className="text-xs mt-1">系統僅導入圍籬分類下，非生產且非協力廠商的材料細項</p>
@@ -297,10 +379,103 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({ projects,
           </table>
         </div>
         <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 text-[10px] font-bold text-slate-400 uppercase tracking-widest flex justify-between items-center">
-          <span>共計 {purchasingItems.length} 項採購細目</span>
+          <span>共計 {allPurchasingItems.length} 項採購細目</span>
           <span>映射規則：規格填寫 $\rightarrow$ 品名，材料名稱 $\rightarrow$ 注意</span>
         </div>
       </div>
+
+      {/* 修改細項 Modal */}
+      {editingItem && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
+            <div className="bg-white w-full max-w-md rounded-[32px] shadow-2xl overflow-hidden flex flex-col animate-scale-in">
+                <header className="px-8 py-5 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                    <div className="flex items-center gap-3">
+                        <div className="bg-indigo-600 p-2 rounded-xl text-white">
+                            <EditIcon className="w-4 h-4" />
+                        </div>
+                        <h3 className="font-black text-slate-800">修改採購細項</h3>
+                    </div>
+                    <button onClick={() => setEditingItem(null)} className="p-2 text-slate-400 hover:bg-red-50 hover:text-red-500 rounded-full transition-colors">
+                        <XIcon className="w-5 h-5" />
+                    </button>
+                </header>
+                
+                <form onSubmit={handleSaveModification} className="p-8 space-y-5">
+                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 mb-2">
+                        <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-0.5">來源案件與主項</div>
+                        <div className="text-sm font-black text-slate-800 truncate">{editingItem.project.name}</div>
+                        <div className="text-xs font-bold text-indigo-600 mt-1">{editingItem.mainItem.name}</div>
+                    </div>
+
+                    <div className="space-y-4">
+                        <div>
+                            <label className="block text-[10px] font-black text-slate-500 uppercase mb-1.5 tracking-wider">品名 (規格填寫)</label>
+                            <input 
+                                type="text"
+                                required
+                                value={editingItem.subItem.spec}
+                                onChange={e => setEditingItem({ ...editingItem, subItem: { ...editingItem.subItem, spec: e.target.value } })}
+                                className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500 transition-all shadow-inner"
+                                placeholder="輸入細項名稱..."
+                            />
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-[10px] font-black text-slate-500 uppercase mb-1.5 tracking-wider">數量</label>
+                                <input 
+                                    type="number"
+                                    required
+                                    step="0.01"
+                                    value={editingItem.subItem.quantity}
+                                    onChange={e => setEditingItem({ ...editingItem, subItem: { ...editingItem.subItem, quantity: parseFloat(e.target.value) || 0 } })}
+                                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-indigo-600 outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500 transition-all shadow-inner"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-[10px] font-black text-slate-500 uppercase mb-1.5 tracking-wider">單位</label>
+                                <input 
+                                    type="text"
+                                    required
+                                    value={editingItem.subItem.unit}
+                                    onChange={e => setEditingItem({ ...editingItem, subItem: { ...editingItem.subItem, unit: e.target.value } })}
+                                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-600 outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500 transition-all shadow-inner"
+                                    placeholder="米、支..."
+                                />
+                            </div>
+                        </div>
+
+                        <div>
+                            <label className="block text-[10px] font-black text-slate-500 uppercase mb-1.5 tracking-wider">注意/備註 (材料名稱)</label>
+                            <input 
+                                type="text"
+                                value={editingItem.subItem.name}
+                                onChange={e => setEditingItem({ ...editingItem, subItem: { ...editingItem.subItem, name: e.target.value } })}
+                                className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500 transition-all shadow-inner"
+                                placeholder="輸入備註事項..."
+                            />
+                        </div>
+                    </div>
+
+                    <footer className="pt-6 flex gap-3">
+                        <button 
+                            type="button"
+                            onClick={() => setEditingItem(null)}
+                            className="flex-1 py-3.5 rounded-2xl text-sm font-bold text-slate-500 hover:bg-slate-100 transition-colors"
+                        >
+                            取消
+                        </button>
+                        <button 
+                            type="submit"
+                            className="flex-[2] flex items-center justify-center gap-2 py-3.5 rounded-2xl text-sm font-black bg-indigo-600 text-white hover:bg-indigo-700 shadow-lg shadow-indigo-100 transition-all active:scale-95"
+                        >
+                            <CheckCircleIcon className="w-5 h-5" /> 儲存變更
+                        </button>
+                    </footer>
+                </form>
+            </div>
+        </div>
+      )}
     </div>
   );
 };
