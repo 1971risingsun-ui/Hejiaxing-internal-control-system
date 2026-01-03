@@ -15,6 +15,13 @@ const PurchasingModule: React.FC<PurchasingModuleProps> = ({ onNavigate }) => {
       desc: '批量匯入 Excel 請購單並追蹤進度' 
     },
     { 
+      id: 'purchasing_items', 
+      label: '採購項目', 
+      icon: <ClipboardListIcon className="w-6 h-6" />, 
+      color: 'bg-indigo-50 text-indigo-600', 
+      desc: '自動導入報價單清單並預估準備日期' 
+    },
+    { 
       id: 'purchasing_materials', 
       label: '材料請購', 
       icon: <BoxIcon className="w-6 h-6" />, 

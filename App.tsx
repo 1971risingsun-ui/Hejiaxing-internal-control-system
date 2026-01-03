@@ -19,6 +19,7 @@ import PurchasingModule from './components/PurchasingModule';
 import SupplierList from './components/SupplierList';
 import PurchaseOrders from './components/PurchaseOrders';
 import GlobalProduction from './components/GlobalProduction';
+import GlobalPurchasingItems from './components/GlobalPurchasingItems';
 import { HomeIcon, UserIcon, LogOutIcon, ShieldIcon, MenuIcon, XIcon, ChevronRightIcon, WrenchIcon, UploadIcon, LoaderIcon, ClipboardListIcon, LayoutGridIcon, BoxIcon, DownloadIcon, FileTextIcon, CheckCircleIcon, AlertIcon, XCircleIcon, UsersIcon, TruckIcon, BriefcaseIcon, ArrowLeftIcon, CalendarIcon, ClockIcon, NavigationIcon, SaveIcon, ExternalLinkIcon, RefreshIcon, PenToolIcon } from './components/Icons';
 import { getDirectoryHandle, saveDbToLocal, loadDbFromLocal, getHandleFromIdb, clearHandleFromIdb, saveAppStateToIdb, loadAppStateFromIdb, saveHandleToIdb } from './utils/fileSystem';
 import { downloadBlob } from './utils/fileHelpers';
@@ -589,7 +590,7 @@ const App: React.FC = () => {
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [view, setView] = useState<'engineering' | 'engineering_hub' | 'driving_time' | 'weekly_schedule' | 'daily_dispatch' | 'engineering_groups' | 'construction' | 'modular_house' | 'maintenance' | 'purchasing_hub' | 'purchasing_management' | 'purchasing_materials' | 'purchasing_suppliers' | 'purchasing_subcontractors' | 'purchasing_orders' | 'production' | 'hr' | 'equipment' | 'report' | 'users'>('engineering');
+  const [view, setView] = useState<'engineering' | 'engineering_hub' | 'driving_time' | 'weekly_schedule' | 'daily_dispatch' | 'engineering_groups' | 'construction' | 'modular_house' | 'maintenance' | 'purchasing_hub' | 'purchasing_management' | 'purchasing_materials' | 'purchasing_items' | 'purchasing_suppliers' | 'purchasing_subcontractors' | 'purchasing_orders' | 'production' | 'hr' | 'equipment' | 'report' | 'users'>('engineering');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   const handleLogin = (user: User) => { setCurrentUser(user); setView('engineering'); };
@@ -774,6 +775,7 @@ const App: React.FC = () => {
       case 'purchasing_hub': return '採購入口';
       case 'purchasing_management': return '採購管理';
       case 'purchasing_materials': return '材料請購';
+      case 'purchasing_items': return '採購項目總覽';
       case 'purchasing_suppliers': return '供應商清冊';
       case 'purchasing_subcontractors': return '協力廠商清冊';
       case 'purchasing_orders': return '採購單管理';
@@ -883,6 +885,11 @@ const App: React.FC = () => {
                 <div className="px-6 pt-4"><button onClick={() => setView('purchasing_hub')} className="flex items-center gap-2 text-slate-500 hover:text-blue-600 font-bold text-xs"><ArrowLeftIcon className="w-3 h-3" /> 返回採購</button></div>
                 <div className="flex-1 overflow-auto"><GlobalMaterials projects={projects} onSelectProject={setSelectedProject} /></div>
               </div>
+           ) :
+           view === 'purchasing_items' ? (
+            <div className="flex-1 overflow-hidden">
+               <GlobalPurchasingItems projects={projects} onUpdateProject={handleUpdateProject} systemRules={systemRules} onBack={() => setView('purchasing_hub')} />
+            </div>
            ) :
            view === 'purchasing_suppliers' ? (
               <div className="flex flex-col flex-1 min-h-0">
