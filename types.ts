@@ -104,6 +104,7 @@ export interface CompletionItem {
   itemNote?: string;
   productionDate?: string; 
   isProduced?: boolean; 
+  supplierId?: string;
 }
 
 export interface CompletionReport {
@@ -156,6 +157,7 @@ export interface FenceMaterialItem {
   spec: string;
   quantity: number;
   unit: string;
+  supplierId?: string;
 }
 
 export interface FenceMaterialSheet {

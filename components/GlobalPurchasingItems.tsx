@@ -1,18 +1,19 @@
 import React, { useMemo, useState } from 'react';
-import { Project, CompletionItem, FenceMaterialItem, FenceMaterialSheet, SystemRules } from '../types';
-import { ClipboardListIcon, BoxIcon, CalendarIcon, TrashIcon, PlusIcon, ChevronRightIcon, ArrowLeftIcon, EditIcon, XIcon, CheckCircleIcon } from './Icons';
+import { Project, CompletionItem, FenceMaterialItem, FenceMaterialSheet, SystemRules, Supplier } from '../types';
+import { ClipboardListIcon, BoxIcon, CalendarIcon, TrashIcon, PlusIcon, ChevronRightIcon, ArrowLeftIcon, EditIcon, XIcon, CheckCircleIcon, UsersIcon } from './Icons';
 
 interface GlobalPurchasingItemsProps {
   projects: Project[];
   onUpdateProject: (updatedProject: Project) => void;
   systemRules: SystemRules;
   onBack: () => void;
+  suppliers: Supplier[];
 }
 
 type SortKey = 'projectName' | 'date' | 'name';
 type SortDirection = 'asc' | 'desc' | null;
 
-const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({ projects, onUpdateProject, systemRules, onBack }) => {
+const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({ projects, onUpdateProject, systemRules, onBack, suppliers }) => {
   const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: SortDirection }>({
     key: 'date',
     direction: 'asc',
@@ -103,14 +104,12 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({ projects,
           const activeSubItems = savedSheet?.items || autoData?.items || [];
 
           if (activeSubItems.length > 0) {
-            // Case A: 有材料單 -> 導入材料單細項，不導入品名
             activeSubItems.forEach((sub, subIdx) => {
                 list.push({ 
                     project, type: 'sub', subItem: sub, mainItem: item, mainItemIdx: itemIdx, reportIdx: latestReportIdx, itemKey, subIdx
                 });
             });
           } else {
-            // Case B: 無材料單 -> 導入品名、規格、數量、單位
             list.push({
                 project, type: 'main', mainItem: item, mainItemIdx: itemIdx, reportIdx: latestReportIdx
             });
@@ -167,14 +166,29 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({ projects,
     onUpdateProject({ ...project, planningReports: updatedReports });
   };
 
-  const handleToggleProduced = (projId: string, reportIdx: number, itemIdx: number) => {
+  const handleUpdateItemSupplier = (projId: string, reportIdx: number, itemIdx: number, supplierId: string, type: 'main' | 'sub', itemKey?: string, subIdx?: number) => {
     const project = projects.find(p => p.id === projId);
     if (!project) return;
-    const updatedReports = [...project.planningReports];
-    const updatedItems = [...updatedReports[reportIdx].items];
-    updatedItems[itemIdx] = { ...updatedItems[itemIdx], isProduced: !updatedItems[itemIdx].isProduced };
-    updatedReports[reportIdx] = { ...updatedReports[reportIdx], items: updatedItems };
-    onUpdateProject({ ...project, planningReports: updatedReports });
+
+    if (type === 'sub' && itemKey !== undefined && subIdx !== undefined) {
+        const sheets = { ...(project.fenceMaterialSheets || {}) };
+        let sheet = sheets[itemKey];
+        if (!sheet) {
+            const mainItem = project.planningReports[reportIdx].items[itemIdx];
+            const autoData = getDefaultMaterialItems(mainItem.name, mainItem.quantity);
+            sheet = { category: autoData?.category || '其他', items: autoData?.items || [] };
+        }
+        const newItems = [...sheet.items];
+        newItems[subIdx] = { ...newItems[subIdx], supplierId };
+        sheets[itemKey] = { ...sheet, items: newItems };
+        onUpdateProject({ ...project, fenceMaterialSheets: sheets });
+    } else {
+        const updatedReports = [...project.planningReports];
+        const updatedItems = [...updatedReports[reportIdx].items];
+        updatedItems[itemIdx] = { ...updatedItems[itemIdx], supplierId };
+        updatedReports[reportIdx] = { ...updatedReports[reportIdx], items: updatedItems };
+        onUpdateProject({ ...project, planningReports: updatedReports });
+    }
   };
 
   const handleSaveModification = (e: React.FormEvent) => {
@@ -202,6 +216,15 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({ projects,
         onUpdateProject({ ...project, planningReports: updatedReports });
     }
     setEditingItem(null);
+  };
+
+  // 獲取匹配的供應商名單
+  const getMatchedSuppliers = (name: string, note: string) => {
+    const searchTarget = (name + note).toLowerCase();
+    const matched = suppliers.filter(s => 
+        s.productList.some(p => p.usage && searchTarget.includes(p.usage.toLowerCase()))
+    );
+    return matched.length > 0 ? matched : suppliers;
   };
 
   const renderSortIcon = (key: SortKey) => {
@@ -236,7 +259,7 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({ projects,
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex-1 flex flex-col min-h-0">
         <div className="overflow-x-auto custom-scrollbar flex-1">
-          <table className="w-full text-left border-collapse min-w-[1100px]">
+          <table className="w-full text-left border-collapse min-w-[1200px]">
             <thead className="bg-slate-50 text-slate-500 text-[10px] uppercase font-black tracking-widest border-b border-slate-200 sticky top-0 z-10">
               <tr>
                 <th className="px-6 py-4 w-44">
@@ -245,6 +268,7 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({ projects,
                 <th className="px-6 py-4 w-40">
                   <button onClick={() => handleSort('date')} className="flex items-center hover:text-indigo-600 transition-colors">預計採購日期 {renderSortIcon('date')}</button>
                 </th>
+                <th className="px-6 py-4 w-48 text-center">供應商</th>
                 <th className="px-6 py-4">
                   <button onClick={() => handleSort('name')} className="flex items-center hover:text-indigo-600 transition-colors">品名 {renderSortIcon('name')}</button>
                 </th>
@@ -257,7 +281,7 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({ projects,
             </thead>
             <tbody className="divide-y divide-slate-100">
               {allPurchasingItems.length > 0 ? allPurchasingItems.map((entry, idx) => {
-                const { project, type, subItem, mainItem, mainItemIdx, reportIdx } = entry;
+                const { project, type, subItem, mainItem, mainItemIdx, reportIdx, itemKey, subIdx } = entry;
                 const defaultDate = getDaysOffset(project.appointmentDate, -7);
                 const displayDate = mainItem.productionDate || defaultDate;
 
@@ -267,14 +291,16 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({ projects,
                 const rowQty = type === 'sub' ? subItem?.quantity : mainItem.quantity;
                 const rowUnit = type === 'sub' ? subItem?.unit : mainItem.unit;
                 const rowNote = type === 'sub' ? (subItem?.name || '-') : (mainItem.itemNote || '-');
+                
+                const matchedSuppliersList = getMatchedSuppliers(rowName, rowNote);
+                const currentSupplierId = type === 'sub' ? subItem?.supplierId : mainItem.supplierId;
 
                 return (
-                  <tr key={`${project.id}-${idx}`} className={`hover:bg-slate-50/50 transition-colors group ${mainItem.isProduced ? 'opacity-60' : ''}`}>
+                  <tr key={`${project.id}-${idx}`} className="hover:bg-slate-50/50 transition-colors group">
                     <td className="px-6 py-4">
-                      <div className="flex items-center gap-3">
-                        <input type="checkbox" checked={!!mainItem.isProduced} onChange={() => handleToggleProduced(project.id, reportIdx, mainItemIdx)} className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer" />
-                        <div className={`font-black text-sm truncate max-w-[140px] ${mainItem.isProduced ? 'text-slate-400 line-through' : 'text-indigo-700'}`}>{project.name}</div>
-                      </div>
+                        <div className="font-black text-sm truncate max-w-[140px] text-indigo-700">
+                          {project.name}
+                        </div>
                     </td>
                     <td className="px-6 py-4">
                       <div className="relative">
@@ -282,9 +308,24 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({ projects,
                         <input type="date" value={displayDate} onChange={(e) => handleUpdateItemDate(project.id, reportIdx, mainItemIdx, e.target.value)} className="w-full pl-7 pr-2 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-700 outline-none focus:bg-white focus:ring-1 focus:ring-indigo-500" />
                       </div>
                     </td>
-                    <td className="px-6 py-4"><div className={`font-bold text-sm ${mainItem.isProduced ? 'text-slate-400' : 'text-slate-800'}`}>{rowName}</div></td>
+                    <td className="px-6 py-4">
+                        <div className="relative">
+                            <UsersIcon className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+                            <select 
+                                value={currentSupplierId || ''} 
+                                onChange={(e) => handleUpdateItemSupplier(project.id, reportIdx, mainItemIdx, e.target.value, type, itemKey, subIdx)}
+                                className="w-full pl-7 pr-2 py-1.5 bg-white border border-slate-200 rounded-lg text-[11px] font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500 appearance-none shadow-sm cursor-pointer"
+                            >
+                                <option value="">選取供應商...</option>
+                                {matchedSuppliersList.map(s => (
+                                    <option key={s.id} value={s.id}>{s.name}</option>
+                                ))}
+                            </select>
+                        </div>
+                    </td>
+                    <td className="px-6 py-4"><div className="font-bold text-sm text-slate-800">{rowName}</div></td>
                     <td className="px-6 py-4"><div className="text-xs text-slate-500 whitespace-pre-wrap max-w-[180px]">{rowSpec}</div></td>
-                    <td className="px-6 py-4 text-center"><span className={`font-black text-sm ${mainItem.isProduced ? 'text-slate-400' : 'text-blue-600'}`}>{rowQty}</span></td>
+                    <td className="px-6 py-4 text-center"><span className="font-black text-sm text-blue-600">{rowQty}</span></td>
                     <td className="px-6 py-4 text-center"><span className="text-xs text-slate-400 font-bold">{rowUnit}</span></td>
                     <td className="px-6 py-4"><div className="text-xs text-slate-500 font-medium truncate max-w-[150px]">{rowNote}</div></td>
                     <td className="px-6 py-4 text-right">
@@ -294,7 +335,7 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({ projects,
                 );
               }) : (
                 <tr>
-                  <td colSpan={8} className="py-32 text-center text-slate-400">
+                  <td colSpan={9} className="py-32 text-center text-slate-400">
                     <BoxIcon className="w-16 h-16 mx-auto mb-4 opacity-10" />
                     <p className="text-base font-bold">目前沒有任何符合採購規則的項目</p>
                   </td>
@@ -305,7 +346,7 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({ projects,
         </div>
       </div>
 
-      {/* 修改細項 Modal */}
+      {/* 修改項目 Modal */}
       {editingItem && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
             <div className="bg-white w-full max-w-md rounded-[32px] shadow-2xl overflow-hidden flex flex-col animate-scale-in">
