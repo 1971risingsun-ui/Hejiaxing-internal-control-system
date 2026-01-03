@@ -1,6 +1,5 @@
 import React, { useMemo, useState } from 'react';
 import { Project, CompletionItem, FenceMaterialItem, SystemRules, Supplier, ProductEntry } from '../types';
-// Fix: Add missing PlusIcon import to resolve the "Cannot find name 'PlusIcon'" error.
 import { ClipboardListIcon, BoxIcon, CalendarIcon, ChevronRightIcon, ArrowLeftIcon, EditIcon, XIcon, CheckCircleIcon, UsersIcon, PlusIcon } from './Icons';
 
 interface GlobalPurchasingItemsProps {
@@ -45,6 +44,13 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
     subIdx?: number;
   } | null>(null);
 
+  // 當前聚焦的行資訊，用於動態生成 Datalist 選項
+  const [activeRowContext, setActiveRowContext] = useState<{
+    itemName: string;
+    itemNote: string;
+    selectedSupplierName: string;
+  } | null>(null);
+
   const getDaysOffset = (dateStr: string, days: number) => {
     if (!dateStr) return '';
     const d = new Date(dateStr);
@@ -56,29 +62,6 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
   const getItemKey = (item: CompletionItem) => `${item.name}_${item.category}_${item.spec || 'no-spec'}`;
   const getUniqueRowId = (projId: string, idx: number) => `${projId}-${idx}`;
 
-  const getDefaultMaterialItems = (itemName: string, quantity: string): { category: string; items: FenceMaterialItem[] } | null => {
-    const baseQty = parseFloat(quantity) || 0;
-    if (baseQty <= 0) return null;
-    const formulaConfig = systemRules.materialFormulas.find(f => itemName.includes(f.keyword));
-    if (!formulaConfig) return null;
-
-    const generatedItems: FenceMaterialItem[] = formulaConfig.items.map(formulaItem => {
-      let calcQty = 0;
-      try {
-        const func = new Function('baseQty', 'Math', `return ${formulaItem.formula}`);
-        calcQty = func(baseQty, Math);
-      } catch (e) { calcQty = baseQty; }
-      return {
-        id: crypto.randomUUID(),
-        name: formulaItem.name,
-        spec: '',
-        quantity: isNaN(calcQty) ? 0 : calcQty,
-        unit: formulaItem.unit
-      };
-    });
-    return { category: formulaConfig.category, items: generatedItems };
-  };
-
   const handleSort = (key: SortKey) => {
     let direction: SortDirection = 'asc';
     if (sortConfig.key === key && sortConfig.direction === 'asc') direction = 'desc';
@@ -86,19 +69,45 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
     setSortConfig({ key, direction });
   };
 
-  const globalSupplierNames = useMemo(() => {
-    return Array.from(new Set(suppliers.map(s => s.name))).sort((a, b) => a.localeCompare(b, 'zh-Hant'));
-  }, [suppliers]);
+  // 模糊比對供應商名稱的建議邏輯
+  const suggestedSupplierNames = useMemo(() => {
+    if (!activeRowContext) return suppliers.map(s => s.name);
+    
+    const { itemName, itemNote } = activeRowContext;
+    const query = (itemName + itemNote).toLowerCase();
 
-  const globalProductNames = useMemo(() => {
-    const names = new Set<string>();
-    suppliers.forEach(s => {
-      if (Array.isArray(s.productList)) {
-        s.productList.forEach(p => names.add(p.name));
-      }
-    });
-    return Array.from(names).sort((a, b) => a.localeCompare(b, 'zh-Hant'));
-  }, [suppliers]);
+    // 模糊比對：品名/備註 包含 用途，或 用途 包含 品名/備註
+    const matched = suppliers.filter(s => 
+      s.productList?.some(p => 
+        p.usage && (query.includes(p.usage.toLowerCase()) || p.usage.toLowerCase().includes(query))
+      )
+    ).map(s => s.name);
+
+    // 如果沒結果，回傳全部
+    return (matched.length > 0 ? matched : suppliers.map(s => s.name)).sort((a, b) => a.localeCompare(b, 'zh-Hant'));
+  }, [suppliers, activeRowContext]);
+
+  // 模糊比對品名的建議邏輯
+  const suggestedProductNames = useMemo(() => {
+    if (!activeRowContext) return [];
+    
+    const { selectedSupplierName, itemName, itemNote } = activeRowContext;
+    const sup = suppliers.find(s => s.name === selectedSupplierName);
+    if (!sup) return [];
+
+    const query = (itemName + itemNote).toLowerCase();
+    
+    // 優先過濾出用途匹配的產品名稱
+    const matched = sup.productList
+      ?.filter(p => p.usage && (query.includes(p.usage.toLowerCase()) || p.usage.toLowerCase().includes(query)))
+      .map(p => p.name) || [];
+
+    // 若無匹配則列出該廠商所有產品
+    const allItems = (sup.productList?.map(p => p.name) || []);
+    const results = matched.length > 0 ? matched : allItems;
+    
+    return Array.from(new Set(results)).sort((a, b) => a.localeCompare(b, 'zh-Hant'));
+  }, [suppliers, activeRowContext]);
 
   const allPurchasingItems = useMemo(() => {
     let list: { 
@@ -128,8 +137,7 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
         if (isFence && !isSubKeyword && !isProdKeyword) {
           const itemKey = getItemKey(item);
           const savedSheet = project.fenceMaterialSheets?.[itemKey];
-          const autoData = getDefaultMaterialItems(item.name, item.quantity);
-          const activeSubItems = savedSheet?.items || autoData?.items || [];
+          const activeSubItems = savedSheet?.items || []; // 僅顯示已生成的備料
 
           if (activeSubItems.length > 0) {
             activeSubItems.forEach((sub, subIdx) => {
@@ -194,16 +202,13 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
     onUpdateProject({ ...project, planningReports: updatedReports });
   };
 
-  // 檢查是否需要詢問加入清單
+  // 核心檢查與詢問邏輯
   const checkAndPromptAddition = (supplierInput: string, productInput: string) => {
     if (!supplierInput || !productInput) return;
-
     const matchedSup = suppliers.find(s => s.name === supplierInput);
     if (!matchedSup) {
-      // 供應商是全新的
       setAdditionPrompt({ type: 'new_supplier', supplierName: supplierInput, productName: productInput });
     } else {
-      // 供應商存在，檢查品名
       const productExists = matchedSup.productList?.some(p => p.name === productInput);
       if (!productExists) {
         setAdditionPrompt({ type: 'new_product', supplierName: supplierInput, productName: productInput, existingSupplier: matchedSup });
@@ -211,24 +216,21 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
     }
   };
 
+  // 更新邏輯：取消連動更新 (不自動修改報價單內容)
   const handleUpdateItemName = (projId: string, reportIdx: number, itemIdx: number, nameInput: string, type: 'main' | 'sub', itemKey?: string, subIdx?: number) => {
     const project = projects.find(p => p.id === projId);
     if (!project) return;
 
     if (type === 'sub' && itemKey !== undefined && subIdx !== undefined) {
         const sheets = { ...(project.fenceMaterialSheets || {}) };
-        let sheet = sheets[itemKey];
-        if (!sheet) {
-            const mainItem = project.planningReports[reportIdx].items[itemIdx];
-            const autoData = getDefaultMaterialItems(mainItem.name, mainItem.quantity);
-            sheet = { category: autoData?.category || '其他', items: autoData?.items || [] };
-        }
+        const sheet = sheets[itemKey];
+        if (!sheet) return;
+
         const newItems = [...sheet.items];
         newItems[subIdx] = { ...newItems[subIdx], spec: nameInput };
         sheets[itemKey] = { ...sheet, items: newItems };
         onUpdateProject({ ...project, fenceMaterialSheets: sheets });
-
-        // 完成品名輸入後檢查
+        
         const supplierVal = newItems[subIdx].supplierId;
         const supplierName = suppliers.find(s => s.id === supplierVal)?.name || supplierVal || '';
         checkAndPromptAddition(supplierName, nameInput);
@@ -239,7 +241,6 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
         updatedReports[reportIdx] = { ...updatedReports[reportIdx], items: updatedItems };
         onUpdateProject({ ...project, planningReports: updatedReports });
 
-        // 完成品名輸入後檢查
         const supplierVal = updatedItems[itemIdx].supplierId;
         const supplierName = suppliers.find(s => s.id === supplierVal)?.name || supplierVal || '';
         checkAndPromptAddition(supplierName, nameInput);
@@ -255,18 +256,13 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
 
     if (type === 'sub' && itemKey !== undefined && subIdx !== undefined) {
         const sheets = { ...(project.fenceMaterialSheets || {}) };
-        let sheet = sheets[itemKey];
-        if (!sheet) {
-            const mainItem = project.planningReports[reportIdx].items[itemIdx];
-            const autoData = getDefaultMaterialItems(mainItem.name, mainItem.quantity);
-            sheet = { category: autoData?.category || '其他', items: autoData?.items || [] };
-        }
+        const sheet = sheets[itemKey];
+        if (!sheet) return;
+
         const newItems = [...sheet.items];
         newItems[subIdx] = { ...newItems[subIdx], supplierId: finalSupplierValue };
         sheets[itemKey] = { ...sheet, items: newItems };
         onUpdateProject({ ...project, fenceMaterialSheets: sheets });
-
-        // 如果品名已有，檢查
         if (newItems[subIdx].spec) checkAndPromptAddition(supplierInput, newItems[subIdx].spec);
     } else {
         const updatedReports = [...project.planningReports];
@@ -274,31 +270,22 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
         updatedItems[itemIdx] = { ...updatedItems[itemIdx], supplierId: finalSupplierValue };
         updatedReports[reportIdx] = { ...updatedReports[reportIdx], items: updatedItems };
         onUpdateProject({ ...project, planningReports: updatedReports });
-
-        // 如果品名已有，檢查
         if (updatedItems[itemIdx].name) checkAndPromptAddition(supplierInput, updatedItems[itemIdx].name);
     }
   };
 
   const executeAddition = () => {
     if (!additionPrompt) return;
-
     const { type, supplierName, productName, existingSupplier } = additionPrompt;
-    
     if (type === 'new_supplier') {
-        // 建立新供應商並包含該品名
         const newSup: Supplier = {
             id: crypto.randomUUID(),
             name: supplierName,
-            address: '',
-            contact: '',
-            companyPhone: '',
-            mobilePhone: '',
+            address: '', contact: '', companyPhone: '', mobilePhone: '',
             productList: [{ name: productName, spec: '', usage: '' }]
         };
         onUpdateSuppliers([...suppliers, newSup]);
     } else if (type === 'new_product' && existingSupplier) {
-        // 更新現有供應商的產品清單
         const updatedSuppliers = suppliers.map(s => {
             if (s.id === existingSupplier.id) {
                 return { ...s, productList: [...(s.productList || []), { name: productName, spec: '', usage: '' }] };
@@ -307,26 +294,21 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
         });
         onUpdateSuppliers(updatedSuppliers);
     }
-    
     setAdditionPrompt(null);
   };
 
   const handleSaveModification = (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingItem) return;
+    const { project, type, mainItemIdx, reportIdx, itemKey, subIdx } = editingItem;
 
-    const { project, type, mainItemIdx, reportIdx } = editingItem;
-
-    if (type === 'sub' && editingItem.subItem && editingItem.itemKey !== undefined && editingItem.subIdx !== undefined) {
+    if (type === 'sub' && editingItem.subItem && itemKey !== undefined && subIdx !== undefined) {
         const sheets = { ...(project.fenceMaterialSheets || {}) };
-        let sheet = sheets[editingItem.itemKey];
-        if (!sheet) {
-            const autoData = getDefaultMaterialItems(editingItem.mainItem.name, editingItem.mainItem.quantity);
-            sheet = { category: autoData?.category || '其他', items: autoData?.items || [] };
-        }
+        const sheet = sheets[itemKey];
+        if (!sheet) return;
         const newItems = [...sheet.items];
-        newItems[editingItem.subIdx] = { ...editingItem.subItem };
-        sheets[editingItem.itemKey] = { ...sheet, items: newItems };
+        newItems[subIdx] = { ...editingItem.subItem };
+        sheets[itemKey] = { ...sheet, items: newItems };
         onUpdateProject({ ...project, fenceMaterialSheets: sheets });
     } else if (type === 'main') {
         const updatedReports = [...project.planningReports];
@@ -363,7 +345,7 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
           <div className="bg-indigo-600 p-3 rounded-xl text-white shadow-lg"><ClipboardListIcon className="w-6 h-6" /></div>
           <div>
             <h1 className="text-xl font-bold text-slate-800">採購項目總覽</h1>
-            <p className="text-xs text-slate-500 font-medium">支援「手動自由輸入」，新廠商或新品項將詢問是否加入清冊</p>
+            <p className="text-xs text-slate-500 font-medium">基於用途模糊匹配供應商與品名，修改內容獨立不連動</p>
           </div>
         </div>
       </div>
@@ -379,8 +361,8 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
                 <th className="px-6 py-4 w-40">
                   <button onClick={() => handleSort('date')} className="flex items-center hover:text-indigo-600 transition-colors">預計採購日期 {renderSortIcon('date')}</button>
                 </th>
-                <th className="px-6 py-4 w-52 text-center">供應商 (輸入或選取)</th>
-                <th className="px-6 py-4">品名 (輸入或選取)</th>
+                <th className="px-6 py-4 w-52 text-center">供應商</th>
+                <th className="px-6 py-4">品名 (選填)</th>
                 <th className="px-6 py-4">規格</th>
                 <th className="px-6 py-4 w-24 text-center">數量</th>
                 <th className="px-6 py-4 w-20 text-center">單位</th>
@@ -419,23 +401,33 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
                         <div className="relative">
                             <UsersIcon className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
                             <input 
-                                list="global-suppliers-datalist"
+                                list={`suppliers-datalist-${rowId}`}
                                 value={currentSupplierName} 
+                                onFocus={() => setActiveRowContext({ itemName: rowName, itemNote: rowNote, selectedSupplierName: currentSupplierName })}
                                 onChange={(e) => handleUpdateItemSupplier(project.id, reportIdx, mainItemIdx, e.target.value, type, itemKey, subIdx)}
                                 placeholder="輸入或選取..."
                                 className="w-full pl-7 pr-2 py-1.5 bg-white border border-slate-200 rounded-lg text-[11px] font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm"
                             />
+                            <datalist id={`suppliers-datalist-${rowId}`}>
+                                <option value="手動輸入新廠商..." />
+                                {suggestedSupplierNames.map(name => <option key={name} value={name} />)}
+                            </datalist>
                         </div>
                     </td>
                     <td className="px-6 py-4">
                         <div className="relative">
                             <input 
-                              list="global-products-datalist"
+                              list={`products-datalist-${rowId}`}
                               value={rowName} 
+                              onFocus={() => setActiveRowContext({ itemName: rowName, itemNote: rowNote, selectedSupplierName: currentSupplierName })}
                               onChange={(e) => handleUpdateItemName(project.id, reportIdx, mainItemIdx, e.target.value, type, itemKey, subIdx)}
                               placeholder="輸入或選取..."
                               className="w-full px-2 py-1.5 border border-slate-200 rounded-lg text-xs font-bold bg-white outline-none focus:ring-1 focus:ring-indigo-500 shadow-sm"
                             />
+                            <datalist id={`products-datalist-${rowId}`}>
+                                <option value="手動輸入新品項..." />
+                                {suggestedProductNames.map(name => <option key={name} value={name} />)}
+                            </datalist>
                         </div>
                     </td>
                     <td className="px-6 py-4"><div className="text-xs text-slate-500 whitespace-pre-wrap max-w-[180px]">{rowSpec}</div></td>
@@ -459,16 +451,6 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
           </table>
         </div>
       </div>
-
-      {/* 獨立的全域建議清單 */}
-      <datalist id="global-suppliers-datalist">
-        <option value="手動輸入新廠商..." />
-        {globalSupplierNames.map(name => <option key={name} value={name} />)}
-      </datalist>
-      <datalist id="global-products-datalist">
-        <option value="手動輸入新品項..." />
-        {globalProductNames.map(name => <option key={name} value={name} />)}
-      </datalist>
 
       {/* 詢問加入清單 Modal */}
       {additionPrompt && (
