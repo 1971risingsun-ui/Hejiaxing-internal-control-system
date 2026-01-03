@@ -73,6 +73,21 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({ projects,
     setSortConfig({ key, direction });
   };
 
+  // 全系統建議清單 (不分案場、不分連動)
+  const globalSupplierNames = useMemo(() => {
+    return suppliers.map(s => s.name).sort((a, b) => a.localeCompare(b, 'zh-Hant'));
+  }, [suppliers]);
+
+  const globalProductNames = useMemo(() => {
+    const names = new Set<string>();
+    suppliers.forEach(s => {
+      if (Array.isArray(s.productList)) {
+        s.productList.forEach(p => names.add(p.name));
+      }
+    });
+    return Array.from(names).sort((a, b) => a.localeCompare(b, 'zh-Hant'));
+  }, [suppliers]);
+
   // 核心彙整邏輯
   const allPurchasingItems = useMemo(() => {
     let list: { 
@@ -248,51 +263,6 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({ projects,
     setEditingItem(null);
   };
 
-  const getLinkedMatchedProductNames = (originalName: string, originalNote: string, currentSupplierId?: string) => {
-    const searchName = (originalName || '').toLowerCase();
-    const searchNote = (originalNote || '').toLowerCase();
-    const names = new Set<string>();
-
-    const isMatch = (p: any) => {
-        const usageRaw = (p.usage || '').toLowerCase();
-        if (!usageRaw) return false;
-        const keywords = usageRaw.split(',').map(k => k.trim()).filter(k => !!k);
-        return keywords.some(k => searchName.includes(k) || searchNote.includes(k));
-    };
-
-    if (currentSupplierId) {
-        const s = suppliers.find(sup => sup.id === currentSupplierId);
-        if (s) {
-            const matches = s.productList.filter(isMatch);
-            (matches.length > 0 ? matches : s.productList).forEach(p => names.add(p.name));
-        }
-    } else {
-        suppliers.forEach(s => {
-            s.productList.filter(isMatch).forEach(p => names.add(p.name));
-        });
-    }
-
-    return Array.from(names).sort((a, b) => a.localeCompare(b, 'zh-Hant'));
-  };
-
-  const getLinkedMatchedSuppliers = (originalName: string, originalNote: string, currentRowName: string) => {
-    const searchName = (originalName || '').toLowerCase();
-    const searchNote = (originalNote || '').toLowerCase();
-    
-    const exactProviders = suppliers.filter(s => s.productList.some(p => p.name === currentRowName));
-    if (exactProviders.length > 0) return exactProviders;
-
-    const matched = suppliers.filter(s => 
-        s.productList.some(p => {
-            const usageRaw = (p.usage || '').toLowerCase();
-            if (!usageRaw) return false;
-            const keywords = usageRaw.split(',').map(k => k.trim()).filter(k => !!k);
-            return keywords.some(k => searchName.includes(k) || searchNote.includes(k));
-        })
-    );
-    return matched.length > 0 ? matched : suppliers;
-  };
-
   const renderSortIcon = (key: SortKey) => {
     if (sortConfig.key !== key) return <div className="flex flex-col opacity-20 ml-1"><ChevronRightIcon className="w-2 h-2 -rotate-90" /><ChevronRightIcon className="w-2 h-2 rotate-90" /></div>;
     return <div className="flex flex-col ml-1 text-indigo-600"><ChevronRightIcon className={`w-2 h-2 -rotate-90 ${sortConfig.direction === 'asc' ? '' : 'opacity-20'}`} /><ChevronRightIcon className={`w-2 h-2 rotate-90 ${sortConfig.direction === 'desc' ? '' : 'opacity-20'}`} /></div>;
@@ -318,7 +288,7 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({ projects,
           <div className="bg-indigo-600 p-3 rounded-xl text-white shadow-lg"><ClipboardListIcon className="w-6 h-6" /></div>
           <div>
             <h1 className="text-xl font-bold text-slate-800">採購項目總覽</h1>
-            <p className="text-xs text-slate-500 font-medium">品名與供應商皆支援「手動輸入」或「建議選取」，並自動連動</p>
+            <p className="text-xs text-slate-500 font-medium">支援「手動自由輸入」，選項清單僅供建議且完全解耦</p>
           </div>
         </div>
       </div>
@@ -334,8 +304,8 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({ projects,
                 <th className="px-6 py-4 w-40">
                   <button onClick={() => handleSort('date')} className="flex items-center hover:text-indigo-600 transition-colors">預計採購日期 {renderSortIcon('date')}</button>
                 </th>
-                <th className="px-6 py-4 w-52 text-center">供應商 (手動輸入/選取)</th>
-                <th className="px-6 py-4">品名 (手動輸入/選取)</th>
+                <th className="px-6 py-4 w-52 text-center">供應商 (輸入或選取)</th>
+                <th className="px-6 py-4">品名 (輸入或選取)</th>
                 <th className="px-6 py-4">規格</th>
                 <th className="px-6 py-4 w-24 text-center">數量</th>
                 <th className="px-6 py-4 w-20 text-center">單位</th>
@@ -359,9 +329,6 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({ projects,
                 const currentSupplierId = type === 'sub' ? subItem?.supplierId : mainItem.supplierId;
                 const currentSupplierName = suppliers.find(s => s.id === currentSupplierId)?.name || currentSupplierId || '';
 
-                const matchedSuppliersList = getLinkedMatchedSuppliers(rowName, rowNote, rowName);
-                const matchedOptions = getLinkedMatchedProductNames(rowName, rowNote, currentSupplierId);
-
                 return (
                   <tr key={rowId} className="hover:bg-slate-50/50 transition-colors group">
                     <td className="px-6 py-4">
@@ -377,29 +344,23 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({ projects,
                         <div className="relative">
                             <UsersIcon className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
                             <input 
-                                list={`sup-datalist-${rowId}`}
+                                list="global-suppliers-datalist"
                                 value={currentSupplierName} 
                                 onChange={(e) => handleUpdateItemSupplier(project.id, reportIdx, mainItemIdx, e.target.value, type, itemKey, subIdx)}
                                 placeholder="輸入或選取..."
                                 className="w-full pl-7 pr-2 py-1.5 bg-white border border-slate-200 rounded-lg text-[11px] font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm"
                             />
-                            <datalist id={`sup-datalist-${rowId}`}>
-                                {matchedSuppliersList.map(s => <option key={s.id} value={s.name} />)}
-                            </datalist>
                         </div>
                     </td>
                     <td className="px-6 py-4">
                         <div className="relative">
                             <input 
-                              list={`name-datalist-${rowId}`}
+                              list="global-products-datalist"
                               value={rowName} 
                               onChange={(e) => handleUpdateItemName(project.id, reportIdx, mainItemIdx, e.target.value, type, itemKey, subIdx)}
                               placeholder="輸入或選取..."
                               className="w-full px-2 py-1.5 border border-slate-200 rounded-lg text-xs font-bold bg-white outline-none focus:ring-1 focus:ring-indigo-500 shadow-sm"
                             />
-                            <datalist id={`name-datalist-${rowId}`}>
-                                {matchedOptions.map(opt => <option key={opt} value={opt} />)}
-                            </datalist>
                         </div>
                     </td>
                     <td className="px-6 py-4"><div className="text-xs text-slate-500 whitespace-pre-wrap max-w-[180px]">{rowSpec}</div></td>
@@ -423,6 +384,14 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({ projects,
           </table>
         </div>
       </div>
+
+      {/* 獨立的全域建議清單 */}
+      <datalist id="global-suppliers-datalist">
+        {globalSupplierNames.map(name => <option key={name} value={name} />)}
+      </datalist>
+      <datalist id="global-products-datalist">
+        {globalProductNames.map(name => <option key={name} value={name} />)}
+      </datalist>
 
       {/* 修改項目 Modal */}
       {editingItem && (
