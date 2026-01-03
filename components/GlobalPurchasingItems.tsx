@@ -218,15 +218,19 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({ projects,
     setEditingItem(null);
   };
 
-  // 獲取匹配的供應商名單：品名或備註模糊比對產品用途
+  // 獲取匹配的供應商名單：品名或備註模糊比對產品用途 (支援逗號分隔關鍵字)
   const getMatchedSuppliers = (name: string, note: string) => {
     const searchName = (name || '').toLowerCase();
     const searchNote = (note || '').toLowerCase();
     
     const matched = suppliers.filter(s => 
         s.productList.some(p => {
-            const usage = (p.usage || '').toLowerCase();
-            return usage !== '' && (searchName.includes(usage) || searchNote.includes(usage));
+            const usageRaw = (p.usage || '').toLowerCase();
+            if (!usageRaw) return false;
+            // 依半形逗號拆分關鍵字，並移除空白
+            const keywords = usageRaw.split(',').map(k => k.trim()).filter(k => k !== '');
+            // 只要任一關鍵字匹配品名或備註即視為匹配
+            return keywords.some(k => searchName.includes(k) || searchNote.includes(k));
         })
     );
     // 如果沒有匹配到，預設顯示全部以供選擇
