@@ -175,9 +175,13 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({ projects,
     setLocalNameOverrides(prev => ({ ...prev, [rowId]: newName }));
   };
 
-  const handleUpdateItemSupplier = (projId: string, reportIdx: number, itemIdx: number, supplierId: string, type: 'main' | 'sub', itemKey?: string, subIdx?: number) => {
+  const handleUpdateItemSupplier = (projId: string, reportIdx: number, itemIdx: number, supplierInput: string, type: 'main' | 'sub', itemKey?: string, subIdx?: number) => {
     const project = projects.find(p => p.id === projId);
     if (!project) return;
+
+    // 嘗試從名稱找 ID，若找不到則直接存名稱
+    const matchedSup = suppliers.find(s => s.name === supplierInput);
+    const finalSupplierId = matchedSup ? matchedSup.id : supplierInput;
 
     if (type === 'sub' && itemKey !== undefined && subIdx !== undefined) {
         const sheets = { ...(project.fenceMaterialSheets || {}) };
@@ -188,13 +192,13 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({ projects,
             sheet = { category: autoData?.category || '其他', items: autoData?.items || [] };
         }
         const newItems = [...sheet.items];
-        newItems[subIdx] = { ...newItems[subIdx], supplierId };
+        newItems[subIdx] = { ...newItems[subIdx], supplierId: finalSupplierId };
         sheets[itemKey] = { ...sheet, items: newItems };
         onUpdateProject({ ...project, fenceMaterialSheets: sheets });
     } else {
         const updatedReports = [...project.planningReports];
         const updatedItems = [...updatedReports[reportIdx].items];
-        updatedItems[itemIdx] = { ...updatedItems[itemIdx], supplierId };
+        updatedItems[itemIdx] = { ...updatedItems[itemIdx], supplierId: finalSupplierId };
         updatedReports[reportIdx] = { ...updatedReports[reportIdx], items: updatedItems };
         onUpdateProject({ ...project, planningReports: updatedReports });
     }
@@ -229,14 +233,12 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({ projects,
 
   /**
    * 獲取連動的材料品名選單
-   * 如果已選供應商，則僅顯示該商符合用途匹配的材料
    */
   const getLinkedMatchedProductNames = (originalName: string, originalNote: string, currentSupplierId?: string) => {
     const searchName = (originalName || '').toLowerCase();
     const searchNote = (originalNote || '').toLowerCase();
     const names = new Set<string>();
 
-    // 取得與原始項目匹配的用途關鍵字 (例如：立柱、圍籬板)
     const getMatchKeywords = (s: Supplier) => {
         return s.productList.filter(p => {
             const usageRaw = (p.usage || '').toLowerCase();
@@ -262,21 +264,16 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({ projects,
 
   /**
    * 獲取連動的供應商清單
-   * 如果已選定特定品名（覆寫後），則僅顯示有提供該材料的供應商
    */
   const getLinkedMatchedSuppliers = (originalName: string, originalNote: string, currentRowName: string) => {
     const searchName = (originalName || '').toLowerCase();
     const searchNote = (originalNote || '').toLowerCase();
-
-    // 如果使用者已經從下拉選單選了一個「特定材料名稱」
     const hasOverride = suppliers.some(s => s.productList.some(p => p.name === currentRowName));
 
     if (hasOverride) {
-        // 精確連動：找出所有有提供「currentRowName」這個品名的供應商
         return suppliers.filter(s => s.productList.some(p => p.name === currentRowName));
     }
 
-    // 模糊連動：依照用途關鍵字匹配供應商
     const matched = suppliers.filter(s => 
         s.productList.some(p => {
             const usageRaw = (p.usage || '').toLowerCase();
@@ -313,7 +310,7 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({ projects,
           <div className="bg-indigo-600 p-3 rounded-xl text-white"><ClipboardListIcon className="w-6 h-6" /></div>
           <div>
             <h1 className="text-xl font-bold text-slate-800">採購項目總覽</h1>
-            <p className="text-xs text-slate-500 font-medium">供應商與品名選單已啟動連動過濾功能</p>
+            <p className="text-xs text-slate-500 font-medium">供應商與品名支援「手動輸入」或「建議清單」</p>
           </div>
         </div>
       </div>
@@ -356,8 +353,9 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({ projects,
                 const rowNote = type === 'sub' ? (subItem?.name || '-') : (mainItem.itemNote || '-');
                 
                 const currentSupplierId = type === 'sub' ? subItem?.supplierId : mainItem.supplierId;
+                // 用於顯示的供應商名稱
+                const currentSupplierName = suppliers.find(s => s.id === currentSupplierId)?.name || currentSupplierId || '';
 
-                // 獲取連動後的選項
                 const matchedSuppliersList = getLinkedMatchedSuppliers(originalName, rowNote, rowName);
                 const matchedOptions = getLinkedMatchedProductNames(originalName, rowNote, currentSupplierId);
 
@@ -375,28 +373,31 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({ projects,
                     <td className="px-6 py-4">
                         <div className="relative">
                             <UsersIcon className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
-                            <select 
-                                value={currentSupplierId || ''} 
+                            <input 
+                                list={`sup-datalist-${rowId}`}
+                                value={currentSupplierName} 
                                 onChange={(e) => handleUpdateItemSupplier(project.id, reportIdx, mainItemIdx, e.target.value, type, itemKey, subIdx)}
-                                className="w-full pl-7 pr-2 py-1.5 bg-white border border-slate-200 rounded-lg text-[11px] font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500 appearance-none shadow-sm cursor-pointer"
-                            >
-                                <option value="">選取供應商...</option>
-                                {matchedSuppliersList.map(s => (
-                                    <option key={s.id} value={s.id}>{s.name}</option>
-                                ))}
-                            </select>
+                                placeholder="輸入或選取..."
+                                className="w-full pl-7 pr-2 py-1.5 bg-white border border-slate-200 rounded-lg text-[11px] font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm"
+                            />
+                            <datalist id={`sup-datalist-${rowId}`}>
+                                {matchedSuppliersList.map(s => <option key={s.id} value={s.name} />)}
+                            </datalist>
                         </div>
                     </td>
                     <td className="px-6 py-4">
-                        <select 
-                          value={rowName} 
-                          onChange={(e) => handleLocalUpdateName(rowId, e.target.value)}
-                          className={`w-full px-2 py-1.5 border rounded-lg text-xs font-bold outline-none focus:ring-1 focus:ring-indigo-500 appearance-none cursor-pointer shadow-sm ${localNameOverrides[rowId] ? 'bg-amber-50 border-amber-200 text-amber-700' : 'bg-slate-50 border-slate-200 text-slate-800'}`}
-                        >
-                          {!matchedOptions.includes(rowName) && <option value={rowName}>{rowName}</option>}
-                          {matchedOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                          {matchedOptions.length === 0 && rowName === '' && <option value="">無連動項目</option>}
-                        </select>
+                        <div className="relative">
+                            <input 
+                              list={`name-datalist-${rowId}`}
+                              value={rowName} 
+                              onChange={(e) => handleLocalUpdateName(rowId, e.target.value)}
+                              placeholder="輸入或選取..."
+                              className={`w-full px-2 py-1.5 border rounded-lg text-xs font-bold outline-none focus:ring-1 focus:ring-indigo-500 shadow-sm ${localNameOverrides[rowId] ? 'bg-amber-50 border-amber-200 text-amber-700' : 'bg-slate-50 border-slate-200 text-slate-800'}`}
+                            />
+                            <datalist id={`name-datalist-${rowId}`}>
+                                {matchedOptions.map(opt => <option key={opt} value={opt} />)}
+                            </datalist>
+                        </div>
                     </td>
                     <td className="px-6 py-4"><div className="text-xs text-slate-500 whitespace-pre-wrap max-w-[180px]">{rowSpec}</div></td>
                     <td className="px-6 py-4 text-center"><span className="font-black text-sm text-blue-600">{rowQty}</span></td>
