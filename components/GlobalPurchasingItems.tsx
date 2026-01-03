@@ -20,8 +20,6 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({ projects,
   });
   
   const [projectFilter, setProjectFilter] = useState<string>('ALL');
-  // 用於此頁面顯示的品名覆寫狀態，不影響原始專案資料
-  const [localNameOverrides, setLocalNameOverrides] = useState<Record<string, string>>({});
 
   const [editingItem, setEditingItem] = useState<{
     project: Project;
@@ -170,15 +168,35 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({ projects,
     onUpdateProject({ ...project, planningReports: updatedReports });
   };
 
-  const handleLocalUpdateName = (rowId: string, newName: string) => {
-    setLocalNameOverrides(prev => ({ ...prev, [rowId]: newName }));
+  const handleUpdateItemName = (projId: string, reportIdx: number, itemIdx: number, nameInput: string, type: 'main' | 'sub', itemKey?: string, subIdx?: number) => {
+    const project = projects.find(p => p.id === projId);
+    if (!project) return;
+
+    if (type === 'sub' && itemKey !== undefined && subIdx !== undefined) {
+        const sheets = { ...(project.fenceMaterialSheets || {}) };
+        let sheet = sheets[itemKey];
+        if (!sheet) {
+            const mainItem = project.planningReports[reportIdx].items[itemIdx];
+            const autoData = getDefaultMaterialItems(mainItem.name, mainItem.quantity);
+            sheet = { category: autoData?.category || '其他', items: autoData?.items || [] };
+        }
+        const newItems = [...sheet.items];
+        newItems[subIdx] = { ...newItems[subIdx], spec: nameInput };
+        sheets[itemKey] = { ...sheet, items: newItems };
+        onUpdateProject({ ...project, fenceMaterialSheets: sheets });
+    } else {
+        const updatedReports = [...project.planningReports];
+        const updatedItems = [...updatedReports[reportIdx].items];
+        updatedItems[itemIdx] = { ...updatedItems[itemIdx], name: nameInput };
+        updatedReports[reportIdx] = { ...updatedReports[reportIdx], items: updatedItems };
+        onUpdateProject({ ...project, planningReports: updatedReports });
+    }
   };
 
   const handleUpdateItemSupplier = (projId: string, reportIdx: number, itemIdx: number, supplierInput: string, type: 'main' | 'sub', itemKey?: string, subIdx?: number) => {
     const project = projects.find(p => p.id === projId);
     if (!project) return;
 
-    // 嘗試從名稱找 ID，若找不到則直接存名稱字串 (手動填寫)
     const matchedSup = suppliers.find(s => s.name === supplierInput);
     const finalSupplierValue = matchedSup ? matchedSup.id : supplierInput;
 
@@ -230,9 +248,6 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({ projects,
     setEditingItem(null);
   };
 
-  /**
-   * 獲取連動的材料品名建議清單
-   */
   const getLinkedMatchedProductNames = (originalName: string, originalNote: string, currentSupplierId?: string) => {
     const searchName = (originalName || '').toLowerCase();
     const searchNote = (originalNote || '').toLowerCase();
@@ -260,18 +275,13 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({ projects,
     return Array.from(names).sort((a, b) => a.localeCompare(b, 'zh-Hant'));
   };
 
-  /**
-   * 獲取連動的供應商建議清單
-   */
   const getLinkedMatchedSuppliers = (originalName: string, originalNote: string, currentRowName: string) => {
     const searchName = (originalName || '').toLowerCase();
     const searchNote = (originalNote || '').toLowerCase();
     
-    // 檢查目前顯示的品名是否在任何廠商的產品清冊中
     const exactProviders = suppliers.filter(s => s.productList.some(p => p.name === currentRowName));
     if (exactProviders.length > 0) return exactProviders;
 
-    // 依原始項目的關鍵字進行「用途連動」
     const matched = suppliers.filter(s => 
         s.productList.some(p => {
             const usageRaw = (p.usage || '').toLowerCase();
@@ -308,7 +318,7 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({ projects,
           <div className="bg-indigo-600 p-3 rounded-xl text-white shadow-lg"><ClipboardListIcon className="w-6 h-6" /></div>
           <div>
             <h1 className="text-xl font-bold text-slate-800">採購項目總覽</h1>
-            <p className="text-xs text-slate-500 font-medium">支援手動輸入功能，供應商與品名自動雙向連動</p>
+            <p className="text-xs text-slate-500 font-medium">品名與供應商皆支援「手動輸入」或「建議選取」，並自動連動</p>
           </div>
         </div>
       </div>
@@ -340,9 +350,7 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({ projects,
                 const defaultDate = getDaysOffset(project.appointmentDate, -7);
                 const displayDate = mainItem.productionDate || defaultDate;
 
-                const originalName = type === 'sub' ? (subItem?.spec || '(未填寫規格)') : mainItem.name;
-                const rowName = localNameOverrides[rowId] || originalName;
-                
+                const rowName = type === 'sub' ? (subItem?.spec || '') : mainItem.name;
                 const rowSpec = type === 'sub' ? '' : (mainItem.spec || '-');
                 const rowQty = type === 'sub' ? subItem?.quantity : mainItem.quantity;
                 const rowUnit = type === 'sub' ? subItem?.unit : mainItem.unit;
@@ -351,8 +359,8 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({ projects,
                 const currentSupplierId = type === 'sub' ? subItem?.supplierId : mainItem.supplierId;
                 const currentSupplierName = suppliers.find(s => s.id === currentSupplierId)?.name || currentSupplierId || '';
 
-                const matchedSuppliersList = getLinkedMatchedSuppliers(originalName, rowNote, rowName);
-                const matchedOptions = getLinkedMatchedProductNames(originalName, rowNote, currentSupplierId);
+                const matchedSuppliersList = getLinkedMatchedSuppliers(rowName, rowNote, rowName);
+                const matchedOptions = getLinkedMatchedProductNames(rowName, rowNote, currentSupplierId);
 
                 return (
                   <tr key={rowId} className="hover:bg-slate-50/50 transition-colors group">
@@ -385,9 +393,9 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({ projects,
                             <input 
                               list={`name-datalist-${rowId}`}
                               value={rowName} 
-                              onChange={(e) => handleLocalUpdateName(rowId, e.target.value)}
+                              onChange={(e) => handleUpdateItemName(project.id, reportIdx, mainItemIdx, e.target.value, type, itemKey, subIdx)}
                               placeholder="輸入或選取..."
-                              className={`w-full px-2 py-1.5 border rounded-lg text-xs font-bold outline-none focus:ring-1 focus:ring-indigo-500 shadow-sm transition-colors ${localNameOverrides[rowId] ? 'bg-amber-50 border-amber-200 text-amber-700' : 'bg-slate-50 border-slate-200 text-slate-800'}`}
+                              className="w-full px-2 py-1.5 border border-slate-200 rounded-lg text-xs font-bold bg-white outline-none focus:ring-1 focus:ring-indigo-500 shadow-sm"
                             />
                             <datalist id={`name-datalist-${rowId}`}>
                                 {matchedOptions.map(opt => <option key={opt} value={opt} />)}
@@ -423,7 +431,7 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({ projects,
                 <header className="px-8 py-5 border-b border-slate-100 flex justify-between items-center bg-slate-50">
                     <div className="flex items-center gap-3">
                         <div className="bg-indigo-600 p-2 rounded-xl text-white"><EditIcon className="w-4 h-4" /></div>
-                        <h3 className="font-black text-slate-800">修改細節</h3>
+                        <h3 className="font-black text-slate-800">修改細節內容</h3>
                     </div>
                     <button onClick={() => setEditingItem(null)} className="p-2 text-slate-400 hover:bg-red-50 hover:text-red-500 rounded-full transition-colors"><XIcon className="w-5 h-5" /></button>
                 </header>
@@ -433,41 +441,41 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({ projects,
                         {editingItem.type === 'sub' && editingItem.subItem ? (
                             <>
                                 <div>
-                                    <label className="block text-[10px] font-black text-slate-500 uppercase mb-1.5 tracking-wider">規格/品名 (手動填寫)</label>
+                                    <label className="block text-[10px] font-black text-slate-400 uppercase mb-1.5 tracking-wider">品名規格 (手動填寫)</label>
                                     <input type="text" required value={editingItem.subItem.spec} onChange={e => setEditingItem({ ...editingItem, subItem: { ...editingItem.subItem!, spec: e.target.value } })} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500 transition-all shadow-inner" />
                                 </div>
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
-                                        <label className="block text-[10px] font-black text-slate-500 uppercase mb-1.5 tracking-wider">數量</label>
+                                        <label className="block text-[10px] font-black text-slate-400 uppercase mb-1.5 tracking-wider">數量</label>
                                         <input type="number" required step="0.01" value={editingItem.subItem.quantity} onChange={e => setEditingItem({ ...editingItem, subItem: { ...editingItem.subItem!, quantity: parseFloat(e.target.value) || 0 } })} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-indigo-600 outline-none focus:bg-white" />
                                     </div>
                                     <div>
-                                        <label className="block text-[10px] font-black text-slate-500 uppercase mb-1.5 tracking-wider">單位</label>
+                                        <label className="block text-[10px] font-black text-slate-400 uppercase mb-1.5 tracking-wider">單位</label>
                                         <input type="text" required value={editingItem.subItem.unit} onChange={e => setEditingItem({ ...editingItem, subItem: { ...editingItem.subItem!, unit: e.target.value } })} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-600 outline-none focus:bg-white" />
                                     </div>
                                 </div>
                                 <div>
-                                    <label className="block text-[10px] font-black text-slate-500 uppercase mb-1.5 tracking-wider">注意/備註 (材料名稱)</label>
+                                    <label className="block text-[10px] font-black text-slate-400 uppercase mb-1.5 tracking-wider">注意/備註</label>
                                     <input type="text" value={editingItem.subItem.name} onChange={e => setEditingItem({ ...editingItem, subItem: { ...editingItem.subItem!, name: e.target.value } })} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 outline-none focus:bg-white" />
                                 </div>
                             </>
                         ) : (
                             <>
                                 <div>
-                                    <label className="block text-[10px] font-black text-slate-500 uppercase mb-1.5 tracking-wider">品名</label>
+                                    <label className="block text-[10px] font-black text-slate-400 uppercase mb-1.5 tracking-wider">品名</label>
                                     <input type="text" required value={editingItem.mainItem.name} onChange={e => setEditingItem({ ...editingItem, mainItem: { ...editingItem.mainItem, name: e.target.value } })} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500 shadow-inner" />
                                 </div>
                                 <div>
-                                    <label className="block text-[10px] font-black text-slate-500 uppercase mb-1.5 tracking-wider">規格</label>
+                                    <label className="block text-[10px] font-black text-slate-400 uppercase mb-1.5 tracking-wider">規格</label>
                                     <textarea rows={2} value={editingItem.mainItem.spec || ''} onChange={e => setEditingItem({ ...editingItem, mainItem: { ...editingItem.mainItem, spec: e.target.value } })} className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-700 outline-none focus:bg-white transition-all shadow-inner" />
                                 </div>
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
-                                        <label className="block text-[10px] font-black text-slate-500 uppercase mb-1.5 tracking-wider">數量</label>
+                                        <label className="block text-[10px] font-black text-slate-400 uppercase mb-1.5 tracking-wider">數量</label>
                                         <input type="text" value={editingItem.mainItem.quantity} onChange={e => setEditingItem({ ...editingItem, mainItem: { ...editingItem.mainItem, quantity: e.target.value } })} className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-indigo-600 outline-none focus:bg-white" />
                                     </div>
                                     <div>
-                                        <label className="block text-[10px] font-black text-slate-500 uppercase mb-1.5 tracking-wider">單位</label>
+                                        <label className="block text-[10px] font-black text-slate-400 uppercase mb-1.5 tracking-wider">單位</label>
                                         <input type="text" value={editingItem.mainItem.unit} onChange={e => setEditingItem({ ...editingItem, mainItem: { ...editingItem.mainItem, unit: e.target.value } })} className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-600 outline-none focus:bg-white" />
                                     </div>
                                 </div>
