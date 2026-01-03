@@ -20,7 +20,7 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({ projects,
   });
   
   const [projectFilter, setProjectFilter] = useState<string>('ALL');
-  // 僅用於此頁面顯示的品名覆寫狀態，不影響原始專案資料
+  // 用於此頁面顯示的品名覆寫狀態，不影響原始專案資料
   const [localNameOverrides, setLocalNameOverrides] = useState<Record<string, string>>({});
 
   const [editingItem, setEditingItem] = useState<{
@@ -227,32 +227,56 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({ projects,
     setEditingItem(null);
   };
 
-  // 獲取與該行內容「用途匹配」的所有供應商材料名稱
-  const getMatchedProductNames = (name: string, note: string) => {
-    const searchName = name.toLowerCase();
-    const searchNote = note.toLowerCase();
+  /**
+   * 獲取連動的材料品名選單
+   * 如果已選供應商，則僅顯示該商符合用途匹配的材料
+   */
+  const getLinkedMatchedProductNames = (originalName: string, originalNote: string, currentSupplierId?: string) => {
+    const searchName = (originalName || '').toLowerCase();
+    const searchNote = (originalNote || '').toLowerCase();
     const names = new Set<string>();
 
-    suppliers.forEach(s => {
-      s.productList?.forEach(p => {
-        const usageRaw = (p.usage || '').toLowerCase();
-        if (!usageRaw) return;
-        // 拆分用途關鍵字
-        const keywords = usageRaw.split(',').map(k => k.trim()).filter(k => k !== '');
-        // 只要產品的任一用途關鍵字出現在品名或備註中，即視為匹配
-        if (keywords.some(k => searchName.includes(k) || searchNote.includes(k))) {
-          names.add(p.name);
+    // 取得與原始項目匹配的用途關鍵字 (例如：立柱、圍籬板)
+    const getMatchKeywords = (s: Supplier) => {
+        return s.productList.filter(p => {
+            const usageRaw = (p.usage || '').toLowerCase();
+            if (!usageRaw) return false;
+            const keywords = usageRaw.split(',').map(k => k.trim()).filter(k => k !== '');
+            return keywords.some(k => searchName.includes(k) || searchNote.includes(k));
+        });
+    };
+
+    if (currentSupplierId) {
+        const s = suppliers.find(sup => sup.id === currentSupplierId);
+        if (s) {
+            getMatchKeywords(s).forEach(p => names.add(p.name));
         }
-      });
-    });
+    } else {
+        suppliers.forEach(s => {
+            getMatchKeywords(s).forEach(p => names.add(p.name));
+        });
+    }
+
     return Array.from(names).sort((a, b) => a.localeCompare(b, 'zh-Hant'));
   };
 
-  // 獲取匹配的供應商名單（用於供應商下拉選單）
-  const getMatchedSuppliers = (name: string, note: string) => {
-    const searchName = (name || '').toLowerCase();
-    const searchNote = (note || '').toLowerCase();
-    
+  /**
+   * 獲取連動的供應商清單
+   * 如果已選定特定品名（覆寫後），則僅顯示有提供該材料的供應商
+   */
+  const getLinkedMatchedSuppliers = (originalName: string, originalNote: string, currentRowName: string) => {
+    const searchName = (originalName || '').toLowerCase();
+    const searchNote = (originalNote || '').toLowerCase();
+
+    // 如果使用者已經從下拉選單選了一個「特定材料名稱」
+    const hasOverride = suppliers.some(s => s.productList.some(p => p.name === currentRowName));
+
+    if (hasOverride) {
+        // 精確連動：找出所有有提供「currentRowName」這個品名的供應商
+        return suppliers.filter(s => s.productList.some(p => p.name === currentRowName));
+    }
+
+    // 模糊連動：依照用途關鍵字匹配供應商
     const matched = suppliers.filter(s => 
         s.productList.some(p => {
             const usageRaw = (p.usage || '').toLowerCase();
@@ -289,7 +313,7 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({ projects,
           <div className="bg-indigo-600 p-3 rounded-xl text-white"><ClipboardListIcon className="w-6 h-6" /></div>
           <div>
             <h1 className="text-xl font-bold text-slate-800">採購項目總覽</h1>
-            <p className="text-xs text-slate-500 font-medium">切換選單品名僅供採購試算參考，不更動原始報價單</p>
+            <p className="text-xs text-slate-500 font-medium">供應商與品名選單已啟動連動過濾功能</p>
           </div>
         </div>
       </div>
@@ -331,11 +355,11 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({ projects,
                 const rowUnit = type === 'sub' ? subItem?.unit : mainItem.unit;
                 const rowNote = type === 'sub' ? (subItem?.name || '-') : (mainItem.itemNote || '-');
                 
-                // 動態獲取匹配的材料名稱選項 (依據用途)
-                const matchedOptions = getMatchedProductNames(originalName, rowNote);
-                
-                const matchedSuppliersList = getMatchedSuppliers(rowName, rowNote);
                 const currentSupplierId = type === 'sub' ? subItem?.supplierId : mainItem.supplierId;
+
+                // 獲取連動後的選項
+                const matchedSuppliersList = getLinkedMatchedSuppliers(originalName, rowNote, rowName);
+                const matchedOptions = getLinkedMatchedProductNames(originalName, rowNote, currentSupplierId);
 
                 return (
                   <tr key={rowId} className="hover:bg-slate-50/50 transition-colors group">
@@ -369,11 +393,9 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({ projects,
                           onChange={(e) => handleLocalUpdateName(rowId, e.target.value)}
                           className={`w-full px-2 py-1.5 border rounded-lg text-xs font-bold outline-none focus:ring-1 focus:ring-indigo-500 appearance-none cursor-pointer shadow-sm ${localNameOverrides[rowId] ? 'bg-amber-50 border-amber-200 text-amber-700' : 'bg-slate-50 border-slate-200 text-slate-800'}`}
                         >
-                          {/* 如果當前名稱不在匹配列表中，也顯示它作為首選 */}
                           {!matchedOptions.includes(rowName) && <option value={rowName}>{rowName}</option>}
                           {matchedOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                          {/* 如果匹配列表完全為空且也不是當前名，給個提示 */}
-                          {matchedOptions.length === 0 && rowName === '' && <option value="">無用途匹配項</option>}
+                          {matchedOptions.length === 0 && rowName === '' && <option value="">無連動項目</option>}
                         </select>
                     </td>
                     <td className="px-6 py-4"><div className="text-xs text-slate-500 whitespace-pre-wrap max-w-[180px]">{rowSpec}</div></td>
