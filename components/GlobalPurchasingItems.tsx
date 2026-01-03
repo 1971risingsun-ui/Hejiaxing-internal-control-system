@@ -240,7 +240,6 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({ projects,
   return (
     <div className="p-4 md:p-6 max-w-7xl mx-auto flex flex-col gap-6 animate-fade-in h-full overflow-hidden">
       <div className="flex items-center justify-between gap-4">
-        {/* Fix: Changed typo '支配ArrowLeftIcon' to 'ArrowLeftIcon' */}
         <div className="flex items-center gap-2 text-slate-500 hover:text-indigo-600 font-bold text-xs cursor-pointer transition-colors w-fit" onClick={onBack}>
           <ArrowLeftIcon className="w-3 h-3" /> 返回採購
         </div>
@@ -319,7 +318,7 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({ projects,
                             <UsersIcon className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
                             <select 
                                 value={currentSupplierId || ''} 
-                                onChange={(e) => handleUpdateItemSupplier(project.id, reportIdx, itemIdx, e.target.value, type, itemKey, subIdx)}
+                                onChange={(e) => handleUpdateItemSupplier(project.id, reportIdx, mainItemIdx, e.target.value, type, itemKey, subIdx)}
                                 className="w-full pl-7 pr-2 py-1.5 bg-white border border-slate-200 rounded-lg text-[11px] font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500 appearance-none shadow-sm cursor-pointer"
                             >
                                 <option value="">選取供應商...</option>
@@ -400,11 +399,11 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({ projects,
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
                                         <label className="block text-[10px] font-black text-slate-500 uppercase mb-1.5 tracking-wider">數量</label>
-                                        <input type="text" value={editingItem.mainItem.quantity} onChange={e => setEditingItem({ ...editingItem, mainItem: { ...editingItem.mainItem, quantity: e.target.value } })} className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-indigo-600 outline-none focus:bg-white" />
+                                        <input type="text" value={editingItem.mainItem.quantity} onChange={e => setEditingItem({ ...editingItem, mainItem: { ...editingItem.mainItem, quantity: e.target.value } })} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-indigo-600 outline-none focus:bg-white" />
                                     </div>
                                     <div>
                                         <label className="block text-[10px] font-black text-slate-500 uppercase mb-1.5 tracking-wider">單位</label>
-                                        <input type="text" value={editingItem.mainItem.unit} onChange={e => setEditingItem({ ...editingItem, mainItem: { ...editingItem.mainItem, unit: e.target.value } })} className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-600 outline-none focus:bg-white" />
+                                        <input type="text" value={editingItem.mainItem.unit} onChange={e => setEditingItem({ ...editingItem, mainItem: { ...editingItem.mainItem, unit: e.target.value } })} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-600 outline-none focus:bg-white" />
                                     </div>
                                 </div>
                             </>
