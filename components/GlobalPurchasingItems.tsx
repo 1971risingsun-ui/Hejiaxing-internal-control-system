@@ -20,6 +20,9 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({ projects,
   });
   
   const [projectFilter, setProjectFilter] = useState<string>('ALL');
+  // 新增：僅用於此頁面顯示的品名覆寫狀態，不影響原始專案資料
+  const [localNameOverrides, setLocalNameOverrides] = useState<Record<string, string>>({});
+
   const [editingItem, setEditingItem] = useState<{
     project: Project;
     type: 'main' | 'sub';
@@ -40,6 +43,7 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({ projects,
   };
 
   const getItemKey = (item: CompletionItem) => `${item.name}_${item.category}_${item.spec || 'no-spec'}`;
+  const getUniqueRowId = (projId: string, idx: number) => `${projId}-${idx}`;
 
   const getDefaultMaterialItems = (itemName: string, quantity: string): { category: string; items: FenceMaterialItem[] } | null => {
     const baseQty = parseFloat(quantity) || 0;
@@ -70,6 +74,21 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({ projects,
     else if (sortConfig.key === key && sortConfig.direction === 'desc') direction = null;
     setSortConfig({ key, direction });
   };
+
+  // 獲取所有供應商中用途包含「立柱」的材料名稱 (支援逗號分隔)
+  const pillarOptions = useMemo(() => {
+    const names = new Set<string>();
+    suppliers.forEach(s => {
+      s.productList?.forEach(p => {
+        const usageRaw = (p.usage || '').toLowerCase();
+        const keywords = usageRaw.split(',').map(k => k.trim()).filter(k => k !== '');
+        if (keywords.includes('立柱')) {
+          names.add(p.name);
+        }
+      });
+    });
+    return Array.from(names).sort((a, b) => a.localeCompare(b, 'zh-Hant'));
+  }, [suppliers]);
 
   // 核心彙整邏輯
   const allPurchasingItems = useMemo(() => {
@@ -166,6 +185,11 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({ projects,
     onUpdateProject({ ...project, planningReports: updatedReports });
   };
 
+  // 更新局部狀態，但不更新原始專案資料 (滿足取消連動更新需求)
+  const handleLocalUpdateName = (rowId: string, newName: string) => {
+    setLocalNameOverrides(prev => ({ ...prev, [rowId]: newName }));
+  };
+
   const handleUpdateItemSupplier = (projId: string, reportIdx: number, itemIdx: number, supplierId: string, type: 'main' | 'sub', itemKey?: string, subIdx?: number) => {
     const project = projects.find(p => p.id === projId);
     if (!project) return;
@@ -227,13 +251,10 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({ projects,
         s.productList.some(p => {
             const usageRaw = (p.usage || '').toLowerCase();
             if (!usageRaw) return false;
-            // 依半形逗號拆分關鍵字，並移除空白
             const keywords = usageRaw.split(',').map(k => k.trim()).filter(k => k !== '');
-            // 只要任一關鍵字匹配品名或備註即視為匹配
             return keywords.some(k => searchName.includes(k) || searchNote.includes(k));
         })
     );
-    // 如果沒有匹配到，預設顯示全部以供選擇
     return matched.length > 0 ? matched : suppliers;
   };
 
@@ -262,7 +283,7 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({ projects,
           <div className="bg-indigo-600 p-3 rounded-xl text-white"><ClipboardListIcon className="w-6 h-6" /></div>
           <div>
             <h1 className="text-xl font-bold text-slate-800">採購項目總覽</h1>
-            <p className="text-xs text-slate-500 font-medium">遵循材料清單導入規則，預設日期為預約日期 - 7 天</p>
+            <p className="text-xs text-slate-500 font-medium">切換選單品名僅供採購試算參考，不更動原始報價單</p>
           </div>
         </div>
       </div>
@@ -292,11 +313,14 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({ projects,
             <tbody className="divide-y divide-slate-100">
               {allPurchasingItems.length > 0 ? allPurchasingItems.map((entry, idx) => {
                 const { project, type, subItem, mainItem, mainItemIdx, reportIdx, itemKey, subIdx } = entry;
+                const rowId = getUniqueRowId(project.id, idx);
                 const defaultDate = getDaysOffset(project.appointmentDate, -7);
                 const displayDate = mainItem.productionDate || defaultDate;
 
-                // 根據類型決定顯示內容
-                const rowName = type === 'sub' ? (subItem?.spec || '(未填寫規格)') : mainItem.name;
+                // 優先使用本地覆寫的名稱，若無則使用原始名稱
+                const originalName = type === 'sub' ? (subItem?.spec || '(未填寫規格)') : mainItem.name;
+                const rowName = localNameOverrides[rowId] || originalName;
+                
                 const rowSpec = type === 'sub' ? '' : (mainItem.spec || '-');
                 const rowQty = type === 'sub' ? subItem?.quantity : mainItem.quantity;
                 const rowUnit = type === 'sub' ? subItem?.unit : mainItem.unit;
@@ -306,7 +330,7 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({ projects,
                 const currentSupplierId = type === 'sub' ? subItem?.supplierId : mainItem.supplierId;
 
                 return (
-                  <tr key={`${project.id}-${idx}`} className="hover:bg-slate-50/50 transition-colors group">
+                  <tr key={rowId} className="hover:bg-slate-50/50 transition-colors group">
                     <td className="px-6 py-4">
                       <div className="font-black text-sm truncate max-w-[140px] text-indigo-700">{project.name}</div>
                     </td>
@@ -331,7 +355,16 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({ projects,
                             </select>
                         </div>
                     </td>
-                    <td className="px-6 py-4"><div className="font-bold text-sm text-slate-800">{rowName}</div></td>
+                    <td className="px-6 py-4">
+                        <select 
+                          value={rowName} 
+                          onChange={(e) => handleLocalUpdateName(rowId, e.target.value)}
+                          className={`w-full px-2 py-1.5 border rounded-lg text-xs font-bold outline-none focus:ring-1 focus:ring-indigo-500 appearance-none cursor-pointer shadow-sm ${localNameOverrides[rowId] ? 'bg-amber-50 border-amber-200 text-amber-700' : 'bg-slate-50 border-slate-200 text-slate-800'}`}
+                        >
+                          {!pillarOptions.includes(rowName) && <option value={rowName}>{rowName}</option>}
+                          {pillarOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                        </select>
+                    </td>
                     <td className="px-6 py-4"><div className="text-xs text-slate-500 whitespace-pre-wrap max-w-[180px]">{rowSpec}</div></td>
                     <td className="px-6 py-4 text-center"><span className="font-black text-sm text-blue-600">{rowQty}</span></td>
                     <td className="px-6 py-4 text-center"><span className="text-xs text-slate-400 font-bold">{rowUnit}</span></td>
@@ -372,7 +405,7 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({ projects,
                             <>
                                 <div>
                                     <label className="block text-[10px] font-black text-slate-500 uppercase mb-1.5 tracking-wider">品名 (規格填寫)</label>
-                                    <input type="text" required value={editingItem.subItem.spec} onChange={e => setEditingItem({ ...editingItem, subItem: { ...editingItem.subItem!, spec: e.target.value } })} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500 transition-all shadow-inner" />
+                                    <input type="text" list="pillar-options-datalist" required value={editingItem.subItem.spec} onChange={e => setEditingItem({ ...editingItem, subItem: { ...editingItem.subItem!, spec: e.target.value } })} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500 transition-all shadow-inner" />
                                 </div>
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
@@ -393,7 +426,7 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({ projects,
                             <>
                                 <div>
                                     <label className="block text-[10px] font-black text-slate-500 uppercase mb-1.5 tracking-wider">品名</label>
-                                    <input type="text" required value={editingItem.mainItem.name} onChange={e => setEditingItem({ ...editingItem, mainItem: { ...editingItem.mainItem, name: e.target.value } })} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500 shadow-inner" />
+                                    <input type="text" list="pillar-options-datalist" required value={editingItem.mainItem.name} onChange={e => setEditingItem({ ...editingItem, mainItem: { ...editingItem.mainItem, name: e.target.value } })} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500 shadow-inner" />
                                 </div>
                                 <div>
                                     <label className="block text-[10px] font-black text-slate-500 uppercase mb-1.5 tracking-wider">規格</label>
@@ -412,6 +445,10 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({ projects,
                             </>
                         )}
                     </div>
+
+                    <datalist id="pillar-options-datalist">
+                      {pillarOptions.map(opt => <option key={opt} value={opt} />)}
+                    </datalist>
 
                     <footer className="pt-6 flex gap-3">
                         <button type="button" onClick={() => setEditingItem(null)} className="flex-1 py-3.5 rounded-2xl text-sm font-bold text-slate-500 hover:bg-slate-100">取消</button>
