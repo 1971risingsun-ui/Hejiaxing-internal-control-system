@@ -56,16 +56,19 @@ const PurchasingItemRow: React.FC<{
   const { project, type, subItem, mainItem, reportIdx, mainItemIdx, itemKey, subIdx, rowKey } = entry;
   
   const displayDate = mainItem.productionDate || getDaysOffset(project.appointmentDate, -7);
+  
+  // 欄位對應邏輯 (Case A: 有材料表時，品名顯示規格，備註顯示材料名稱)
   const rowName = type === 'sub' ? (subItem?.spec || '') : mainItem.name;
-  const rowSpec = type === 'sub' ? '' : (mainItem.spec || '-');
+  const rowSpec = type === 'sub' ? '(材料單項目)' : (mainItem.spec || '-');
   const rowQty = type === 'sub' ? subItem?.quantity : mainItem.quantity;
   const rowUnit = type === 'sub' ? subItem?.unit : mainItem.unit;
   const rowNote = type === 'sub' ? (subItem?.name || '-') : (mainItem.itemNote || '-');
+  
   const currentSupplierId = type === 'sub' ? subItem?.supplierId : mainItem.supplierId;
   const matchedSupplier = allPartners.find(s => s.id === currentSupplierId);
   const currentSupplierName = matchedSupplier?.name || currentSupplierId || '';
 
-  // 避免重複詢問的機制
+  const nameInputRef = useRef<HTMLInputElement>(null);
   const promptedRef = useRef<string>('');
 
   const handleCheckAndPromptAddition = (inputSupplierName: string, inputProductName: string) => {
@@ -166,6 +169,7 @@ const PurchasingItemRow: React.FC<{
       <td className="px-6 py-4 w-72">
         <div className="relative">
           <input 
+            ref={nameInputRef}
             list={`product-datalist-${rowKey}`}
             value={rowName} 
             onChange={(e) => handleUpdateItemName(project.id, reportIdx, mainItemIdx, e.target.value, type, itemKey, subIdx)}
@@ -183,7 +187,10 @@ const PurchasingItemRow: React.FC<{
       <td className={`px-6 py-4 w-20 text-center text-xs text-slate-400 font-bold ${isPoCreated ? 'line-through text-slate-400 opacity-60' : ''}`}>{rowUnit}</td>
       <td className={`px-6 py-4 text-xs text-slate-500 truncate max-w-[150px] ${isPoCreated ? 'line-through text-slate-400 opacity-60' : ''}`}>{rowNote}</td>
       <td className="px-6 py-4 w-16 text-right">
-        <button className="p-2 text-slate-300 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all">
+        <button 
+          onClick={() => nameInputRef.current?.focus()}
+          className="p-2 text-slate-300 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all"
+        >
           <EditIcon className="w-4 h-4" />
         </button>
       </td>
@@ -214,12 +221,33 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
     receiver: ''
   });
 
-  // 管理漂浮視窗中可編輯的數量與項目資訊
   const [poItemsDraft, setPoItemsDraft] = useState<Record<string, { quantity: string; name: string; unit: string; notes: string; project: string }>>({});
 
   const allPartners = useMemo(() => [...suppliers, ...subcontractors], [suppliers, subcontractors]);
 
   const getItemKey = (item: CompletionItem) => `${item.name}_${item.category}_${item.spec || 'no-spec'}`;
+
+  // 輔助函式：計算自動備料項目
+  const getAutoFormulaItems = (itemName: string, quantity: string): FenceMaterialItem[] => {
+    const baseQty = parseFloat(quantity) || 0;
+    if (baseQty <= 0) return [];
+    const config = systemRules.materialFormulas.find(f => itemName.includes(f.keyword));
+    if (!config) return [];
+    return config.items.map(fi => {
+      let calcQty = 0;
+      try {
+        const func = new Function('baseQty', 'Math', `return ${fi.formula}`);
+        calcQty = func(baseQty, Math);
+      } catch (e) { calcQty = baseQty; }
+      return {
+        id: crypto.randomUUID(),
+        name: fi.name, // 材料名稱
+        spec: '',      // 預設規格留空
+        quantity: isNaN(calcQty) ? 0 : calcQty,
+        unit: fi.unit
+      };
+    });
+  };
 
   const allPurchasingItems = useMemo(() => {
     let list: RowData[] = [];
@@ -229,15 +257,24 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
         return curr.timestamp > arr[latestIdx].timestamp ? idx : latestIdx;
       }, 0);
       const report = project.planningReports[latestReportIdx];
+      
       report.items.forEach((item, itemIdx) => {
         const name = item.name || '';
         const isFence = item.category === 'FENCE_MAIN';
         const isSubKeyword = systemRules.subcontractorKeywords.some(kw => name.includes(kw));
         const isProdKeyword = systemRules.productionKeywords.some(kw => name.includes(kw));
+        
+        // 僅處理圍籬主項，且非生產/協力項
         if (isFence && !isSubKeyword && !isProdKeyword) {
           const itemKey = getItemKey(item);
           const savedSheet = project.fenceMaterialSheets?.[itemKey];
-          const activeSubItems = savedSheet?.items || [];
+          
+          // 邏輯升級：若有儲存材料表 OR 符合自動換算公式，則展開細項
+          let activeSubItems = savedSheet?.items || [];
+          if (activeSubItems.length === 0) {
+             activeSubItems = getAutoFormulaItems(item.name, item.quantity);
+          }
+
           if (activeSubItems.length > 0) {
             activeSubItems.forEach((sub, subIdx) => {
                 list.push({ 
@@ -315,7 +352,6 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
     const uniqueProjIds = Array.from(new Set(selectedItems.map(i => i.project.id)));
     const firstSupplierId = (selectedItems[0].type === 'sub' ? selectedItems[0].subItem?.supplierId : selectedItems[0].mainItem.supplierId) || '';
     
-    // 初始化編輯資料
     const draft: Record<string, any> = {};
     selectedItems.forEach(row => {
         const isSub = row.type === 'sub';
@@ -497,7 +533,7 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
           <div className="bg-indigo-600 p-3 rounded-xl text-white shadow-lg"><ClipboardListIcon className="w-6 h-6" /></div>
           <div>
             <h1 className="text-xl font-bold text-slate-800">採購項目總覽</h1>
-            <p className="text-xs text-slate-500 font-medium">彙整規劃項目，勾選後可批次建立正式採購單</p>
+            <p className="text-xs text-slate-500 font-medium">彙整規劃項目，有材料單項目會自動展開細項</p>
           </div>
         </div>
       </div>
@@ -582,7 +618,22 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
                 </header>
 
                 <div className="flex-1 overflow-y-auto custom-scrollbar p-8">
+                    {/* 位置交換：供應商在前，案件在後 */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+                        <div>
+                            <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 tracking-wider">主要供應商</label>
+                            <div className="relative">
+                                <UsersIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                                <select 
+                                    value={poForm.supplierId}
+                                    onChange={e => setPoForm({ ...poForm, supplierId: e.target.value })}
+                                    className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold text-slate-700 focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                                >
+                                    <option value="">選取廠商...</option>
+                                    {allPartners.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                                </select>
+                            </div>
+                        </div>
                         <div>
                             <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 tracking-wider">採購案件 (可複選)</label>
                             <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl max-h-40 overflow-y-auto space-y-2 shadow-inner">
@@ -605,20 +656,6 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
                                 ))}
                             </div>
                         </div>
-                        <div>
-                            <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 tracking-wider">主要供應商</label>
-                            <div className="relative">
-                                <UsersIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                                <select 
-                                    value={poForm.supplierId}
-                                    onChange={e => setPoForm({ ...poForm, supplierId: e.target.value })}
-                                    className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold text-slate-700 focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
-                                >
-                                    <option value="">選取廠商...</option>
-                                    {allPartners.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                                </select>
-                            </div>
-                        </div>
                     </div>
 
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10">
@@ -628,7 +665,7 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
                         </div>
                         <div>
                             <label className="text-[10px] uppercase font-black text-slate-400 block mb-1 tracking-widest">請購人</label>
-                            <input type="text" value={poForm.requisitioner} onChange={e => setPoForm({...poForm, requisitioner: e.target.value})} placeholder="姓名" className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold" />
+                            <input type="text" value={poForm.requisitioner} onChange={e => setPoForm({...poForm, requisitioner: e.target.value})} placeholder="請輸入姓名" className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold" />
                         </div>
                         <div>
                             <label className="text-[10px] uppercase font-black text-slate-400 block mb-1 tracking-widest">需到貨日期</label>
@@ -636,7 +673,7 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
                         </div>
                         <div>
                             <label className="text-[10px] uppercase font-black text-slate-400 block mb-1 tracking-widest">收貨人</label>
-                            <input type="text" value={poForm.receiver} onChange={e => setPoForm({...poForm, receiver: e.target.value})} placeholder="姓名" className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold" />
+                            <input type="text" value={poForm.receiver} onChange={e => setPoForm({...poForm, receiver: e.target.value})} placeholder="請輸入姓名" className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold" />
                         </div>
                     </div>
 

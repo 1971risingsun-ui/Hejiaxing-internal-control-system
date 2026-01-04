@@ -19,7 +19,6 @@ const PurchaseOrders: React.FC<PurchaseOrdersProps> = ({ projects, suppliers, pu
   const [editingPOId, setEditingPOId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   
-  // 新增/修改採購單表單狀態 (Header)
   const [selectedProjectId, setSelectedProjectId] = useState('');
   const [fillingDate, setFillingDate] = useState(new Date().toISOString().split('T')[0]);
   const [requisitioner, setRequisitioner] = useState('');
@@ -27,10 +26,8 @@ const PurchaseOrders: React.FC<PurchaseOrdersProps> = ({ projects, suppliers, pu
   const [deliveryLocation, setDeliveryLocation] = useState('現場 (Site)');
   const [receiver, setReceiver] = useState('');
   
-  // 材料列表狀態 (Items)
   const [selectedMaterials, setSelectedMaterials] = useState<Record<string, { quantity: number; supplierId: string; notes?: string; name?: string; unit?: string }>>({});
   
-  // 手動追加的材料列表
   const [extraMaterials, setExtraMaterials] = useState<Material[]>([]);
   const [isAddingExtra, setIsAddingExtra] = useState(false);
   const [newExtra, setNewExtra] = useState({ name: '', quantity: 1, unit: '個', notes: '' });
@@ -76,22 +73,19 @@ const PurchaseOrders: React.FC<PurchaseOrdersProps> = ({ projects, suppliers, pu
     setDeliveryLocation(po.deliveryLocation || '現場 (Site)');
     setReceiver(po.receiver || '');
 
-    // 重建選擇項目與手動追加項目的關聯
     const newSelected: Record<string, any> = {};
     const newExtraItems: Material[] = [];
 
-    // Fix: Explicitly type 'item' to ensure property safety.
     po.items.forEach((item: PurchaseOrderItem) => {
-        // 檢查是否為原有專案材料
         const project = projects.find(p => p.id === po.projectId);
-        const mat = project?.materials.find(m => m.name === item.name); // 採購項目名稱匹配
+        const mat = project?.materials.find(m => m.name === item.name);
         
         const key = mat ? mat.id : `extra-edit-${crypto.randomUUID()}`;
         newSelected[key] = {
             quantity: item.quantity,
             supplierId: item.supplierId,
             notes: item.notes,
-            name: item.name, // 供額外項使用
+            name: item.name,
             unit: item.unit
         };
 
@@ -134,10 +128,8 @@ const PurchaseOrders: React.FC<PurchaseOrdersProps> = ({ projects, suppliers, pu
       return;
     }
 
-    // Fix: Cast Object.entries to [string, any][] to avoid "Property '...' does not exist on type 'unknown'" errors for the 'data' variable.
     const poItems: PurchaseOrderItem[] = (Object.entries(selectedMaterials) as [string, any][]).map(([mid, data]) => {
       const mat = allAvailableMaterials.find(m => m.id === mid);
-      // Fix: Properties now safely accessible on casted 'data' object.
       return {
         materialId: mid,
         name: mat?.name || data.name || '',
@@ -174,7 +166,6 @@ const PurchaseOrders: React.FC<PurchaseOrdersProps> = ({ projects, suppliers, pu
         onUpdatePurchaseOrders(purchaseOrders.map(o => o.id === editingPOId ? poPayload : o));
     } else {
         onUpdatePurchaseOrders([...purchaseOrders, poPayload]);
-        // 若為新建立，更新專案材料狀態
         if (currentProject) {
             const updatedMaterials = currentProject.materials.map(m => 
                 selectedMaterials[m.id] ? { ...m, status: MaterialStatus.ORDERED } : m
@@ -323,7 +314,7 @@ const PurchaseOrders: React.FC<PurchaseOrdersProps> = ({ projects, suppliers, pu
                       value={requisitioner}
                       onChange={(e) => setRequisitioner(e.target.value)}
                       placeholder="請輸入姓名"
-                      className="w-full pl-10 pr-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                      className="w-full pl-10 pr-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
                     />
                   </div>
                 </div>
@@ -364,7 +355,7 @@ const PurchaseOrders: React.FC<PurchaseOrdersProps> = ({ projects, suppliers, pu
                       type="text" 
                       value={receiver}
                       onChange={(e) => setReceiver(e.target.value)}
-                      placeholder="收貨窗口姓名"
+                      placeholder="請輸入姓名"
                       className="w-full pl-10 pr-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
                     />
                   </div>
@@ -524,8 +515,9 @@ const PurchaseOrders: React.FC<PurchaseOrdersProps> = ({ projects, suppliers, pu
                 <thead className="bg-slate-50 text-slate-500 text-[10px] uppercase font-black tracking-widest border-b border-slate-200 sticky top-0 z-10">
                   <tr>
                     <th className="px-6 py-4">採購單號 / 日期</th>
-                    <th className="px-6 py-4">專案名稱</th>
+                    {/* 位置交換：供應商在前 */}
                     <th className="px-6 py-4">主供應商</th>
+                    <th className="px-6 py-4">專案名稱</th>
                     <th className="px-6 py-4 text-center">項目數量</th>
                     <th className="px-6 py-4 text-center">狀態</th>
                     <th className="px-6 py-4 text-right">操作</th>
@@ -538,16 +530,17 @@ const PurchaseOrders: React.FC<PurchaseOrdersProps> = ({ projects, suppliers, pu
                         <div className="font-black text-slate-800 text-sm group-hover:text-indigo-600 transition-colors">{po.poNumber}</div>
                         <div className="text-[10px] text-slate-400 font-bold mt-0.5">{po.date}</div>
                       </td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-2">
-                          <BriefcaseIcon className="w-3.5 h-3.5 text-slate-300" />
-                          <span className="text-sm font-bold text-slate-700 truncate max-w-[200px]">{po.projectName}</span>
-                        </div>
-                      </td>
+                      {/* 位置交換內容 */}
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-2">
                           <UsersIcon className="w-3.5 h-3.5 text-slate-300" />
                           <span className="text-sm font-bold text-slate-600">{po.supplierName}</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-2">
+                          <BriefcaseIcon className="w-3.5 h-3.5 text-slate-300" />
+                          <span className="text-sm font-bold text-slate-700 truncate max-w-[200px]">{po.projectName}</span>
                         </div>
                       </td>
                       <td className="px-6 py-4 text-center">
