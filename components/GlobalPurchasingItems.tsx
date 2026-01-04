@@ -41,7 +41,6 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
   const [supplierFilter, setSupplierFilter] = useState<string>('ALL');
   const [selectedRowKeys, setSelectedRowKeys] = useState<Set<string>>(new Set());
 
-  // 新增採購單 Modal 狀態
   const [isCreatingPO, setIsCreatingPO] = useState(false);
   const [poFormData, setPoFormData] = useState({
     selectedProjectIds: [] as string[],
@@ -101,7 +100,6 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
       });
     });
     
-    // 過濾邏輯
     if (projectFilter !== 'ALL') {
       list = list.filter(i => i.project.id === projectFilter);
     }
@@ -112,7 +110,6 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
       });
     }
 
-    // 排序邏輯
     if (sortConfig.direction) {
       list.sort((a, b) => {
         let valA = '', valB = '';
@@ -226,7 +223,6 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
 
     onUpdatePurchaseOrders([...purchaseOrders, newPO]);
 
-    // 更新各專案項目的狀態
     const updatedProjectsMap = new Map<string, Project>();
     selectedItems.forEach(row => {
       let p = updatedProjectsMap.get(row.project.id) || projects.find(proj => proj.id === row.project.id);
@@ -288,7 +284,7 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
   }, [projects]);
 
   const uniqueSupplierList = useMemo(() => {
-    return suppliers.sort((a, b) => a.name.localeCompare(b, 'zh-Hant'));
+    return [...suppliers].sort((a, b) => a.name.localeCompare(b.name, 'zh-Hant'));
   }, [suppliers]);
 
   return (
@@ -394,7 +390,6 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
                               className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500"
                             />
                         )}
-                        {/* Fix: Moved title attribute from CheckCircleIcon to a wrapping span to resolve TypeScript assignment error. */}
                         {isPoCreated && (
                           <span title="已建立採購單" className="flex items-center justify-center">
                             <CheckCircleIcon className="w-4 h-4 text-green-500 mx-auto" />
@@ -435,7 +430,6 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
         </div>
       </div>
 
-      {/* 建立採購單漂浮視窗 (Create PO Modal) */}
       {isCreatingPO && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
             <div className="bg-white w-full max-w-4xl max-h-[90vh] rounded-[32px] shadow-2xl overflow-hidden flex flex-col animate-scale-in">

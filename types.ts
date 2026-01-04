@@ -105,7 +105,7 @@ export interface CompletionItem {
   productionDate?: string; 
   isProduced?: boolean; 
   supplierId?: string;
-  isPoCreated?: boolean; // 新增：是否已建立採購單
+  isPoCreated?: boolean; // 是否已建立採購單
 }
 
 export interface CompletionReport {
@@ -159,7 +159,7 @@ export interface FenceMaterialItem {
   quantity: number;
   unit: string;
   supplierId?: string;
-  isPoCreated?: boolean; // 新增：是否已建立採購單
+  isPoCreated?: boolean; // 是否已建立採購單
 }
 
 export interface FenceMaterialSheet {
@@ -292,16 +292,16 @@ export interface PurchaseOrderItem {
   price: number;
   notes?: string;
   supplierId: string;
-  projectId?: string; // 新增：關聯專案 ID
-  projectName?: string; // 新增：關聯專案名稱
+  projectId?: string;
+  projectName?: string;
 }
 
 export interface PurchaseOrder {
   id: string;
   poNumber: string;
   date: string; 
-  projectId: string; // 若多專案則存放主要專案或空字串
-  projectIds?: string[]; // 新增：複選專案 ID
+  projectId: string;
+  projectIds?: string[]; // 支援複選專案
   projectName: string; 
   supplierId: string;
   supplierName: string;
