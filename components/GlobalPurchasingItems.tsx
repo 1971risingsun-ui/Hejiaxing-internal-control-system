@@ -214,6 +214,9 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
     receiver: ''
   });
 
+  // 管理漂浮視窗中可編輯的數量與項目資訊
+  const [poItemsDraft, setPoItemsDraft] = useState<Record<string, { quantity: string; name: string; unit: string; notes: string; project: string }>>({});
+
   const allPartners = useMemo(() => [...suppliers, ...subcontractors], [suppliers, subcontractors]);
 
   const getItemKey = (item: CompletionItem) => `${item.name}_${item.category}_${item.spec || 'no-spec'}`;
@@ -311,6 +314,21 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
     const selectedItems = allPurchasingItems.filter(i => selectedRowKeys.has(i.rowKey));
     const uniqueProjIds = Array.from(new Set(selectedItems.map(i => i.project.id)));
     const firstSupplierId = (selectedItems[0].type === 'sub' ? selectedItems[0].subItem?.supplierId : selectedItems[0].mainItem.supplierId) || '';
+    
+    // 初始化編輯資料
+    const draft: Record<string, any> = {};
+    selectedItems.forEach(row => {
+        const isSub = row.type === 'sub';
+        draft[row.rowKey] = {
+            quantity: String(isSub ? (row.subItem?.quantity || '0') : row.mainItem.quantity),
+            name: isSub ? (row.subItem?.spec || '') : row.mainItem.name,
+            unit: isSub ? (row.subItem?.unit || '') : row.mainItem.unit,
+            notes: isSub ? (row.subItem?.name || '') : (row.mainItem.itemNote || ''),
+            project: row.project.name
+        };
+    });
+
+    setPoItemsDraft(draft);
     setPoForm({ ...poForm, projectIds: uniqueProjIds, supplierId: firstSupplierId });
     setIsCreatingPO(true);
   };
@@ -322,18 +340,20 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
     }
     const selectedItems = allPurchasingItems.filter(i => selectedRowKeys.has(i.rowKey));
     const targetSupplier = allPartners.find(s => s.id === poForm.supplierId);
+    
     const poItems: PurchaseOrderItem[] = selectedItems.map(row => {
-      const isSub = row.type === 'sub';
+      const draft = poItemsDraft[row.rowKey];
       return {
-        materialId: isSub ? (row.subItem?.id || '') : `main-${row.mainItemIdx}`,
-        name: isSub ? (row.subItem?.spec || '') : row.mainItem.name,
-        quantity: parseFloat(isSub ? (row.subItem?.quantity.toString() || '0') : row.mainItem.quantity),
-        unit: isSub ? (row.subItem?.unit || '') : row.mainItem.unit,
+        materialId: row.type === 'sub' ? (row.subItem?.id || '') : `main-${row.mainItemIdx}`,
+        name: draft.name,
+        quantity: parseFloat(draft.quantity) || 0,
+        unit: draft.unit,
         price: 0,
-        notes: isSub ? row.subItem?.name : row.mainItem.itemNote,
+        notes: draft.notes,
         supplierId: poForm.supplierId
       };
     });
+
     const newPO: PurchaseOrder = {
       id: crypto.randomUUID(),
       poNumber: `PO-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${Math.floor(1000 + Math.random() * 9000)}`,
@@ -377,6 +397,7 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
     updatedProjectsMap.forEach(proj => onUpdateProject(proj));
     setIsCreatingPO(false);
     setSelectedRowKeys(new Set());
+    setPoItemsDraft({});
     alert('採購單已建立並匯出');
   };
 
@@ -628,7 +649,7 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
                                 <tr>
                                     <th className="px-6 py-2">專案</th>
                                     <th className="px-6 py-2">品名規格</th>
-                                    <th className="px-6 py-2 text-center">數量</th>
+                                    <th className="px-6 py-2 text-center">數量 (點擊修改)</th>
                                     <th className="px-6 py-2">單位</th>
                                 </tr>
                             </thead>
@@ -636,9 +657,22 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
                                 {allPurchasingItems.filter(i => selectedRowKeys.has(i.rowKey)).map(row => (
                                     <tr key={row.rowKey} className="bg-white">
                                         <td className="px-6 py-3 font-bold text-indigo-600 truncate max-w-[150px]">{row.project.name}</td>
-                                        <td className="px-6 py-3 font-black text-slate-800">{row.type === 'sub' ? row.subItem?.spec : row.mainItem.name}</td>
-                                        <td className="px-6 py-3 text-center font-black text-blue-600">{row.type === 'sub' ? row.subItem?.quantity : row.mainItem.quantity}</td>
-                                        <td className="px-6 py-3 text-slate-400 font-bold">{row.type === 'sub' ? row.subItem?.unit : row.mainItem.unit}</td>
+                                        <td className="px-6 py-3 font-black text-slate-800">{poItemsDraft[row.rowKey]?.name || ''}</td>
+                                        <td className="px-6 py-3 text-center">
+                                            <input 
+                                                type="number"
+                                                step="any"
+                                                value={poItemsDraft[row.rowKey]?.quantity || '0'}
+                                                onChange={(e) => {
+                                                    setPoItemsDraft(prev => ({
+                                                        ...prev,
+                                                        [row.rowKey]: { ...prev[row.rowKey], quantity: e.target.value }
+                                                    }));
+                                                }}
+                                                className="w-20 px-2 py-1 border border-slate-200 rounded text-center outline-none focus:ring-1 focus:ring-indigo-500 font-black text-blue-600"
+                                            />
+                                        </td>
+                                        <td className="px-6 py-3 text-slate-400 font-bold">{poItemsDraft[row.rowKey]?.unit || ''}</td>
                                     </tr>
                                 ))}
                             </tbody>
