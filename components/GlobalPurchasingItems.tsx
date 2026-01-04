@@ -49,15 +49,17 @@ const PurchasingItemRow: React.FC<{
   handleUpdateItemSupplier: (pId: string, rIdx: number, iIdx: number, val: string, type: 'main' | 'sub', iKey?: string, sIdx?: number) => void;
   handleUpdateItemName: (pId: string, rIdx: number, iIdx: number, val: string, type: 'main' | 'sub', iKey?: string, sIdx?: number) => void;
   onUpdateSuppliers: (list: Supplier[]) => void;
+  onEdit: (entry: RowData) => void;
 }> = ({ 
   entry, suppliers, allPartners, isPoCreated, selectedRowKeys, toggleRowSelection, 
-  handleUpdateItemDate, handleUpdateItemSupplier, handleUpdateItemName, onUpdateSuppliers
+  handleUpdateItemDate, handleUpdateItemSupplier, handleUpdateItemName, onUpdateSuppliers,
+  onEdit
 }) => {
   const { project, type, subItem, mainItem, reportIdx, mainItemIdx, itemKey, subIdx, rowKey } = entry;
   
   const displayDate = mainItem.productionDate || getDaysOffset(project.appointmentDate, -7);
   
-  // 欄位對應邏輯 (Case A: 有材料表時，品名顯示規格，備註顯示材料名稱)
+  // 欄位對應邏輯
   const rowName = type === 'sub' ? (subItem?.spec || '') : mainItem.name;
   const rowSpec = type === 'sub' ? '(材料單項目)' : (mainItem.spec || '-');
   const rowQty = type === 'sub' ? subItem?.quantity : mainItem.quantity;
@@ -68,7 +70,6 @@ const PurchasingItemRow: React.FC<{
   const matchedSupplier = allPartners.find(s => s.id === currentSupplierId);
   const currentSupplierName = matchedSupplier?.name || currentSupplierId || '';
 
-  const nameInputRef = useRef<HTMLInputElement>(null);
   const promptedRef = useRef<string>('');
 
   const handleCheckAndPromptAddition = (inputSupplierName: string, inputProductName: string) => {
@@ -115,21 +116,6 @@ const PurchasingItemRow: React.FC<{
     return filtered.sort((a, b) => a.name.localeCompare(b.name, 'zh-Hant'));
   }, [suppliers, rowName, rowNote]);
 
-  const productOptions = useMemo(() => {
-    let filteredProducts: string[] = [];
-    if (matchedSupplier) {
-      const usages = [rowName, rowNote].filter(Boolean).map(s => s.toLowerCase());
-      const matchedInSup = matchedSupplier.productList.filter(p => {
-        const pUsages = (p.usage || '').split(',').map(u => u.trim().toLowerCase());
-        return usages.some(target => pUsages.some(u => target.includes(u) || u.includes(target)));
-      });
-      filteredProducts = (matchedInSup.length > 0 ? matchedInSup : matchedSupplier.productList).map(p => p.name);
-    } else {
-      filteredProducts = Array.from(new Set(suppliers.flatMap(s => s.productList.map(p => p.name))));
-    }
-    return filteredProducts.filter(Boolean).sort();
-  }, [suppliers, matchedSupplier, rowName, rowNote]);
-
   return (
     <tr key={rowKey} className={`hover:bg-slate-50/50 transition-colors group ${isPoCreated ? 'bg-slate-50 opacity-60' : ''}`}>
       <td className="px-4 py-4 text-center">
@@ -167,20 +153,7 @@ const PurchasingItemRow: React.FC<{
         </div>
       </td>
       <td className="px-6 py-4 w-72">
-        <div className="relative">
-          <input 
-            ref={nameInputRef}
-            list={`product-datalist-${rowKey}`}
-            value={rowName} 
-            onChange={(e) => handleUpdateItemName(project.id, reportIdx, mainItemIdx, e.target.value, type, itemKey, subIdx)}
-            onBlur={(e) => handleCheckAndPromptAddition(currentSupplierName, e.target.value)}
-            placeholder="品名 (選填)..."
-            className={`w-full px-2 py-1 bg-transparent border-b border-transparent focus:border-indigo-300 outline-none text-sm font-bold ${isPoCreated ? 'line-through text-slate-400 opacity-60' : ''}`}
-          />
-          <datalist id={`product-datalist-${rowKey}`}>
-            {productOptions.map((p, pidx) => <option key={pidx} value={p} />)}
-          </datalist>
-        </div>
+        <div className={`text-sm font-bold truncate max-w-[250px] ${isPoCreated ? 'line-through text-slate-400 opacity-60' : ''}`}>{rowName}</div>
       </td>
       <td className={`px-6 py-4 w-60 text-xs text-slate-500 ${isPoCreated ? 'line-through text-slate-400 opacity-60' : ''}`}>{rowSpec}</td>
       <td className={`px-6 py-4 w-24 text-center font-black text-blue-600 ${isPoCreated ? 'line-through text-slate-400 opacity-60' : ''}`}>{rowQty}</td>
@@ -188,7 +161,7 @@ const PurchasingItemRow: React.FC<{
       <td className={`px-6 py-4 text-xs text-slate-500 truncate max-w-[150px] ${isPoCreated ? 'line-through text-slate-400 opacity-60' : ''}`}>{rowNote}</td>
       <td className="px-6 py-4 w-16 text-right">
         <button 
-          onClick={() => nameInputRef.current?.focus()}
+          onClick={() => onEdit(entry)}
           className="p-2 text-slate-300 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all"
         >
           <EditIcon className="w-4 h-4" />
@@ -211,6 +184,7 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
 
   const [selectedRowKeys, setSelectedRowKeys] = useState<Set<string>>(new Set());
   const [isCreatingPO, setIsCreatingPO] = useState(false);
+  const [editingRow, setEditingRow] = useState<RowData | null>(null);
   const [poForm, setPoForm] = useState({
     projectIds: [] as string[],
     supplierId: '',
@@ -227,7 +201,6 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
 
   const getItemKey = (item: CompletionItem) => `${item.name}_${item.category}_${item.spec || 'no-spec'}`;
 
-  // 輔助函式：計算自動備料項目
   const getAutoFormulaItems = (itemName: string, quantity: string): FenceMaterialItem[] => {
     const baseQty = parseFloat(quantity) || 0;
     if (baseQty <= 0) return [];
@@ -241,8 +214,8 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
       } catch (e) { calcQty = baseQty; }
       return {
         id: crypto.randomUUID(),
-        name: fi.name, // 材料名稱
-        spec: '',      // 預設規格留空
+        name: fi.name, 
+        spec: '',      
         quantity: isNaN(calcQty) ? 0 : calcQty,
         unit: fi.unit
       };
@@ -264,12 +237,10 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
         const isSubKeyword = systemRules.subcontractorKeywords.some(kw => name.includes(kw));
         const isProdKeyword = systemRules.productionKeywords.some(kw => name.includes(kw));
         
-        // 僅處理圍籬主項，且非生產/協力項
         if (isFence && !isSubKeyword && !isProdKeyword) {
           const itemKey = getItemKey(item);
           const savedSheet = project.fenceMaterialSheets?.[itemKey];
           
-          // 邏輯升級：若有儲存材料表 OR 符合自動換算公式，則展開細項
           let activeSubItems = savedSheet?.items || [];
           if (activeSubItems.length === 0) {
              activeSubItems = getAutoFormulaItems(item.name, item.quantity);
@@ -387,7 +358,7 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
         price: 0,
         notes: draft.notes,
         supplierId: poForm.supplierId,
-        projectName: row.project.name // 將匯入項目明細的專案名稱填入
+        projectName: row.project.name 
       };
     });
 
@@ -487,6 +458,66 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
         const updatedReports = [...project.planningReports];
         const updatedItems = [...updatedReports[rIdx].items];
         updatedItems[iIdx] = { ...updatedItems[iIdx], name: val };
+        updatedReports[rIdx] = { ...updatedReports[rIdx], items: updatedItems };
+        onUpdateProject({ ...project, planningReports: updatedReports });
+    }
+  };
+
+  const handleUpdateItemQuantity = (pId: string, rIdx: number, iIdx: number, val: string, type: 'main' | 'sub', iKey?: string, sIdx?: number) => {
+    const project = projects.find(p => p.id === pId);
+    if (!project) return;
+    if (type === 'sub' && iKey !== undefined && sIdx !== undefined) {
+        const sheets = { ...(project.fenceMaterialSheets || {}) };
+        const sheet = sheets[iKey];
+        if (!sheet) return;
+        const newItems = [...sheet.items];
+        newItems[sIdx] = { ...newItems[sIdx], quantity: parseFloat(val) || 0 };
+        sheets[iKey] = { ...sheet, items: newItems };
+        onUpdateProject({ ...project, fenceMaterialSheets: sheets });
+    } else {
+        const updatedReports = [...project.planningReports];
+        const updatedItems = [...updatedReports[rIdx].items];
+        updatedItems[iIdx] = { ...updatedItems[iIdx], quantity: val };
+        updatedReports[rIdx] = { ...updatedReports[rIdx], items: updatedItems };
+        onUpdateProject({ ...project, planningReports: updatedReports });
+    }
+  };
+
+  const handleUpdateItemUnit = (pId: string, rIdx: number, iIdx: number, val: string, type: 'main' | 'sub', iKey?: string, sIdx?: number) => {
+    const project = projects.find(p => p.id === pId);
+    if (!project) return;
+    if (type === 'sub' && iKey !== undefined && sIdx !== undefined) {
+        const sheets = { ...(project.fenceMaterialSheets || {}) };
+        const sheet = sheets[iKey];
+        if (!sheet) return;
+        const newItems = [...sheet.items];
+        newItems[sIdx] = { ...newItems[sIdx], unit: val };
+        sheets[iKey] = { ...sheet, items: newItems };
+        onUpdateProject({ ...project, fenceMaterialSheets: sheets });
+    } else {
+        const updatedReports = [...project.planningReports];
+        const updatedItems = [...updatedReports[rIdx].items];
+        updatedItems[iIdx] = { ...updatedItems[iIdx], unit: val };
+        updatedReports[rIdx] = { ...updatedReports[rIdx], items: updatedItems };
+        onUpdateProject({ ...project, planningReports: updatedReports });
+    }
+  };
+
+  const handleUpdateItemNotes = (pId: string, rIdx: number, iIdx: number, val: string, type: 'main' | 'sub', iKey?: string, sIdx?: number) => {
+    const project = projects.find(p => p.id === pId);
+    if (!project) return;
+    if (type === 'sub' && iKey !== undefined && sIdx !== undefined) {
+        const sheets = { ...(project.fenceMaterialSheets || {}) };
+        const sheet = sheets[iKey];
+        if (!sheet) return;
+        const newItems = [...sheet.items];
+        newItems[sIdx] = { ...newItems[sIdx], name: val }; // subItem.name is used for notes in this context
+        sheets[iKey] = { ...sheet, items: newItems };
+        onUpdateProject({ ...project, fenceMaterialSheets: sheets });
+    } else {
+        const updatedReports = [...project.planningReports];
+        const updatedItems = [...updatedReports[rIdx].items];
+        updatedItems[iIdx] = { ...updatedItems[iIdx], itemNote: val };
         updatedReports[rIdx] = { ...updatedReports[rIdx], items: updatedItems };
         onUpdateProject({ ...project, planningReports: updatedReports });
     }
@@ -595,6 +626,7 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
                   handleUpdateItemSupplier={handleUpdateItemSupplier}
                   handleUpdateItemName={handleUpdateItemName}
                   onUpdateSuppliers={onUpdateSuppliers}
+                  onEdit={setEditingRow}
                 />
               )) : (
                 <tr>
@@ -608,6 +640,103 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
           </table>
         </div>
       </div>
+
+      {editingRow && (
+        <div className="fixed inset-0 z-[250] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in" onClick={() => setEditingRow(null)}>
+          <div className="bg-white w-full max-w-lg rounded-[32px] shadow-2xl overflow-hidden flex flex-col animate-scale-in" onClick={e => e.stopPropagation()}>
+            <header className="px-8 py-5 border-b border-slate-100 flex justify-between items-center bg-slate-50 flex-shrink-0">
+                <div className="flex items-center gap-3">
+                    <div className="bg-indigo-600 p-2 rounded-xl text-white"><EditIcon className="w-5 h-5" /></div>
+                    <h3 className="font-black text-slate-800 text-lg">修改採購項目詳情</h3>
+                </div>
+                <button onClick={() => setEditingRow(null)} className="p-2 text-slate-400 hover:bg-red-50 hover:text-red-500 rounded-full transition-colors"><XIcon className="w-5 h-5" /></button>
+            </header>
+
+            <div className="p-8 space-y-6 flex-1 overflow-y-auto custom-scrollbar">
+                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                    <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">所屬案件</div>
+                    <div className="text-sm font-bold text-slate-700">{editingRow.project.name}</div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                    <div>
+                        <label className="block text-[10px] font-black text-slate-400 uppercase mb-1 tracking-wider">預計採購日期</label>
+                        <input 
+                            type="date" 
+                            value={editingRow.mainItem.productionDate || getDaysOffset(editingRow.project.appointmentDate, -7)} 
+                            onChange={e => handleUpdateItemDate(editingRow.project.id, editingRow.reportIdx, editingRow.mainItemIdx, e.target.value)}
+                            className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-500" 
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-[10px] font-black text-slate-400 uppercase mb-1 tracking-wider">供應商</label>
+                        <div className="relative">
+                            <input 
+                                list={`edit-modal-supplier-datalist`}
+                                value={allPartners.find(s => s.id === (editingRow.type === 'sub' ? editingRow.subItem?.supplierId : editingRow.mainItem.supplierId))?.name || (editingRow.type === 'sub' ? editingRow.subItem?.supplierId : editingRow.mainItem.supplierId) || ''} 
+                                onChange={e => handleUpdateItemSupplier(editingRow.project.id, editingRow.reportIdx, editingRow.mainItemIdx, e.target.value, editingRow.type, editingRow.itemKey, editingRow.subIdx)}
+                                className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-500" 
+                            />
+                            <datalist id="edit-modal-supplier-datalist">
+                                {allPartners.map(s => <option key={s.id} value={s.name} />)}
+                            </datalist>
+                        </div>
+                    </div>
+                </div>
+
+                <div>
+                    <label className="block text-[10px] font-black text-slate-400 uppercase mb-1 tracking-wider">品名規格</label>
+                    <input 
+                        type="text" 
+                        value={editingRow.type === 'sub' ? (editingRow.subItem?.spec || '') : editingRow.mainItem.name} 
+                        onChange={e => handleUpdateItemName(editingRow.project.id, editingRow.reportIdx, editingRow.mainItemIdx, e.target.value, editingRow.type, editingRow.itemKey, editingRow.subIdx)}
+                        className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-black outline-none focus:ring-2 focus:ring-indigo-500" 
+                    />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                    <div>
+                        <label className="block text-[10px] font-black text-slate-400 uppercase mb-1 tracking-wider">數量</label>
+                        <input 
+                            type="text" 
+                            value={editingRow.type === 'sub' ? (editingRow.subItem?.quantity || '0') : editingRow.mainItem.quantity} 
+                            onChange={e => handleUpdateItemQuantity(editingRow.project.id, editingRow.reportIdx, editingRow.mainItemIdx, e.target.value, editingRow.type, editingRow.itemKey, editingRow.subIdx)}
+                            className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-black text-indigo-600 outline-none focus:ring-2 focus:ring-indigo-500" 
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-[10px] font-black text-slate-400 uppercase mb-1 tracking-wider">單位</label>
+                        <input 
+                            type="text" 
+                            value={editingRow.type === 'sub' ? (editingRow.subItem?.unit || '') : editingRow.mainItem.unit} 
+                            onChange={e => handleUpdateItemUnit(editingRow.project.id, editingRow.reportIdx, editingRow.mainItemIdx, e.target.value, editingRow.type, editingRow.itemKey, editingRow.subIdx)}
+                            className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-500 outline-none focus:ring-2 focus:ring-indigo-500" 
+                        />
+                    </div>
+                </div>
+
+                <div>
+                    <label className="block text-[10px] font-black text-slate-400 uppercase mb-1 tracking-wider">備註資訊</label>
+                    <textarea 
+                        value={editingRow.type === 'sub' ? (editingRow.subItem?.name || '') : (editingRow.mainItem.itemNote || '')} 
+                        onChange={e => handleUpdateItemNotes(editingRow.project.id, editingRow.reportIdx, editingRow.mainItemIdx, e.target.value, editingRow.type, editingRow.itemKey, editingRow.subIdx)}
+                        className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm h-24 resize-none outline-none focus:ring-2 focus:ring-indigo-500" 
+                        placeholder="輸入備註或特殊要求..."
+                    />
+                </div>
+            </div>
+
+            <footer className="p-6 bg-slate-50 border-t border-slate-100 flex flex-col gap-3">
+                <button 
+                  onClick={() => setEditingRow(null)}
+                  className="w-full py-4 rounded-2xl text-sm font-black bg-indigo-600 text-white hover:bg-indigo-700 shadow-xl shadow-indigo-100 transition-all active:scale-95"
+                >
+                    完成並關閉
+                </button>
+            </footer>
+          </div>
+        </div>
+      )}
 
       {isCreatingPO && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">

@@ -292,6 +292,7 @@ export interface PurchaseOrderItem {
   price: number;
   notes?: string;
   supplierId: string;
+  projectName?: string;
 }
 
 export interface PurchaseOrder {
@@ -311,4 +312,5 @@ export interface PurchaseOrder {
   deliveryLocation?: string;
   receiver?: string;
   remarks?: string;
+  isOrdered?: boolean; // 新增：標記是否已下單移至進料明細
 }
