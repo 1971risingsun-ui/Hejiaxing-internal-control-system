@@ -19,7 +19,7 @@ const PurchaseOrders: React.FC<PurchaseOrdersProps> = ({ projects, suppliers, pu
   const [editingPOId, setEditingPOId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   
-  // 新增/修改採購單表單狀態 (Header) - 改為以供應商為主
+  // 新增/修改採購單表單狀態 (Header)
   const [selectedSupplierId, setSelectedSupplierId] = useState(''); 
   const [fillingDate, setFillingDate] = useState(new Date().toISOString().split('T')[0]);
   const [requisitioner, setRequisitioner] = useState('');
@@ -27,17 +27,16 @@ const PurchaseOrders: React.FC<PurchaseOrdersProps> = ({ projects, suppliers, pu
   const [deliveryLocation, setDeliveryLocation] = useState('現場 (Site)');
   const [receiver, setReceiver] = useState('');
   
-  // 材料列表狀態 (Items) - 紀錄對應的 projectId
+  // 材料列表狀態 (Items)
   const [selectedMaterials, setSelectedMaterials] = useState<Record<string, { quantity: number; projectId: string; notes?: string; name?: string; unit?: string; projectName?: string }>>({});
   
-  // 手動追加的材料列表
+  // 手動追加或匯入的非清單材料
   const [extraMaterials, setExtraMaterials] = useState<Material[]>([]);
   const [isAddingExtra, setIsAddingExtra] = useState(false);
   const [newExtra, setNewExtra] = useState({ name: '', quantity: 1, unit: '個', notes: '' });
 
   const filteredOrders = useMemo(() => {
     const search = searchTerm.toLowerCase();
-    // 採購單頁面僅顯示未移至進料明細的項目 (isOrdered 為 false 或 undefined)
     return purchaseOrders.filter(o => 
       !o.isOrdered &&
       (o.poNumber.toLowerCase().includes(search) ||
@@ -54,7 +53,8 @@ const PurchaseOrders: React.FC<PurchaseOrdersProps> = ({ projects, suppliers, pu
         flattened.push({ ...m, projectId: p.id, projectName: p.name });
       });
     });
-    return [...flattened, ...extraMaterials.map(m => ({ ...m, projectId: '', projectName: '自訂項目' }))];
+    // 這裡的 extraMaterials 包含編輯時從 PO 讀入的匯入項
+    return [...flattened, ...extraMaterials.map(m => ({ ...m, projectId: '', projectName: '' }))];
   }, [projects, extraMaterials]);
 
   const handleEditPO = (po: PurchaseOrder) => {
@@ -70,33 +70,45 @@ const PurchaseOrders: React.FC<PurchaseOrdersProps> = ({ projects, suppliers, pu
     const newExtraItems: Material[] = [];
 
     po.items.forEach((item: PurchaseOrderItem) => {
-        let foundMaterial = null;
-        let foundProjectId = '';
-        let foundProjectName = item.projectName || '';
+        let foundInProjects = false;
+        let pId = '';
+        
+        // 嘗試找出該項目對應的專案 ID (優先透過項目存的 projectName 找)
+        if (item.projectName) {
+            const matchedProj = projects.find(p => p.name === item.projectName);
+            if (matchedProj) pId = matchedProj.id;
+        }
 
-        if (!foundProjectName) {
-            for (const p of projects) {
-              const m = p.materials.find(mat => mat.id === item.materialId || mat.name === item.name);
-              if (m) {
-                foundMaterial = m;
-                foundProjectId = p.id;
-                foundProjectName = p.name;
-                break;
-              }
-            }
+        // 檢查是否為專案「手動材料請購單」中的項目
+        for (const p of projects) {
+          const m = p.materials.find(mat => mat.id === item.materialId);
+          if (m) {
+            foundInProjects = true;
+            if (!pId) pId = p.id;
+            newSelected[m.id] = {
+                quantity: item.quantity,
+                projectId: pId,
+                projectName: item.projectName || p.name,
+                notes: item.notes,
+                name: item.name,
+                unit: item.unit
+            };
+            break;
+          }
         }
         
-        const key = foundMaterial ? foundMaterial.id : `extra-edit-${crypto.randomUUID()}`;
-        newSelected[key] = {
-            quantity: item.quantity,
-            projectId: foundProjectId || '', 
-            projectName: foundProjectName,
-            notes: item.notes,
-            name: item.name,
-            unit: item.unit
-        };
+        // 如果不是手動請購項（是匯入項或追加項），則加入 extraMaterials 以便在表格顯示
+        if (!foundInProjects) {
+            const key = item.materialId || `extra-import-${crypto.randomUUID()}`;
+            newSelected[key] = {
+                quantity: item.quantity,
+                projectId: pId, 
+                projectName: item.projectName || '',
+                notes: item.notes,
+                name: item.name,
+                unit: item.unit
+            };
 
-        if (!foundMaterial && !item.projectName) {
             newExtraItems.push({
                 id: key,
                 name: item.name,
@@ -151,7 +163,7 @@ const PurchaseOrders: React.FC<PurchaseOrdersProps> = ({ projects, suppliers, pu
         price: 0,
         notes: data.notes || mat?.notes || '',
         supplierId: selectedSupplierId,
-        projectName: data.projectName || mat?.projectName || ''
+        projectName: data.projectName || ''
       };
     });
 
@@ -162,7 +174,7 @@ const PurchaseOrders: React.FC<PurchaseOrdersProps> = ({ projects, suppliers, pu
       id: editingPOId || crypto.randomUUID(),
       poNumber: editingPOId ? (purchaseOrders.find(o => o.id === editingPOId)?.poNumber || '') : `PO-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${Math.floor(1000 + Math.random() * 9000)}`,
       date: fillingDate,
-      projectId: (Object.values(selectedMaterials)[0] as any)?.projectId || '', 
+      projectId: '', // 改為主要參考 projectIds
       projectIds: Array.from(new Set(Object.values(selectedMaterials).map((v: any) => v.projectId).filter(Boolean))),
       projectName: uniqueProjectNames,
       supplierId: selectedSupplierId,
@@ -293,7 +305,7 @@ const PurchaseOrders: React.FC<PurchaseOrdersProps> = ({ projects, suppliers, pu
               
               <div className="grid grid-cols-1 gap-6 mb-6">
                 <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">選擇供應商</label>
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">選擇主要供應商</label>
                   <select 
                     required 
                     value={selectedSupplierId} 
@@ -384,7 +396,7 @@ const PurchaseOrders: React.FC<PurchaseOrdersProps> = ({ projects, suppliers, pu
               <div className="p-6 border-b border-slate-100 flex justify-between items-center">
                 <div>
                   <h3 className="font-bold text-lg text-slate-800">材料清單</h3>
-                  <p className="text-sm text-slate-500">管理的請購項目</p>
+                  <p className="text-sm text-slate-500">管理採購項目的分配與備註</p>
                 </div>
                 <div className="flex gap-2">
                    <button 
@@ -429,21 +441,29 @@ const PurchaseOrders: React.FC<PurchaseOrdersProps> = ({ projects, suppliers, pu
 
               {selectedSupplierId ? (
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse min-w-[800px]">
+                  <table className="w-full text-left border-collapse min-w-[900px]">
                     <thead className="bg-slate-50 text-slate-500 text-xs uppercase font-semibold">
                       <tr>
                         <th className="px-4 py-3 w-10 text-center">選取</th>
-                        <th className="px-4 py-3 min-w-[180px]">品名</th>
+                        <th className="px-4 py-3 min-w-[200px]">品名</th>
                         <th className="px-4 py-3 w-20 text-center">數量</th>
                         <th className="px-4 py-3 w-16 text-center">單位</th>
-                        <th className="px-4 py-3 min-w-[180px]">案件名稱</th>
-                        <th className="px-4 py-3 min-w-[150px]">備註</th>
+                        <th className="px-4 py-3 min-w-[200px]">案件名稱</th>
+                        <th className="px-4 py-3 min-w-[200px]">備註</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 text-sm">
                       {allAvailableMaterials.map(m => {
                         const isSel = !!selectedMaterials[m.id];
-                        const mData = selectedMaterials[m.id] || { quantity: m.quantity, projectId: m.projectId, notes: m.notes || '', name: m.name, unit: m.unit, projectName: m.projectName };
+                        const mData = selectedMaterials[m.id] || { 
+                            quantity: m.quantity, 
+                            projectId: m.projectId, 
+                            notes: m.notes || '', 
+                            name: m.name, 
+                            unit: m.unit, 
+                            projectName: m.projectName 
+                        };
+                        
                         return (
                           <tr key={m.id} className={`${isSel ? 'bg-indigo-50/30' : 'hover:bg-slate-50/50'}`}>
                             <td className="px-4 py-3 text-center">
@@ -454,7 +474,14 @@ const PurchaseOrders: React.FC<PurchaseOrdersProps> = ({ projects, suppliers, pu
                                   if(isSel) {
                                     const next = {...selectedMaterials}; delete next[m.id]; setSelectedMaterials(next);
                                   } else {
-                                    setSelectedMaterials({...selectedMaterials, [m.id]: { quantity: m.quantity, projectId: m.projectId, notes: m.notes || '', name: m.name, unit: m.unit, projectName: m.projectName }});
+                                    setSelectedMaterials({...selectedMaterials, [m.id]: { 
+                                        quantity: m.quantity, 
+                                        projectId: m.projectId, 
+                                        notes: m.notes || '', 
+                                        name: m.name, 
+                                        unit: m.unit, 
+                                        projectName: m.projectName 
+                                    }});
                                   }
                                 }}
                                 className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500"
@@ -462,15 +489,16 @@ const PurchaseOrders: React.FC<PurchaseOrdersProps> = ({ projects, suppliers, pu
                             </td>
                             <td className="px-4 py-3 font-bold text-slate-800">
                                 {m.name}
-                                {m.id.startsWith('extra-') && <span className="ml-2 bg-blue-100 text-blue-600 text-[9px] px-1.5 py-0.5 rounded font-black tracking-tighter">追加</span>}
+                                {m.id.includes('extra') && <span className="ml-2 bg-blue-100 text-blue-600 text-[9px] px-1.5 py-0.5 rounded font-black tracking-tighter uppercase">外部引流</span>}
                             </td>
                             <td className="px-4 py-3 text-center">
                               {isSel ? (
                                 <input 
                                   type="number" 
+                                  step="any"
                                   value={mData.quantity} 
                                   onChange={e => setSelectedMaterials({...selectedMaterials, [m.id]: { ...mData, quantity: Number(e.target.value) }})}
-                                  className="w-20 px-2 py-1 border border-slate-200 rounded text-center outline-none focus:ring-1 focus:ring-indigo-500"
+                                  className="w-20 px-2 py-1 border border-slate-200 rounded text-center outline-none focus:ring-1 focus:ring-indigo-500 font-black text-blue-600"
                                 />
                               ) : m.quantity}
                             </td>
@@ -488,6 +516,9 @@ const PurchaseOrders: React.FC<PurchaseOrdersProps> = ({ projects, suppliers, pu
                               >
                                 <option value="">選取專案...</option>
                                 {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                                {!projects.some(p => p.id === mData.projectId) && mData.projectName && (
+                                    <option value={mData.projectId}>{mData.projectName} (原始匯入)</option>
+                                )}
                               </select>
                             </td>
                             <td className="px-4 py-3">
