@@ -28,7 +28,7 @@ const PurchaseOrders: React.FC<PurchaseOrdersProps> = ({ projects, suppliers, pu
   const [receiver, setReceiver] = useState('');
   
   // 材料列表狀態 (Items) - 現在對應的是 projectId
-  const [selectedMaterials, setSelectedMaterials] = useState<Record<string, { quantity: number; projectId: string; notes?: string; name?: string; unit?: string }>>({});
+  const [selectedMaterials, setSelectedMaterials] = useState<Record<string, { quantity: number; projectId: string; notes?: string; name?: string; unit?: string; projectName?: string }>>({});
   
   // 手動追加的材料列表
   const [extraMaterials, setExtraMaterials] = useState<Material[]>([]);
@@ -71,25 +71,31 @@ const PurchaseOrders: React.FC<PurchaseOrdersProps> = ({ projects, suppliers, pu
         // 尋找對應的 materialId (如果是原本專案的)
         let foundMaterial = null;
         let foundProjectId = '';
-        for (const p of projects) {
-          const m = p.materials.find(mat => mat.id === item.materialId || mat.name === item.name);
-          if (m) {
-            foundMaterial = m;
-            foundProjectId = p.id;
-            break;
-          }
+        let foundProjectName = item.projectName || '';
+
+        if (!foundProjectName) {
+            for (const p of projects) {
+              const m = p.materials.find(mat => mat.id === item.materialId || mat.name === item.name);
+              if (m) {
+                foundMaterial = m;
+                foundProjectId = p.id;
+                foundProjectName = p.name;
+                break;
+              }
+            }
         }
         
         const key = foundMaterial ? foundMaterial.id : `extra-edit-${crypto.randomUUID()}`;
         newSelected[key] = {
             quantity: item.quantity,
-            projectId: foundProjectId || '', // 原本儲存 supplierId，現在改為顯示案件(專案)
+            projectId: foundProjectId || '', 
+            projectName: foundProjectName,
             notes: item.notes,
             name: item.name,
             unit: item.unit
         };
 
-        if (!foundMaterial) {
+        if (!foundMaterial && !item.projectName) {
             newExtraItems.push({
                 id: key,
                 name: item.name,
@@ -137,20 +143,21 @@ const PurchaseOrders: React.FC<PurchaseOrdersProps> = ({ projects, suppliers, pu
         unit: mat?.unit || data.unit || '',
         price: 0,
         notes: data.notes || mat?.notes || '',
-        supplierId: selectedSupplierId // PO 整體供應商
+        supplierId: selectedSupplierId,
+        projectName: mat?.projectName || data.projectName || ''
       };
     });
 
     const supplierName = suppliers.find(s => s.id === selectedSupplierId)?.name || '未指定';
-    const firstItemProjectName = projects.find(p => p.id === (Object.values(selectedMaterials)[0] as any)?.projectId)?.name || '';
+    const uniqueProjectNames = Array.from(new Set(poItems.map(i => i.projectName).filter(Boolean))).join(', ');
 
     const poPayload: PurchaseOrder = {
       id: editingPOId || crypto.randomUUID(),
       poNumber: editingPOId ? (purchaseOrders.find(o => o.id === editingPOId)?.poNumber || '') : `PO-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${Math.floor(1000 + Math.random() * 9000)}`,
       date: fillingDate,
-      projectId: (Object.values(selectedMaterials)[0] as any)?.projectId || '', // 主要關聯專案
+      projectId: (Object.values(selectedMaterials)[0] as any)?.projectId || '', 
       projectIds: Array.from(new Set(Object.values(selectedMaterials).map((v: any) => v.projectId).filter(Boolean))),
-      projectName: firstItemProjectName,
+      projectName: uniqueProjectNames,
       supplierId: selectedSupplierId,
       supplierName: supplierName,
       items: poItems,
@@ -166,7 +173,6 @@ const PurchaseOrders: React.FC<PurchaseOrdersProps> = ({ projects, suppliers, pu
         onUpdatePurchaseOrders(purchaseOrders.map(o => o.id === editingPOId ? poPayload : o));
     } else {
         onUpdatePurchaseOrders([...purchaseOrders, poPayload]);
-        // 更新受影響專案的材料狀態
         poPayload.projectIds?.forEach(pId => {
           const project = projects.find(p => p.id === pId);
           if (project) {
@@ -211,17 +217,10 @@ const PurchaseOrders: React.FC<PurchaseOrdersProps> = ({ projects, suppliers, pu
       ];
 
       po.items.forEach((item, idx) => {
-        let pName = '';
-        for(const p of projects) {
-          if (p.materials.some(m => m.id === item.materialId)) {
-            pName = p.name;
-            break;
-          }
-        }
         data.push([
           (idx + 1).toString(),
           item.name,
-          pName,
+          item.projectName || "", // 直接使用儲存在項次中的案件名稱
           item.quantity.toString(),
           item.unit,
           item.notes || ""
@@ -436,7 +435,7 @@ const PurchaseOrders: React.FC<PurchaseOrdersProps> = ({ projects, suppliers, pu
                   <tbody className="divide-y divide-slate-100 text-sm">
                     {allAvailableMaterials.map(m => {
                       const isSel = !!selectedMaterials[m.id];
-                      const mData = selectedMaterials[m.id] || { quantity: m.quantity, projectId: m.projectId, notes: m.notes || '', name: m.name, unit: m.unit };
+                      const mData = selectedMaterials[m.id] || { quantity: m.quantity, projectId: m.projectId, notes: m.notes || '', name: m.name, unit: m.unit, projectName: m.projectName };
                       return (
                         <tr key={m.id} className={`${isSel ? 'bg-indigo-50/30' : 'hover:bg-slate-50/50'}`}>
                           <td className="px-4 py-3 text-center">
@@ -447,7 +446,7 @@ const PurchaseOrders: React.FC<PurchaseOrdersProps> = ({ projects, suppliers, pu
                                 if(isSel) {
                                   const next = {...selectedMaterials}; delete next[m.id]; setSelectedMaterials(next);
                                 } else {
-                                  setSelectedMaterials({...selectedMaterials, [m.id]: { quantity: m.quantity, projectId: m.projectId, notes: m.notes || '', name: m.name, unit: m.unit }});
+                                  setSelectedMaterials({...selectedMaterials, [m.id]: { quantity: m.quantity, projectId: m.projectId, notes: m.notes || '', name: m.name, unit: m.unit, projectName: m.projectName }});
                                 }
                               }}
                               className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500"
@@ -472,7 +471,11 @@ const PurchaseOrders: React.FC<PurchaseOrdersProps> = ({ projects, suppliers, pu
                             <select 
                               disabled={!isSel}
                               value={mData.projectId}
-                              onChange={e => setSelectedMaterials({...selectedMaterials, [m.id]: { ...mData, projectId: e.target.value }})}
+                              onChange={e => {
+                                  const pId = e.target.value;
+                                  const pName = projects.find(p => p.id === pId)?.name || '';
+                                  setSelectedMaterials({...selectedMaterials, [m.id]: { ...mData, projectId: pId, projectName: pName }});
+                              }}
                               className="w-full px-2 py-1.5 bg-white border border-slate-200 rounded text-sm outline-none focus:ring-1 focus:ring-indigo-500 disabled:bg-slate-50 disabled:text-slate-400 font-bold"
                             >
                               <option value="">選取專案...</option>

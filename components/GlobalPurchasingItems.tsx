@@ -386,9 +386,12 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
         unit: draft.unit,
         price: 0,
         notes: draft.notes,
-        supplierId: poForm.supplierId
+        supplierId: poForm.supplierId,
+        projectName: row.project.name // 匯入該品項所屬的案件名稱
       };
     });
+
+    const uniqueProjectNames = Array.from(new Set(selectedItems.map(row => row.project.name))).join(', ');
 
     const newPO: PurchaseOrder = {
       id: crypto.randomUUID(),
@@ -396,7 +399,7 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
       date: poForm.date,
       projectId: poForm.projectIds[0],
       projectIds: poForm.projectIds,
-      projectName: projects.find(p => p.id === poForm.projectIds[0])?.name || '',
+      projectName: uniqueProjectNames, // 匯入彙整後的案件名稱
       supplierId: poForm.supplierId,
       supplierName: targetSupplier?.name || '未知廠商',
       items: poItems,
