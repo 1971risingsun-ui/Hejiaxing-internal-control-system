@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Project, CompletionItem, FenceMaterialItem, SystemRules, Supplier, PurchaseOrder, PurchaseOrderItem, MaterialStatus } from '../types';
+import { Project, CompletionItem, FenceMaterialItem, SystemRules, Supplier, PurchaseOrder, PurchaseOrderItem } from '../types';
 import { ClipboardListIcon, BoxIcon, CalendarIcon, ChevronRightIcon, ArrowLeftIcon, XIcon, CheckCircleIcon, UsersIcon, PlusIcon, FileTextIcon, MapPinIcon, UserIcon, TrashIcon } from './Icons';
 
 interface GlobalPurchasingItemsProps {
@@ -158,6 +158,7 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
     }
     const selectedItems = allPurchasingItems.filter(i => selectedRowKeys.has(i.rowKey));
     const uniqueProjIds = Array.from(new Set(selectedItems.map(i => i.project.id)));
+    // 預設抓第一個勾選項目的供應商
     const firstSupplierId = (selectedItems[0].type === 'sub' ? selectedItems[0].subItem?.supplierId : selectedItems[0].mainItem.supplierId) || '';
     
     setPoForm({
@@ -210,6 +211,7 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
 
     onUpdatePurchaseOrders([...purchaseOrders, newPO]);
 
+    // 更新各專案項目的處理狀態
     const updatedProjectsMap = new Map<string, Project>();
     selectedItems.forEach(row => {
         let p = updatedProjectsMap.get(row.project.id) || projects.find(proj => proj.id === row.project.id);
@@ -436,20 +438,19 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
                         )}
                     </td>
                     <td className="px-6 py-4">
-                        <div className={`font-black text-sm truncate max-w-[140px] text-indigo-700 ${isPoCreated ? 'line-through text-slate-400' : ''}`}>{project.name}</div>
+                        <div className={`font-black text-sm truncate max-w-[140px] text-indigo-700 ${isPoCreated ? 'line-through text-slate-400 opacity-60' : ''}`}>{project.name}</div>
                     </td>
                     <td className="px-6 py-4">
-                        <input type="date" value={displayDate} disabled={isPoCreated} onChange={(e) => handleUpdateItemDate(project.id, reportIdx, mainItemIdx, e.target.value)} className="w-full px-2 py-1 bg-transparent border-b border-transparent focus:border-indigo-300 outline-none text-xs font-bold text-slate-500" />
+                        <input type="date" value={displayDate} onChange={(e) => handleUpdateItemDate(project.id, reportIdx, mainItemIdx, e.target.value)} className={`w-full px-2 py-1 bg-transparent border-b border-transparent focus:border-indigo-300 outline-none text-xs font-bold text-slate-500 ${isPoCreated ? 'line-through text-slate-400 opacity-60' : ''}`} />
                     </td>
                     <td className="px-6 py-4">
                         <div className="relative">
                             <input 
                                 list={`partners-datalist-${rowKey}`}
                                 value={currentSupplierName} 
-                                disabled={isPoCreated}
                                 onChange={(e) => handleUpdateItemSupplier(project.id, reportIdx, mainItemIdx, e.target.value, type, itemKey, subIdx)}
                                 placeholder="填入供應商..."
-                                className={`w-full px-2 py-1 bg-transparent border-b border-transparent focus:border-indigo-300 outline-none text-[11px] font-bold text-slate-700 ${isPoCreated ? 'line-through text-slate-400' : ''}`}
+                                className={`w-full px-2 py-1 bg-transparent border-b border-transparent focus:border-indigo-300 outline-none text-[11px] font-bold text-slate-700 ${isPoCreated ? 'line-through text-slate-400 opacity-60' : ''}`}
                             />
                             <datalist id={`partners-datalist-${rowKey}`}>
                                 {[...suppliers, ...subcontractors].map(s => <option key={s.id} value={s.name} />)}
@@ -459,17 +460,15 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
                     <td className="px-6 py-4">
                         <input 
                           value={rowName} 
-                          disabled={isPoCreated}
-                          // Fix: Use 'mainItemIdx' instead of 'itemIdx' to resolve "Cannot find name 'itemIdx'" error.
                           onChange={(e) => handleUpdateItemName(project.id, reportIdx, mainItemIdx, e.target.value, type, itemKey, subIdx)}
                           placeholder="品名..."
-                          className={`w-full px-2 py-1 bg-transparent border-b border-transparent focus:border-indigo-300 outline-none text-sm font-bold ${isPoCreated ? 'line-through text-slate-400' : ''}`}
+                          className={`w-full px-2 py-1 bg-transparent border-b border-transparent focus:border-indigo-300 outline-none text-sm font-bold ${isPoCreated ? 'line-through text-slate-400 opacity-60' : ''}`}
                         />
                     </td>
-                    <td className={`px-6 py-4 text-xs text-slate-500 ${isPoCreated ? 'line-through text-slate-400' : ''}`}>{rowSpec}</td>
-                    <td className={`px-6 py-4 text-center font-black text-blue-600 ${isPoCreated ? 'line-through text-slate-400' : ''}`}>{rowQty}</td>
-                    <td className={`px-6 py-4 text-center text-xs text-slate-400 font-bold ${isPoCreated ? 'line-through text-slate-400' : ''}`}>{rowUnit}</td>
-                    <td className={`px-6 py-4 text-xs text-slate-500 truncate max-w-[150px] ${isPoCreated ? 'line-through text-slate-400' : ''}`}>{rowNote}</td>
+                    <td className={`px-6 py-4 text-xs text-slate-500 ${isPoCreated ? 'line-through text-slate-400 opacity-60' : ''}`}>{rowSpec}</td>
+                    <td className={`px-6 py-4 text-center font-black text-blue-600 ${isPoCreated ? 'line-through text-slate-400 opacity-60' : ''}`}>{rowQty}</td>
+                    <td className={`px-6 py-4 text-center text-xs text-slate-400 font-bold ${isPoCreated ? 'line-through text-slate-400 opacity-60' : ''}`}>{rowUnit}</td>
+                    <td className={`px-6 py-4 text-xs text-slate-500 truncate max-w-[150px] ${isPoCreated ? 'line-through text-slate-400 opacity-60' : ''}`}>{rowNote}</td>
                     <td className="px-6 py-4 text-right">
                         <button onClick={() => handleDeleteItem(entry)} className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all">
                             <TrashIcon className="w-4 h-4" />
@@ -506,7 +505,7 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
                         <div>
                             <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 tracking-wider">採購案件 (可複選)</label>
-                            <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl max-h-40 overflow-y-auto space-y-2">
+                            <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl max-h-40 overflow-y-auto space-y-2 shadow-inner">
                                 {uniqueProjectList.map(p => (
                                     <label key={p.id} className="flex items-center gap-3 cursor-pointer group">
                                         <input 
