@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { Project, Supplier, PurchaseOrder, PurchaseOrderItem, MaterialStatus, Material } from '../types';
-import { FileTextIcon, SearchIcon, TrashIcon, DownloadIcon, XIcon, UsersIcon, BoxIcon, TruckIcon, CalendarIcon, EditIcon } from './Icons';
+import { FileTextIcon, SearchIcon, TrashIcon, DownloadIcon, XIcon, UsersIcon, BoxIcon, TruckIcon, CalendarIcon, EditIcon, CheckCircleIcon } from './Icons';
 import { downloadBlob } from '../utils/fileHelpers';
 
 declare const XLSX: any;
@@ -14,7 +14,7 @@ interface InboundDetailsProps {
 
 const InboundDetails: React.FC<InboundDetailsProps> = ({ projects, suppliers, purchaseOrders, onUpdatePurchaseOrders }) => {
   const [searchTerm, setSearchTerm] = useState('');
-  const [editingPOId, setEditingPOId] = useState<string | null>(null);
+  const [selectedPO, setSelectedPO] = useState<PurchaseOrder | null>(null);
 
   const filteredInbounds = useMemo(() => {
     const search = searchTerm.toLowerCase();
@@ -118,8 +118,8 @@ const InboundDetails: React.FC<InboundDetailsProps> = ({ projects, suppliers, pu
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {filteredInbounds.map(po => (
-                  <tr key={po.id} className="hover:bg-slate-50/50 transition-colors group">
-                    <td className="px-6 py-4 text-center">
+                  <tr key={po.id} onClick={() => setSelectedPO(po)} className="hover:bg-slate-50/50 transition-colors group cursor-pointer">
+                    <td className="px-6 py-4 text-center" onClick={e => e.stopPropagation()}>
                       <input 
                         type="checkbox" 
                         checked={true}
@@ -152,7 +152,7 @@ const InboundDetails: React.FC<InboundDetailsProps> = ({ projects, suppliers, pu
                         進料中
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-right">
+                    <td className="px-6 py-4 text-right" onClick={e => e.stopPropagation()}>
                       <div className="flex justify-end gap-1">
                         <button 
                           onClick={() => handleExportPO(po)}
@@ -188,6 +188,82 @@ const InboundDetails: React.FC<InboundDetailsProps> = ({ projects, suppliers, pu
           </div>
         </div>
       </div>
+
+      {selectedPO && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in" onClick={() => setSelectedPO(null)}>
+          <div className="bg-white w-full max-w-4xl max-h-[90vh] rounded-[32px] shadow-2xl overflow-hidden flex flex-col animate-scale-in" onClick={e => e.stopPropagation()}>
+            <header className="px-8 py-5 border-b border-slate-100 flex justify-between items-center bg-slate-50 flex-shrink-0">
+                <div className="flex items-center gap-3">
+                    <div className="bg-amber-500 p-2 rounded-xl text-white"><FileTextIcon className="w-5 h-5" /></div>
+                    <div>
+                      <h3 className="font-black text-slate-800 text-lg">採購單項目詳情</h3>
+                      <p className="text-xs font-bold text-slate-400">{selectedPO.poNumber} | {selectedPO.supplierName}</p>
+                    </div>
+                </div>
+                <button onClick={() => setSelectedPO(null)} className="p-2 text-slate-400 hover:bg-red-50 hover:text-red-500 rounded-full transition-colors"><XIcon className="w-5 h-5" /></button>
+            </header>
+
+            <div className="flex-1 overflow-y-auto custom-scrollbar p-8">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                  <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">下單日期</div>
+                  <div className="text-sm font-bold text-slate-700">{selectedPO.date}</div>
+                </div>
+                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                  <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">預計到貨</div>
+                  <div className="text-sm font-bold text-slate-700">{selectedPO.deliveryDate || '未填寫'}</div>
+                </div>
+                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                  <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">收貨人</div>
+                  <div className="text-sm font-bold text-slate-700">{selectedPO.receiver || '未填寫'}</div>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+                <table className="w-full text-left">
+                  <thead className="bg-slate-50 text-slate-500 text-[10px] uppercase font-black tracking-widest border-b border-slate-200">
+                    <tr>
+                      <th className="px-6 py-4">品名</th>
+                      <th className="px-6 py-4">規格 / 專案</th>
+                      <th className="px-6 py-4 text-center">數量</th>
+                      <th className="px-6 py-4">單位</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {selectedPO.items.map((item, idx) => (
+                      <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
+                        <td className="px-6 py-4 font-bold text-slate-800 text-sm">{item.name}</td>
+                        <td className="px-6 py-4">
+                          <div className="text-xs text-slate-500 whitespace-pre-wrap">{item.notes || '-'}</div>
+                          <div className="text-[9px] font-black text-indigo-500 mt-1 uppercase">{item.projectName}</div>
+                        </td>
+                        <td className="px-6 py-4 text-center font-black text-blue-600">{item.quantity}</td>
+                        <td className="px-6 py-4 text-slate-400 text-xs font-bold">{item.unit}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              
+              {selectedPO.remarks && (
+                <div className="mt-8 bg-amber-50 p-6 rounded-2xl border border-amber-100">
+                  <div className="text-[10px] font-black text-amber-600 uppercase tracking-widest mb-2">全單備註</div>
+                  <div className="text-sm text-amber-800 whitespace-pre-wrap leading-relaxed">{selectedPO.remarks}</div>
+                </div>
+              )}
+            </div>
+
+            <footer className="p-6 bg-slate-50 border-t border-slate-100 flex gap-3 flex-shrink-0">
+                <button 
+                  onClick={() => setSelectedPO(null)}
+                  className="w-full py-4 rounded-2xl text-sm font-black bg-slate-800 text-white hover:bg-slate-900 shadow-xl shadow-slate-200 transition-all active:scale-95"
+                >
+                    關閉視窗
+                </button>
+            </footer>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

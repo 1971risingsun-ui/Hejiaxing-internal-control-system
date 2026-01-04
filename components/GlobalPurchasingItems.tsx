@@ -643,7 +643,7 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
 
       {editingRow && (
         <div className="fixed inset-0 z-[250] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in" onClick={() => setEditingRow(null)}>
-          <div className="bg-white w-full max-w-lg rounded-[32px] shadow-2xl overflow-hidden flex flex-col animate-scale-in" onClick={e => e.stopPropagation()}>
+          <div className="bg-white w-full max-w-xl max-h-[90vh] rounded-[32px] shadow-2xl overflow-hidden flex flex-col animate-scale-in" onClick={e => e.stopPropagation()}>
             <header className="px-8 py-5 border-b border-slate-100 flex justify-between items-center bg-slate-50 flex-shrink-0">
                 <div className="flex items-center gap-3">
                     <div className="bg-indigo-600 p-2 rounded-xl text-white"><EditIcon className="w-5 h-5" /></div>
@@ -726,7 +726,7 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
                 </div>
             </div>
 
-            <footer className="p-6 bg-slate-50 border-t border-slate-100 flex flex-col gap-3">
+            <footer className="p-6 bg-slate-50 border-t border-slate-100 flex flex-col gap-3 flex-shrink-0">
                 <button 
                   onClick={() => setEditingRow(null)}
                   className="w-full py-4 rounded-2xl text-sm font-black bg-indigo-600 text-white hover:bg-indigo-700 shadow-xl shadow-indigo-100 transition-all active:scale-95"
