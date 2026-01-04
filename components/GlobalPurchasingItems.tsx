@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useRef } from 'react';
 import { Project, CompletionItem, FenceMaterialItem, SystemRules, Supplier, PurchaseOrder, PurchaseOrderItem } from '../types';
 import { ClipboardListIcon, BoxIcon, CalendarIcon, ChevronRightIcon, ArrowLeftIcon, XIcon, CheckCircleIcon, UsersIcon, PlusIcon, FileTextIcon, MapPinIcon, UserIcon, TrashIcon, EditIcon } from './Icons';
 
@@ -38,7 +38,6 @@ const getDaysOffset = (dateStr: string, days: number) => {
   return d.toISOString().split('T')[0];
 };
 
-// 抽離列組件以解決 Hooks 巢狀使用導致的白屏問題
 const PurchasingItemRow: React.FC<{
   entry: RowData;
   suppliers: Supplier[];
@@ -49,10 +48,10 @@ const PurchasingItemRow: React.FC<{
   handleUpdateItemDate: (pId: string, rIdx: number, iIdx: number, val: string) => void;
   handleUpdateItemSupplier: (pId: string, rIdx: number, iIdx: number, val: string, type: 'main' | 'sub', iKey?: string, sIdx?: number) => void;
   handleUpdateItemName: (pId: string, rIdx: number, iIdx: number, val: string, type: 'main' | 'sub', iKey?: string, sIdx?: number) => void;
-  handleCheckAndPromptAddition: (row: RowData, sup: string, prod: string) => void;
+  onUpdateSuppliers: (list: Supplier[]) => void;
 }> = ({ 
   entry, suppliers, allPartners, isPoCreated, selectedRowKeys, toggleRowSelection, 
-  handleUpdateItemDate, handleUpdateItemSupplier, handleUpdateItemName, handleCheckAndPromptAddition 
+  handleUpdateItemDate, handleUpdateItemSupplier, handleUpdateItemName, onUpdateSuppliers
 }) => {
   const { project, type, subItem, mainItem, reportIdx, mainItemIdx, itemKey, subIdx, rowKey } = entry;
   
@@ -66,7 +65,39 @@ const PurchasingItemRow: React.FC<{
   const matchedSupplier = allPartners.find(s => s.id === currentSupplierId);
   const currentSupplierName = matchedSupplier?.name || currentSupplierId || '';
 
-  // 1. 供應商選單過濾規則
+  // 避免重複詢問的機制
+  const promptedRef = useRef<string>('');
+
+  const handleCheckAndPromptAddition = (inputSupplierName: string, inputProductName: string) => {
+    if (!inputSupplierName) return;
+    const promptKey = `${inputSupplierName}-${inputProductName}`;
+    if (promptedRef.current === promptKey) return;
+    promptedRef.current = promptKey;
+
+    const isSupplierExist = suppliers.some(s => s.name === inputSupplierName);
+    const targetSupplier = suppliers.find(s => s.name === inputSupplierName);
+
+    if (!isSupplierExist) {
+        if (window.confirm(`供應商「${inputSupplierName}」不在清冊中，是否將其連同品項「${inputProductName}」加入供應商清冊？`)) {
+            const newSupplier: Supplier = {
+                id: crypto.randomUUID(), name: inputSupplierName, address: '', contact: '', companyPhone: '', mobilePhone: '',
+                productList: [{ name: inputProductName, spec: '', usage: '' }]
+            };
+            onUpdateSuppliers([...suppliers, newSupplier]);
+        }
+    } else if (targetSupplier && inputProductName) {
+        const isProductExist = targetSupplier.productList.some(p => p.name === inputProductName);
+        if (!isProductExist) {
+            if (window.confirm(`供應商「${inputSupplierName}」的產品清單中尚無「${inputProductName}」，是否加入？`)) {
+                const updatedSuppliers = suppliers.map(s => s.id === targetSupplier.id ? {
+                    ...s, productList: [...s.productList, { name: inputProductName, spec: '', usage: '' }]
+                } : s);
+                onUpdateSuppliers(updatedSuppliers);
+            }
+        }
+    }
+  };
+
   const supplierOptions = useMemo(() => {
     const searchTargets = [rowName, rowNote].filter(Boolean).map(s => s.toLowerCase());
     let filtered = suppliers.filter(s => {
@@ -81,7 +112,6 @@ const PurchasingItemRow: React.FC<{
     return filtered.sort((a, b) => a.name.localeCompare(b.name, 'zh-Hant'));
   }, [suppliers, rowName, rowNote]);
 
-  // 2. 品名選單過濾規則
   const productOptions = useMemo(() => {
     let filteredProducts: string[] = [];
     if (matchedSupplier) {
@@ -112,20 +142,19 @@ const PurchasingItemRow: React.FC<{
           />
         )}
       </td>
-      {/* 縮小寬度 50%：案件名稱 (w-22)、日期 (w-20)、供應商 (w-26) */}
       <td className="px-3 py-4 w-22">
         <div className={`font-black text-sm truncate max-w-[80px] text-indigo-700 ${isPoCreated ? 'line-through text-slate-400 opacity-60' : ''}`}>{project.name}</div>
       </td>
       <td className="px-3 py-4 w-20">
         <input type="date" value={displayDate} onChange={(e) => handleUpdateItemDate(project.id, reportIdx, mainItemIdx, e.target.value)} className={`w-full px-2 py-1 bg-transparent border-b border-transparent focus:border-indigo-300 outline-none text-xs font-bold text-slate-500 ${isPoCreated ? 'line-through text-slate-400 opacity-60' : ''}`} />
       </td>
-      <td className="px-3 py-4 w-26">
+      <td className="px-3 py-4 w-32">
         <div className="relative">
           <input 
             list={`supplier-datalist-${rowKey}`}
             value={currentSupplierName} 
             onChange={(e) => handleUpdateItemSupplier(project.id, reportIdx, mainItemIdx, e.target.value, type, itemKey, subIdx)}
-            onBlur={(e) => handleCheckAndPromptAddition(entry, e.target.value, rowName)}
+            onBlur={(e) => handleCheckAndPromptAddition(e.target.value, rowName)}
             placeholder="供應商..."
             className={`w-full px-2 py-1 bg-transparent border-b border-transparent focus:border-indigo-300 outline-none text-[11px] font-bold text-slate-700 ${isPoCreated ? 'line-through text-slate-400 opacity-60' : ''}`}
           />
@@ -134,14 +163,13 @@ const PurchasingItemRow: React.FC<{
           </datalist>
         </div>
       </td>
-      {/* 放大寬度 50%：品名 (w-72)、規格 (w-60) */}
       <td className="px-6 py-4 w-72">
         <div className="relative">
           <input 
             list={`product-datalist-${rowKey}`}
             value={rowName} 
             onChange={(e) => handleUpdateItemName(project.id, reportIdx, mainItemIdx, e.target.value, type, itemKey, subIdx)}
-            onBlur={(e) => handleCheckAndPromptAddition(entry, currentSupplierName, e.target.value)}
+            onBlur={(e) => handleCheckAndPromptAddition(currentSupplierName, e.target.value)}
             placeholder="品名 (選填)..."
             className={`w-full px-2 py-1 bg-transparent border-b border-transparent focus:border-indigo-300 outline-none text-sm font-bold ${isPoCreated ? 'line-through text-slate-400 opacity-60' : ''}`}
           />
@@ -155,7 +183,6 @@ const PurchasingItemRow: React.FC<{
       <td className={`px-6 py-4 w-20 text-center text-xs text-slate-400 font-bold ${isPoCreated ? 'line-through text-slate-400 opacity-60' : ''}`}>{rowUnit}</td>
       <td className={`px-6 py-4 text-xs text-slate-500 truncate max-w-[150px] ${isPoCreated ? 'line-through text-slate-400 opacity-60' : ''}`}>{rowNote}</td>
       <td className="px-6 py-4 w-16 text-right">
-        {/* 操作圖示改為修改 */}
         <button className="p-2 text-slate-300 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all">
           <EditIcon className="w-4 h-4" />
         </button>
@@ -225,7 +252,6 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
       });
     });
     
-    // 過濾邏輯修正，確保不會導致 crash
     if (projectFilter !== 'ALL') {
       list = list.filter(i => i.project.id === projectFilter);
     }
@@ -406,30 +432,6 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
     }
   };
 
-  const handleCheckAndPromptAddition = (row: RowData, inputSupplierName: string, inputProductName: string) => {
-    const isSupplierExist = suppliers.some(s => s.name === inputSupplierName);
-    const matchedSupplier = suppliers.find(s => s.name === inputSupplierName);
-    if (inputSupplierName && !isSupplierExist) {
-        if (window.confirm(`供應商「${inputSupplierName}」不在清冊中，是否將其連同品項「${inputProductName}」加入供應商清冊？`)) {
-            const newSupplier: Supplier = {
-                id: crypto.randomUUID(), name: inputSupplierName, address: '', contact: '', companyPhone: '', mobilePhone: '',
-                productList: [{ name: inputProductName, spec: '', usage: '' }]
-            };
-            onUpdateSuppliers([...suppliers, newSupplier]);
-        }
-    } else if (matchedSupplier && inputProductName) {
-        const isProductExist = matchedSupplier.productList.some(p => p.name === inputProductName);
-        if (!isProductExist) {
-            if (window.confirm(`供應商「${inputSupplierName}」的產品清單中尚無「${inputProductName}」，是否加入？`)) {
-                const updatedSuppliers = suppliers.map(s => s.id === matchedSupplier.id ? {
-                    ...s, productList: [...s.productList, { name: inputProductName, spec: '', usage: '' }]
-                } : s);
-                onUpdateSuppliers(updatedSuppliers);
-            }
-        }
-    }
-  };
-
   const renderSortIcon = (key: SortKey) => {
     if (sortConfig.key !== key || !sortConfig.direction) return <span className="opacity-20 ml-1">⇅</span>;
     return <span className="ml-1 text-indigo-500 font-bold">{sortConfig.direction === 'asc' ? '↑' : '↓'}</span>;
@@ -500,14 +502,13 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
                       className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500"
                     />
                 </th>
-                {/* 寬度調整：案件縮小為 w-22, 日期 w-20, 供應商 w-26, 品名放大 w-72, 規格 w-60 */}
                 <th className="px-3 py-4 w-22">
                   <button onClick={() => handleSort('projectName')} className="flex items-center hover:text-indigo-600 transition-colors uppercase tracking-widest">案件名稱 {renderSortIcon('projectName')}</button>
                 </th>
                 <th className="px-3 py-4 w-20">
                   <button onClick={() => handleSort('date')} className="flex items-center hover:text-indigo-600 transition-colors uppercase tracking-widest text-[9px]">預計採購日期 {renderSortIcon('date')}</button>
                 </th>
-                <th className="px-3 py-4 w-26 text-center">
+                <th className="px-3 py-4 w-32 text-center">
                     <button onClick={() => handleSort('supplier')} className="flex items-center justify-center hover:text-indigo-600 transition-colors uppercase tracking-widest mx-auto">供應商 {renderSortIcon('supplier')}</button>
                 </th>
                 <th className="px-6 py-4 w-72">
@@ -533,7 +534,7 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
                   handleUpdateItemDate={handleUpdateItemDate}
                   handleUpdateItemSupplier={handleUpdateItemSupplier}
                   handleUpdateItemName={handleUpdateItemName}
-                  handleCheckAndPromptAddition={handleCheckAndPromptAddition}
+                  onUpdateSuppliers={onUpdateSuppliers}
                 />
               )) : (
                 <tr>
