@@ -19,15 +19,18 @@ const PurchaseOrders: React.FC<PurchaseOrdersProps> = ({ projects, suppliers, pu
   const [editingPOId, setEditingPOId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   
-  const [selectedProjectId, setSelectedProjectId] = useState('');
+  // 新增/修改採購單表單狀態 (Header)
+  const [selectedSupplierId, setSelectedSupplierId] = useState(''); // 改為選擇供應商
   const [fillingDate, setFillingDate] = useState(new Date().toISOString().split('T')[0]);
   const [requisitioner, setRequisitioner] = useState('');
   const [deliveryDate, setDeliveryDate] = useState('');
   const [deliveryLocation, setDeliveryLocation] = useState('現場 (Site)');
   const [receiver, setReceiver] = useState('');
   
-  const [selectedMaterials, setSelectedMaterials] = useState<Record<string, { quantity: number; supplierId: string; notes?: string; name?: string; unit?: string }>>({});
+  // 材料列表狀態 (Items) - 現在對應的是 projectId
+  const [selectedMaterials, setSelectedMaterials] = useState<Record<string, { quantity: number; projectId: string; notes?: string; name?: string; unit?: string }>>({});
   
+  // 手動追加的材料列表
   const [extraMaterials, setExtraMaterials] = useState<Material[]>([]);
   const [isAddingExtra, setIsAddingExtra] = useState(false);
   const [newExtra, setNewExtra] = useState({ name: '', quantity: 1, unit: '個', notes: '' });
@@ -41,32 +44,20 @@ const PurchaseOrders: React.FC<PurchaseOrdersProps> = ({ projects, suppliers, pu
     ).sort((a, b) => b.date.localeCompare(a.date));
   }, [purchaseOrders, searchTerm]);
 
-  const currentProject = useMemo(() => 
-    projects.find(p => p.id === selectedProjectId), [projects, selectedProjectId]
-  );
-
+  // 平坦化所有專案的材料，以便在以供應商為主的視角下選取
   const allAvailableMaterials = useMemo(() => {
-    const base = currentProject?.materials || [];
-    return [...base, ...extraMaterials];
-  }, [currentProject, extraMaterials]);
-
-  const handleProjectChange = (projectId: string) => {
-    setSelectedProjectId(projectId);
-    setSelectedMaterials({});
-    setExtraMaterials([]);
-    const project = projects.find(p => p.id === projectId);
-    if (project) {
-        setFillingDate(project.materialFillingDate || new Date().toISOString().split('T')[0]);
-        setRequisitioner(project.materialRequisitioner || '');
-        setDeliveryDate(project.materialDeliveryDate || '');
-        setDeliveryLocation(project.materialDeliveryLocation ? `${project.materialDeliveryLocation} (${project.materialDeliveryLocation === '廠內' ? 'Factory' : 'Site'})` : '現場 (Site)');
-        setReceiver(project.materialReceiver || '');
-    }
-  };
+    const flattened: (Material & { projectId: string; projectName: string })[] = [];
+    projects.forEach(p => {
+      (p.materials || []).forEach(m => {
+        flattened.push({ ...m, projectId: p.id, projectName: p.name });
+      });
+    });
+    return [...flattened, ...extraMaterials.map(m => ({ ...m, projectId: '', projectName: '自訂項目' }))];
+  }, [projects, extraMaterials]);
 
   const handleEditPO = (po: PurchaseOrder) => {
     setEditingPOId(po.id);
-    setSelectedProjectId(po.projectId);
+    setSelectedSupplierId(po.supplierId);
     setFillingDate(po.date);
     setRequisitioner(po.requisitioner || '');
     setDeliveryDate(po.deliveryDate || '');
@@ -77,19 +68,28 @@ const PurchaseOrders: React.FC<PurchaseOrdersProps> = ({ projects, suppliers, pu
     const newExtraItems: Material[] = [];
 
     po.items.forEach((item: PurchaseOrderItem) => {
-        const project = projects.find(p => p.id === po.projectId);
-        const mat = project?.materials.find(m => m.name === item.name);
+        // 尋找對應的 materialId (如果是原本專案的)
+        let foundMaterial = null;
+        let foundProjectId = '';
+        for (const p of projects) {
+          const m = p.materials.find(mat => mat.id === item.materialId || mat.name === item.name);
+          if (m) {
+            foundMaterial = m;
+            foundProjectId = p.id;
+            break;
+          }
+        }
         
-        const key = mat ? mat.id : `extra-edit-${crypto.randomUUID()}`;
+        const key = foundMaterial ? foundMaterial.id : `extra-edit-${crypto.randomUUID()}`;
         newSelected[key] = {
             quantity: item.quantity,
-            supplierId: item.supplierId,
+            projectId: foundProjectId || '', // 原本儲存 supplierId，現在改為顯示案件(專案)
             notes: item.notes,
             name: item.name,
             unit: item.unit
         };
 
-        if (!mat) {
+        if (!foundMaterial) {
             newExtraItems.push({
                 id: key,
                 name: item.name,
@@ -123,8 +123,8 @@ const PurchaseOrders: React.FC<PurchaseOrdersProps> = ({ projects, suppliers, pu
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedProjectId || Object.keys(selectedMaterials).length === 0) {
-      alert('請選取專案並至少選取一個項目');
+    if (!selectedSupplierId || Object.keys(selectedMaterials).length === 0) {
+      alert('請選取供應商並至少選取一個項目');
       return;
     }
 
@@ -137,22 +137,22 @@ const PurchaseOrders: React.FC<PurchaseOrdersProps> = ({ projects, suppliers, pu
         unit: mat?.unit || data.unit || '',
         price: 0,
         notes: data.notes || mat?.notes || '',
-        supplierId: data.supplierId
+        supplierId: selectedSupplierId // PO 整體供應商
       };
     });
 
-    const firstSupplierId = poItems[0]?.supplierId;
-    const firstSupplierName = suppliers.find(s => s.id === firstSupplierId)?.name || '未指定';
+    const supplierName = suppliers.find(s => s.id === selectedSupplierId)?.name || '未指定';
+    const firstItemProjectName = projects.find(p => p.id === (Object.values(selectedMaterials)[0] as any)?.projectId)?.name || '';
 
     const poPayload: PurchaseOrder = {
       id: editingPOId || crypto.randomUUID(),
       poNumber: editingPOId ? (purchaseOrders.find(o => o.id === editingPOId)?.poNumber || '') : `PO-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${Math.floor(1000 + Math.random() * 9000)}`,
       date: fillingDate,
-      projectId: selectedProjectId,
-      projectIds: [selectedProjectId],
-      projectName: projects.find(p => p.id === selectedProjectId)?.name || '',
-      supplierId: firstSupplierId || '',
-      supplierName: firstSupplierName,
+      projectId: (Object.values(selectedMaterials)[0] as any)?.projectId || '', // 主要關聯專案
+      projectIds: Array.from(new Set(Object.values(selectedMaterials).map((v: any) => v.projectId).filter(Boolean))),
+      projectName: firstItemProjectName,
+      supplierId: selectedSupplierId,
+      supplierName: supplierName,
       items: poItems,
       status: 'draft',
       totalAmount: 0,
@@ -166,12 +166,17 @@ const PurchaseOrders: React.FC<PurchaseOrdersProps> = ({ projects, suppliers, pu
         onUpdatePurchaseOrders(purchaseOrders.map(o => o.id === editingPOId ? poPayload : o));
     } else {
         onUpdatePurchaseOrders([...purchaseOrders, poPayload]);
-        if (currentProject) {
-            const updatedMaterials = currentProject.materials.map(m => 
-                selectedMaterials[m.id] ? { ...m, status: MaterialStatus.ORDERED } : m
-            );
-            onUpdateProject({ ...currentProject, materials: updatedMaterials });
-        }
+        // 更新受影響專案的材料狀態
+        poPayload.projectIds?.forEach(pId => {
+          const project = projects.find(p => p.id === pId);
+          if (project) {
+            const updatedMaterials = project.materials.map(m => {
+              const inSelected = Object.entries(selectedMaterials).find(([mid, data]: [string, any]) => mid === m.id);
+              return inSelected ? { ...m, status: MaterialStatus.ORDERED } : m;
+            });
+            onUpdateProject({ ...project, materials: updatedMaterials });
+          }
+        });
     }
 
     setIsAdding(false);
@@ -180,7 +185,7 @@ const PurchaseOrders: React.FC<PurchaseOrdersProps> = ({ projects, suppliers, pu
 
   const resetForm = () => {
     setEditingPOId(null);
-    setSelectedProjectId('');
+    setSelectedSupplierId('');
     setSelectedMaterials({});
     setExtraMaterials([]);
     setFillingDate(new Date().toISOString().split('T')[0]);
@@ -196,21 +201,27 @@ const PurchaseOrders: React.FC<PurchaseOrdersProps> = ({ projects, suppliers, pu
         ["採購單 (Purchase Order)"],
         ["單號", po.poNumber],
         ["日期", po.date],
-        ["專案名稱", po.projectName],
+        ["供應商", po.supplierName],
         ["請購人", po.requisitioner || ""],
         ["需到貨日期", po.deliveryDate || ""],
         ["送貨地點", po.deliveryLocation || ""],
         ["收貨人", po.receiver || ""],
         [],
-        ["項次", "品名", "供應商", "數量", "單位", "備註"]
+        ["項次", "品名", "案件名稱", "數量", "單位", "備註"]
       ];
 
       po.items.forEach((item, idx) => {
-        const sName = suppliers.find(s => s.id === item.supplierId)?.name || "";
+        let pName = '';
+        for(const p of projects) {
+          if (p.materials.some(m => m.id === item.materialId)) {
+            pName = p.name;
+            break;
+          }
+        }
         data.push([
           (idx + 1).toString(),
           item.name,
-          sName,
+          pName,
           item.quantity.toString(),
           item.unit,
           item.notes || ""
@@ -222,7 +233,7 @@ const PurchaseOrders: React.FC<PurchaseOrdersProps> = ({ projects, suppliers, pu
       XLSX.utils.book_append_sheet(wb, ws, "PO");
       const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
       const blob = new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-      downloadBlob(blob, `${po.poNumber}_${po.projectName}.xlsx`);
+      downloadBlob(blob, `${po.poNumber}_${po.supplierName}.xlsx`);
     } catch (e) {
       alert('匯出失敗');
     }
@@ -247,7 +258,7 @@ const PurchaseOrders: React.FC<PurchaseOrdersProps> = ({ projects, suppliers, pu
               <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
               <input 
                 type="text" 
-                placeholder="搜尋單號、專案或供應商..." 
+                placeholder="搜尋單號、廠商或品名..." 
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none font-medium"
@@ -276,16 +287,16 @@ const PurchaseOrders: React.FC<PurchaseOrdersProps> = ({ projects, suppliers, pu
               
               <div className="grid grid-cols-1 gap-6 mb-6">
                 <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">選擇專案</label>
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">選擇供應商</label>
                   <select 
                     required 
-                    value={selectedProjectId} 
-                    onChange={e => handleProjectChange(e.target.value)}
+                    value={selectedSupplierId} 
+                    onChange={e => setSelectedSupplierId(e.target.value)}
                     className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 font-bold"
                   >
                     <option value="">請選取...</option>
-                    {projects.map(p => (
-                      <option key={p.id} value={p.id}>{p.name}</option>
+                    {suppliers.map(s => (
+                      <option key={s.id} value={s.id}>{s.name}</option>
                     ))}
                   </select>
                 </div>
@@ -355,7 +366,7 @@ const PurchaseOrders: React.FC<PurchaseOrdersProps> = ({ projects, suppliers, pu
                       type="text" 
                       value={receiver}
                       onChange={(e) => setReceiver(e.target.value)}
-                      placeholder="請輸入姓名"
+                      placeholder="收貨窗口姓名"
                       className="w-full pl-10 pr-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
                     />
                   </div>
@@ -385,7 +396,7 @@ const PurchaseOrders: React.FC<PurchaseOrdersProps> = ({ projects, suppliers, pu
                 <div className="p-4 bg-blue-50 border-b border-blue-100 animate-fade-in">
                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                      <div>
-                       <label className="text-[10px] font-bold text-blue-700 block mb-1">材料名稱</label>
+                       <label className="text-[10px] font-bold text-blue-700 block mb-1">品名</label>
                        <input value={newExtra.name} onChange={e => setNewExtra({...newExtra, name: e.target.value})} className="w-full px-3 py-2 border border-blue-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500" placeholder="輸入品名..." />
                      </div>
                      <div className="grid grid-cols-2 gap-2">
@@ -410,90 +421,80 @@ const PurchaseOrders: React.FC<PurchaseOrdersProps> = ({ projects, suppliers, pu
                 </div>
               )}
 
-              {selectedProjectId ? (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse min-w-[800px]">
-                    <thead className="bg-slate-50 text-slate-500 text-xs uppercase font-semibold">
-                      <tr>
-                        <th className="px-4 py-3 w-10 text-center">選取</th>
-                        <th className="px-4 py-3 min-w-[180px]">工程項目</th>
-                        <th className="px-4 py-3 w-20 text-center">數量</th>
-                        <th className="px-4 py-3 w-16 text-center">單位</th>
-                        <th className="px-4 py-3 min-w-[180px]">供應商</th>
-                        <th className="px-4 py-3 min-w-[150px]">備註</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100 text-sm">
-                      {allAvailableMaterials.map(m => {
-                        const isSel = !!selectedMaterials[m.id];
-                        const mData = selectedMaterials[m.id] || { quantity: m.quantity, supplierId: '', notes: m.notes || '', name: m.name, unit: m.unit };
-                        return (
-                          <tr key={m.id} className={`${isSel ? 'bg-indigo-50/30' : 'hover:bg-slate-50/50'}`}>
-                            <td className="px-4 py-3 text-center">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse min-w-[800px]">
+                  <thead className="bg-slate-50 text-slate-500 text-xs uppercase font-semibold">
+                    <tr>
+                      <th className="px-4 py-3 w-10 text-center">選取</th>
+                      <th className="px-4 py-3 min-w-[180px]">品名</th>
+                      <th className="px-4 py-3 w-20 text-center">數量</th>
+                      <th className="px-4 py-3 w-16 text-center">單位</th>
+                      <th className="px-4 py-3 min-w-[180px]">案件名稱</th>
+                      <th className="px-4 py-3 min-w-[150px]">備註</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-sm">
+                    {allAvailableMaterials.map(m => {
+                      const isSel = !!selectedMaterials[m.id];
+                      const mData = selectedMaterials[m.id] || { quantity: m.quantity, projectId: m.projectId, notes: m.notes || '', name: m.name, unit: m.unit };
+                      return (
+                        <tr key={m.id} className={`${isSel ? 'bg-indigo-50/30' : 'hover:bg-slate-50/50'}`}>
+                          <td className="px-4 py-3 text-center">
+                            <input 
+                              type="checkbox" 
+                              checked={isSel} 
+                              onChange={() => {
+                                if(isSel) {
+                                  const next = {...selectedMaterials}; delete next[m.id]; setSelectedMaterials(next);
+                                } else {
+                                  setSelectedMaterials({...selectedMaterials, [m.id]: { quantity: m.quantity, projectId: m.projectId, notes: m.notes || '', name: m.name, unit: m.unit }});
+                                }
+                              }}
+                              className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500"
+                            />
+                          </td>
+                          <td className="px-4 py-3 font-bold text-slate-800">
+                              {m.name}
+                              {m.id.startsWith('extra-') && <span className="ml-2 bg-blue-100 text-blue-600 text-[9px] px-1.5 py-0.5 rounded font-black uppercase tracking-tighter">追加</span>}
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            {isSel ? (
                               <input 
-                                type="checkbox" 
-                                checked={isSel} 
-                                onChange={() => {
-                                  if(isSel) {
-                                    const next = {...selectedMaterials}; delete next[m.id]; setSelectedMaterials(next);
-                                  } else {
-                                    setSelectedMaterials({...selectedMaterials, [m.id]: { quantity: m.quantity, supplierId: '', notes: m.notes || '', name: m.name, unit: m.unit }});
-                                  }
-                                }}
-                                className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500"
+                                type="number" 
+                                value={mData.quantity} 
+                                onChange={e => setSelectedMaterials({...selectedMaterials, [m.id]: { ...mData, quantity: Number(e.target.value) }})}
+                                className="w-20 px-2 py-1 border border-slate-200 rounded text-center outline-none focus:ring-1 focus:ring-indigo-500"
                               />
-                            </td>
-                            <td className="px-4 py-3 font-bold text-slate-800">
-                                {m.name}
-                                {m.id.startsWith('extra-') && <span className="ml-2 bg-blue-100 text-blue-600 text-[9px] px-1.5 py-0.5 rounded font-black uppercase tracking-tighter">追加</span>}
-                            </td>
-                            <td className="px-4 py-3 text-center">
-                              {isSel ? (
-                                <input 
-                                  type="number" 
-                                  value={mData.quantity} 
-                                  onChange={e => setSelectedMaterials({...selectedMaterials, [m.id]: { ...mData, quantity: Number(e.target.value) }})}
-                                  className="w-20 px-2 py-1 border border-slate-200 rounded text-center outline-none focus:ring-1 focus:ring-indigo-500"
-                                />
-                              ) : m.quantity}
-                            </td>
-                            <td className="px-4 py-3 text-slate-500 text-center">{m.unit}</td>
-                            <td className="px-4 py-3">
-                              <select 
-                                disabled={!isSel}
-                                value={mData.supplierId}
-                                onChange={e => setSelectedMaterials({...selectedMaterials, [m.id]: { ...mData, supplierId: e.target.value }})}
-                                className="w-full px-2 py-1.5 bg-white border border-slate-200 rounded text-sm outline-none focus:ring-1 focus:ring-indigo-500 disabled:bg-slate-50 disabled:text-slate-400 font-bold"
-                              >
-                                <option value="">選取供應商...</option>
-                                {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                              </select>
-                            </td>
-                            <td className="px-4 py-3">
-                               <input 
-                                 type="text" 
-                                 disabled={!isSel}
-                                 value={mData.notes}
-                                 onChange={e => setSelectedMaterials({...selectedMaterials, [m.id]: { ...mData, notes: e.target.value }})}
-                                 className="w-full px-2 py-1 bg-transparent border-b border-transparent focus:border-slate-200 outline-none text-slate-500 text-xs"
-                                 placeholder="規格需求..."
-                               />
-                            </td>
-                          </tr>
-                        );
-                      })}
-                      {allAvailableMaterials.length === 0 && (
-                        <tr><td colSpan={6} className="py-20 text-center text-slate-400">尚無任何材料項目</td></tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <div className="py-24 text-center text-slate-400 flex flex-col items-center justify-center">
-                    <BoxIcon className="w-16 h-16 mb-4 opacity-10" />
-                    <p className="text-base font-medium">請先選取專案以顯示材料清單</p>
-                </div>
-              )}
+                            ) : m.quantity}
+                          </td>
+                          <td className="px-4 py-3 text-slate-500 text-center">{m.unit}</td>
+                          <td className="px-4 py-3">
+                            <select 
+                              disabled={!isSel}
+                              value={mData.projectId}
+                              onChange={e => setSelectedMaterials({...selectedMaterials, [m.id]: { ...mData, projectId: e.target.value }})}
+                              className="w-full px-2 py-1.5 bg-white border border-slate-200 rounded text-sm outline-none focus:ring-1 focus:ring-indigo-500 disabled:bg-slate-50 disabled:text-slate-400 font-bold"
+                            >
+                              <option value="">選取專案...</option>
+                              {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                            </select>
+                          </td>
+                          <td className="px-4 py-3">
+                             <input 
+                               type="text" 
+                               disabled={!isSel}
+                               value={mData.notes}
+                               onChange={e => setSelectedMaterials({...selectedMaterials, [m.id]: { ...mData, notes: e.target.value }})}
+                               className="w-full px-2 py-1 bg-transparent border-b border-transparent focus:border-slate-200 outline-none text-slate-500 text-xs"
+                               placeholder="規格需求..."
+                             />
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </div>
 
             <div className="flex justify-end gap-3 pt-4">
@@ -515,9 +516,8 @@ const PurchaseOrders: React.FC<PurchaseOrdersProps> = ({ projects, suppliers, pu
                 <thead className="bg-slate-50 text-slate-500 text-[10px] uppercase font-black tracking-widest border-b border-slate-200 sticky top-0 z-10">
                   <tr>
                     <th className="px-6 py-4">採購單號 / 日期</th>
-                    {/* 位置交換：供應商在前 */}
+                    <th className="px-6 py-4">品名 (第一項)</th>
                     <th className="px-6 py-4">主供應商</th>
-                    <th className="px-6 py-4">專案名稱</th>
                     <th className="px-6 py-4 text-center">項目數量</th>
                     <th className="px-6 py-4 text-center">狀態</th>
                     <th className="px-6 py-4 text-right">操作</th>
@@ -530,17 +530,16 @@ const PurchaseOrders: React.FC<PurchaseOrdersProps> = ({ projects, suppliers, pu
                         <div className="font-black text-slate-800 text-sm group-hover:text-indigo-600 transition-colors">{po.poNumber}</div>
                         <div className="text-[10px] text-slate-400 font-bold mt-0.5">{po.date}</div>
                       </td>
-                      {/* 位置交換內容 */}
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-2">
-                          <UsersIcon className="w-3.5 h-3.5 text-slate-300" />
-                          <span className="text-sm font-bold text-slate-600">{po.supplierName}</span>
+                          <BoxIcon className="w-3.5 h-3.5 text-slate-300" />
+                          <span className="text-sm font-bold text-slate-700 truncate max-w-[200px]">{po.items[0]?.name || '無項目'}</span>
                         </div>
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-2">
-                          <BriefcaseIcon className="w-3.5 h-3.5 text-slate-300" />
-                          <span className="text-sm font-bold text-slate-700 truncate max-w-[200px]">{po.projectName}</span>
+                          <UsersIcon className="w-3.5 h-3.5 text-slate-300" />
+                          <span className="text-sm font-bold text-slate-600">{po.supplierName}</span>
                         </div>
                       </td>
                       <td className="px-6 py-4 text-center">
