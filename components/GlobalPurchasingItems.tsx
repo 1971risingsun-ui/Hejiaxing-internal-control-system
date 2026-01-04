@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Project, CompletionItem, FenceMaterialItem, SystemRules, Supplier, PurchaseOrder, PurchaseOrderItem } from '../types';
+import { Project, CompletionItem, FenceMaterialItem, SystemRules, Supplier, PurchaseOrder, PurchaseOrderItem, MaterialStatus } from '../types';
 import { ClipboardListIcon, BoxIcon, CalendarIcon, ChevronRightIcon, ArrowLeftIcon, XIcon, CheckCircleIcon, UsersIcon, PlusIcon, FileTextIcon, MapPinIcon, UserIcon, TrashIcon } from './Icons';
 
 interface GlobalPurchasingItemsProps {
@@ -158,7 +158,6 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
     }
     const selectedItems = allPurchasingItems.filter(i => selectedRowKeys.has(i.rowKey));
     const uniqueProjIds = Array.from(new Set(selectedItems.map(i => i.project.id)));
-    // 預設抓第一個勾選項目的供應商
     const firstSupplierId = (selectedItems[0].type === 'sub' ? selectedItems[0].subItem?.supplierId : selectedItems[0].mainItem.supplierId) || '';
     
     setPoForm({
@@ -211,7 +210,6 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
 
     onUpdatePurchaseOrders([...purchaseOrders, newPO]);
 
-    // 更新各專案項目的處理狀態
     const updatedProjectsMap = new Map<string, Project>();
     selectedItems.forEach(row => {
         let p = updatedProjectsMap.get(row.project.id) || projects.find(proj => proj.id === row.project.id);
@@ -462,6 +460,7 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
                         <input 
                           value={rowName} 
                           disabled={isPoCreated}
+                          // Fix: Use 'mainItemIdx' instead of 'itemIdx' to resolve "Cannot find name 'itemIdx'" error.
                           onChange={(e) => handleUpdateItemName(project.id, reportIdx, mainItemIdx, e.target.value, type, itemKey, subIdx)}
                           placeholder="品名..."
                           className={`w-full px-2 py-1 bg-transparent border-b border-transparent focus:border-indigo-300 outline-none text-sm font-bold ${isPoCreated ? 'line-through text-slate-400' : ''}`}
