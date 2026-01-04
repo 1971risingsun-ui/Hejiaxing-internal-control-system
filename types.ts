@@ -292,7 +292,6 @@ export interface PurchaseOrderItem {
   price: number;
   notes?: string;
   supplierId: string;
-  projectName?: string; // 新增：儲存該項目的所屬案件名稱
 }
 
 export interface PurchaseOrder {

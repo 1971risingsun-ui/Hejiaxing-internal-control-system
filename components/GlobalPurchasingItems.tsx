@@ -370,8 +370,8 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
   };
 
   const confirmCreatePO = () => {
-    if (poForm.projectIds.length === 0 || !poForm.supplierId) {
-      alert('請填寫完整資訊');
+    if (!poForm.supplierId) {
+      alert('請選取主要供應商');
       return;
     }
     const selectedItems = allPurchasingItems.filter(i => selectedRowKeys.has(i.rowKey));
@@ -387,7 +387,7 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
         price: 0,
         notes: draft.notes,
         supplierId: poForm.supplierId,
-        projectName: row.project.name // 匯入該品項所屬的案件名稱
+        projectName: row.project.name // 將匯入項目明細的專案名稱填入
       };
     });
 
@@ -399,7 +399,7 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
       date: poForm.date,
       projectId: poForm.projectIds[0],
       projectIds: poForm.projectIds,
-      projectName: uniqueProjectNames, // 匯入彙整後的案件名稱
+      projectName: uniqueProjectNames, 
       supplierId: poForm.supplierId,
       supplierName: targetSupplier?.name || '未知廠商',
       items: poItems,
@@ -621,7 +621,6 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
                 </header>
 
                 <div className="flex-1 overflow-y-auto custom-scrollbar p-8">
-                    {/* 位置交換：供應商在前，案件在後 */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
                         <div>
                             <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 tracking-wider">主要供應商</label>
@@ -635,28 +634,6 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
                                     <option value="">選取廠商...</option>
                                     {allPartners.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                                 </select>
-                            </div>
-                        </div>
-                        <div>
-                            <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 tracking-wider">採購案件 (可複選)</label>
-                            <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl max-h-40 overflow-y-auto space-y-2 shadow-inner">
-                                {uniqueProjectList.map(p => (
-                                    <label key={p.id} className="flex items-center gap-3 cursor-pointer group">
-                                        <input 
-                                            type="checkbox" 
-                                            checked={poForm.projectIds.includes(p.id)}
-                                            onChange={() => {
-                                                const next = [...poForm.projectIds];
-                                                const idx = next.indexOf(p.id);
-                                                if (idx > -1) next.splice(idx, 1);
-                                                else next.push(p.id);
-                                                setPoForm({ ...poForm, projectIds: next });
-                                            }}
-                                            className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500"
-                                        />
-                                        <span className="text-xs font-bold text-slate-700 group-hover:text-indigo-600 transition-colors">{p.name}</span>
-                                    </label>
-                                ))}
                             </div>
                         </div>
                     </div>
