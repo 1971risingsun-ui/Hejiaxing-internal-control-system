@@ -31,7 +31,7 @@ interface RowData {
 }
 
 const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({ 
-  projects, onUpdateProject, systemRules, onBack, suppliers, subcontractors, purchaseOrders, onUpdatePurchaseOrders
+  projects, onUpdateProject, systemRules, onBack, suppliers, subcontractors, onUpdateSuppliers, onUpdateSubcontractors, purchaseOrders, onUpdatePurchaseOrders
 }) => {
   const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: SortDirection }>({
     key: 'date',
@@ -53,6 +53,8 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
     receiver: ''
   });
 
+  const allPartners = useMemo(() => [...suppliers, ...subcontractors], [suppliers, subcontractors]);
+
   const getDaysOffset = (dateStr: string, days: number) => {
     if (!dateStr) return '';
     const d = new Date(dateStr);
@@ -65,7 +67,6 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
 
   const allPurchasingItems = useMemo(() => {
     let list: RowData[] = [];
-    const allPartners = [...suppliers, ...subcontractors];
     
     projects.forEach(project => {
       if (!project.planningReports || project.planningReports.length === 0) return;
@@ -135,7 +136,7 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
       });
     }
     return list;
-  }, [projects, sortConfig, systemRules, projectFilter, supplierFilter, suppliers, subcontractors]);
+  }, [projects, sortConfig, systemRules, projectFilter, supplierFilter, allPartners]);
 
   const handleSort = (key: SortKey) => {
     setSortConfig(prev => {
@@ -158,7 +159,6 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
     }
     const selectedItems = allPurchasingItems.filter(i => selectedRowKeys.has(i.rowKey));
     const uniqueProjIds = Array.from(new Set(selectedItems.map(i => i.project.id)));
-    // 預設抓第一個勾選項目的供應商
     const firstSupplierId = (selectedItems[0].type === 'sub' ? selectedItems[0].subItem?.supplierId : selectedItems[0].mainItem.supplierId) || '';
     
     setPoForm({
@@ -176,7 +176,7 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
     }
 
     const selectedItems = allPurchasingItems.filter(i => selectedRowKeys.has(i.rowKey));
-    const targetSupplier = [...suppliers, ...subcontractors].find(s => s.id === poForm.supplierId);
+    const targetSupplier = allPartners.find(s => s.id === poForm.supplierId);
     
     const poItems: PurchaseOrderItem[] = selectedItems.map(row => {
       const isSub = row.type === 'sub';
@@ -211,7 +211,6 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
 
     onUpdatePurchaseOrders([...purchaseOrders, newPO]);
 
-    // 更新各專案項目的處理狀態
     const updatedProjectsMap = new Map<string, Project>();
     selectedItems.forEach(row => {
         let p = updatedProjectsMap.get(row.project.id) || projects.find(proj => proj.id === row.project.id);
@@ -255,7 +254,6 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
   const handleUpdateItemSupplier = (projId: string, reportIdx: number, itemIdx: number, supplierInput: string, type: 'main' | 'sub', itemKey?: string, subIdx?: number) => {
     const project = projects.find(p => p.id === projId);
     if (!project) return;
-    const allPartners = [...suppliers, ...subcontractors];
     const matchedSup = allPartners.find(s => s.name === supplierInput);
     const finalSupplierValue = matchedSup ? matchedSup.id : supplierInput;
 
@@ -312,6 +310,38 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
       const items = reports[reportIdx].items.filter((_, i) => i !== mainItemIdx);
       reports[reportIdx] = { ...reports[reportIdx], items };
       onUpdateProject({ ...project, planningReports: reports });
+    }
+  };
+
+  // --- 詢問加入清冊邏輯 ---
+  const handleCheckAndPromptAddition = (row: RowData, inputSupplierName: string, inputProductName: string) => {
+    const isSupplierExist = suppliers.some(s => s.name === inputSupplierName);
+    const matchedSupplier = suppliers.find(s => s.name === inputSupplierName);
+
+    // 情境 A: 供應商為手動輸入 (不在此清冊內)
+    if (inputSupplierName && !isSupplierExist) {
+        if (window.confirm(`供應商「${inputSupplierName}」不在清冊中，是否將其連同品項「${inputProductName}」加入供應商清冊？`)) {
+            const newSupplier: Supplier = {
+                id: crypto.randomUUID(),
+                name: inputSupplierName,
+                address: '', contact: '', companyPhone: '', mobilePhone: '',
+                productList: [{ name: inputProductName, spec: '', usage: '' }]
+            };
+            onUpdateSuppliers([...suppliers, newSupplier]);
+        }
+    } 
+    // 情境 B: 供應商存在，但品名不在該供應商品項內
+    else if (matchedSupplier && inputProductName) {
+        const isProductExist = matchedSupplier.productList.some(p => p.name === inputProductName);
+        if (!isProductExist) {
+            if (window.confirm(`供應商「${inputSupplierName}」的產品清單中尚無「${inputProductName}」，是否加入？`)) {
+                const updatedSuppliers = suppliers.map(s => s.id === matchedSupplier.id ? {
+                    ...s,
+                    productList: [...s.productList, { name: inputProductName, spec: '', usage: '' }]
+                } : s);
+                onUpdateSuppliers(updatedSuppliers);
+            }
+        }
     }
   };
 
@@ -419,8 +449,50 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
                 const rowUnit = type === 'sub' ? subItem?.unit : mainItem.unit;
                 const rowNote = type === 'sub' ? (subItem?.name || '-') : (mainItem.itemNote || '-');
                 const currentSupplierId = type === 'sub' ? subItem?.supplierId : mainItem.supplierId;
-                const currentSupplierName = [...suppliers, ...subcontractors].find(s => s.id === currentSupplierId)?.name || currentSupplierId || '';
                 const isPoCreated = type === 'sub' ? subItem?.isPoCreated : mainItem.isPoCreated;
+
+                const matchedSupplier = allPartners.find(s => s.id === currentSupplierId);
+                const currentSupplierName = matchedSupplier?.name || currentSupplierId || '';
+
+                // --- 供應商 & 品名 Datalist 邏輯 ---
+                
+                // 1. 供應商清單過濾: 比對品名/備註 vs 供應商用途
+                const supplierOptions = useMemo(() => {
+                    const searchTargets = [rowName, rowNote].filter(Boolean).map(s => s.toLowerCase());
+                    let filtered = suppliers.filter(s => {
+                        const usages = s.productList.flatMap(p => (p.usage || '').split(',')).map(u => u.trim().toLowerCase()).filter(Boolean);
+                        // 模糊比對匹配
+                        return searchTargets.some(target => usages.some(u => target.includes(u) || u.includes(target)));
+                    });
+                    // 如果沒匹配則顯示全部，選單第一個選項改為手動輸入 (input 內建)
+                    if (filtered.length === 0) filtered = suppliers;
+                    
+                    // 連動過濾：若已輸入品名，僅顯示有提供該材料的廠商
+                    if (rowName) {
+                        const providers = suppliers.filter(s => s.productList.some(p => p.name === rowName));
+                        if (providers.length > 0) filtered = providers;
+                    }
+
+                    return filtered.sort((a,b) => a.name.localeCompare(b.name, 'zh-Hant'));
+                }, [suppliers, rowName, rowNote]);
+
+                // 2. 品名清單過濾: 連動供應商
+                const productOptions = useMemo(() => {
+                    let filteredProducts: string[] = [];
+                    if (matchedSupplier) {
+                        // 選供應商後：自動過濾旗下符合用途關鍵字的材料
+                        const usages = [rowName, rowNote].filter(Boolean).map(s => s.toLowerCase());
+                        const matchedInSup = matchedSupplier.productList.filter(p => {
+                            const pUsages = (p.usage || '').split(',').map(u => u.trim().toLowerCase());
+                            return usages.some(target => pUsages.some(u => target.includes(u) || u.includes(target)));
+                        });
+                        filteredProducts = (matchedInSup.length > 0 ? matchedInSup : matchedSupplier.productList).map(p => p.name);
+                    } else {
+                        // 尚未選供應商或手動輸入
+                        filteredProducts = Array.from(new Set(suppliers.flatMap(s => s.productList.map(p => p.name))));
+                    }
+                    return filteredProducts.filter(Boolean).sort();
+                }, [suppliers, matchedSupplier, rowName, rowNote]);
 
                 return (
                   <tr key={rowKey} className={`hover:bg-slate-50/50 transition-colors group ${isPoCreated ? 'bg-slate-50 opacity-60' : ''}`}>
@@ -446,24 +518,32 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
                     <td className="px-6 py-4">
                         <div className="relative">
                             <input 
-                                list={`partners-datalist-${rowKey}`}
+                                list={`supplier-datalist-${rowKey}`}
                                 value={currentSupplierName} 
                                 onChange={(e) => handleUpdateItemSupplier(project.id, reportIdx, mainItemIdx, e.target.value, type, itemKey, subIdx)}
+                                onBlur={(e) => handleCheckAndPromptAddition(entry, e.target.value, rowName)}
                                 placeholder="填入供應商..."
                                 className={`w-full px-2 py-1 bg-transparent border-b border-transparent focus:border-indigo-300 outline-none text-[11px] font-bold text-slate-700 ${isPoCreated ? 'line-through text-slate-400 opacity-60' : ''}`}
                             />
-                            <datalist id={`partners-datalist-${rowKey}`}>
-                                {[...suppliers, ...subcontractors].map(s => <option key={s.id} value={s.name} />)}
+                            <datalist id={`supplier-datalist-${rowKey}`}>
+                                {supplierOptions.map(s => <option key={s.id} value={s.name} />)}
                             </datalist>
                         </div>
                     </td>
                     <td className="px-6 py-4">
-                        <input 
-                          value={rowName} 
-                          onChange={(e) => handleUpdateItemName(project.id, reportIdx, mainItemIdx, e.target.value, type, itemKey, subIdx)}
-                          placeholder="品名..."
-                          className={`w-full px-2 py-1 bg-transparent border-b border-transparent focus:border-indigo-300 outline-none text-sm font-bold ${isPoCreated ? 'line-through text-slate-400 opacity-60' : ''}`}
-                        />
+                        <div className="relative">
+                            <input 
+                              list={`product-datalist-${rowKey}`}
+                              value={rowName} 
+                              onChange={(e) => handleUpdateItemName(project.id, reportIdx, mainItemIdx, e.target.value, type, itemKey, subIdx)}
+                              onBlur={(e) => handleCheckAndPromptAddition(entry, currentSupplierName, e.target.value)}
+                              placeholder="品名..."
+                              className={`w-full px-2 py-1 bg-transparent border-b border-transparent focus:border-indigo-300 outline-none text-sm font-bold ${isPoCreated ? 'line-through text-slate-400 opacity-60' : ''}`}
+                            />
+                            <datalist id={`product-datalist-${rowKey}`}>
+                                {productOptions.map((p, pidx) => <option key={pidx} value={p} />)}
+                            </datalist>
+                        </div>
                     </td>
                     <td className={`px-6 py-4 text-xs text-slate-500 ${isPoCreated ? 'line-through text-slate-400 opacity-60' : ''}`}>{rowSpec}</td>
                     <td className={`px-6 py-4 text-center font-black text-blue-600 ${isPoCreated ? 'line-through text-slate-400 opacity-60' : ''}`}>{rowQty}</td>
@@ -535,7 +615,7 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
                                     className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold text-slate-700 focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
                                 >
                                     <option value="">選取廠商...</option>
-                                    {[...suppliers, ...subcontractors].map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                                    {allPartners.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                                 </select>
                             </div>
                         </div>
