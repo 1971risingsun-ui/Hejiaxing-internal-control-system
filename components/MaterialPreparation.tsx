@@ -1,6 +1,7 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { Project, User, CompletionItem, FenceMaterialItem, FenceMaterialSheet, SystemRules } from '../types';
-import { BoxIcon, TruckIcon, ClipboardListIcon, TrashIcon, UsersIcon, PlusIcon, PenToolIcon } from './Icons';
+// Fix: Added FileTextIcon to imports to resolve the "Cannot find name 'FileTextIcon'" error.
+import { BoxIcon, TruckIcon, ClipboardListIcon, TrashIcon, UsersIcon, PlusIcon, PenToolIcon, CalendarIcon, FileTextIcon } from './Icons';
 
 interface MaterialPreparationProps {
   project: Project;
@@ -10,15 +11,31 @@ interface MaterialPreparationProps {
 }
 
 const MaterialPreparation: React.FC<MaterialPreparationProps> = ({ project, onUpdateProject, systemRules }) => {
-  const [activeSubTab, setActiveSubTab] = React.useState<'fence' | 'modular'>('fence');
+  const [activeSubTab, setActiveSubTab] = useState<'fence' | 'modular'>('fence');
+  const [selectedReportId, setSelectedReportId] = useState<string>('');
 
-  // 取得最新的報價單內容
-  const latestPlanningReport = useMemo(() => {
-    if (!project.planningReports || project.planningReports.length === 0) return null;
-    return [...project.planningReports].sort((a, b) => b.timestamp - a.timestamp)[0];
+  // 取得所有報價單，並依時間排序（新到舊）
+  const allReports = useMemo(() => {
+    if (!project.planningReports || project.planningReports.length === 0) return [];
+    return [...project.planningReports].sort((a, b) => b.timestamp - a.timestamp);
   }, [project.planningReports]);
 
-  const planningItems = latestPlanningReport?.items || [];
+  // 當報價單列表變動或初始載入時，預設選取最新的一筆
+  useEffect(() => {
+    if (allReports.length > 0 && !selectedReportId) {
+      setSelectedReportId(allReports[0].id);
+    } else if (allReports.length > 0 && !allReports.find(r => r.id === selectedReportId)) {
+      setSelectedReportId(allReports[0].id);
+    }
+  }, [allReports, selectedReportId]);
+
+  // 取得當前選取的報價單內容
+  const currentPlanningReport = useMemo(() => {
+    if (!selectedReportId) return allReports[0] || null;
+    return allReports.find(r => r.id === selectedReportId) || allReports[0] || null;
+  }, [allReports, selectedReportId]);
+
+  const planningItems = currentPlanningReport?.items || [];
 
   // 過濾圍籬項目並分流 (使用動態關鍵字)
   const { fenceMainItems, fenceProductionItems, fenceSubcontractorItems } = useMemo(() => {
@@ -66,20 +83,17 @@ const MaterialPreparation: React.FC<MaterialPreparationProps> = ({ project, onUp
     const baseQty = parseFloat(quantity) || 0;
     if (baseQty <= 0) return null;
 
-    // 從系統規則中尋找匹配的關鍵字
     const formulaConfig = systemRules.materialFormulas.find(f => itemName.includes(f.keyword));
     if (!formulaConfig) return null;
 
     const generatedItems: FenceMaterialItem[] = formulaConfig.items.map(formulaItem => {
       let calcQty = 0;
       try {
-        // 安全地評估數學公式
-        // eslint-disable-next-line no-new-func
         const func = new Function('baseQty', 'Math', `return ${formulaItem.formula}`);
         calcQty = func(baseQty, Math);
       } catch (e) {
         console.error(`公式解析失敗: ${formulaItem.formula}`, e);
-        calcQty = baseQty; // 失敗時回退到基本數量
+        calcQty = baseQty;
       }
 
       return {
@@ -104,12 +118,12 @@ const MaterialPreparation: React.FC<MaterialPreparationProps> = ({ project, onUp
   };
 
   const handleDeleteMainItem = (itemToDelete: CompletionItem) => {
-    if (!latestPlanningReport || !window.confirm(`確定要從報價單移除「${itemToDelete.name}」嗎？`)) return;
-    const updatedItems = latestPlanningReport.items.filter(item => 
+    if (!currentPlanningReport || !window.confirm(`確定要從報價單移除「${itemToDelete.name}」嗎？`)) return;
+    const updatedItems = currentPlanningReport.items.filter(item => 
       !(item.name === itemToDelete.name && item.category === itemToDelete.category && item.spec === itemToDelete.spec)
     );
     const updatedReports = project.planningReports.map(report => 
-      report.id === latestPlanningReport.id ? { ...report, items: updatedItems, timestamp: Date.now() } : report
+      report.id === currentPlanningReport.id ? { ...report, items: updatedItems, timestamp: Date.now() } : report
     );
     onUpdateProject({ ...project, planningReports: updatedReports });
   };
@@ -119,7 +133,7 @@ const MaterialPreparation: React.FC<MaterialPreparationProps> = ({ project, onUp
       return (
         <div className="py-20 text-center text-slate-400 bg-white rounded-xl border border-dashed border-slate-200">
           <BoxIcon className="w-12 h-12 mx-auto mb-3 opacity-20" />
-          <p className="font-bold">報價單中尚無相關規劃項目</p>
+          <p className="font-bold">目前報價單內容為空</p>
         </div>
       );
     }
@@ -266,22 +280,33 @@ const MaterialPreparation: React.FC<MaterialPreparationProps> = ({ project, onUp
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+      <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center gap-4">
            <div className="bg-indigo-600 p-2.5 rounded-xl text-white">
              <TruckIcon className="w-6 h-6" />
            </div>
            <div>
              <h2 className="text-lg font-black text-slate-800">材料清單 (Material List)</h2>
-             <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest leading-none">依品名自動導入預設材料計算公式</p>
+             <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest leading-none">依報價單品名自動產生備料清單</p>
            </div>
         </div>
-        {latestPlanningReport && (
-          <div className="text-right hidden sm:block">
-            <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">來源報價單日期</div>
-            <div className="text-sm font-bold text-slate-700">{latestPlanningReport.date}</div>
-          </div>
-        )}
+        
+        <div className="flex items-center gap-3">
+          {allReports.length > 0 ? (
+            <div className="relative flex-1 md:w-56">
+                <CalendarIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-indigo-500" />
+                <select 
+                  value={selectedReportId}
+                  onChange={(e) => setSelectedReportId(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2 bg-indigo-50 border border-indigo-100 rounded-xl text-xs font-bold text-indigo-700 outline-none focus:ring-2 focus:ring-indigo-500 appearance-none shadow-sm cursor-pointer"
+                >
+                  {allReports.map(r => (
+                    <option key={r.id} value={r.id}>報價單日期: {r.date}</option>
+                  ))}
+                </select>
+            </div>
+          ) : null}
+        </div>
       </div>
 
       <div className="flex gap-2 p-1 bg-slate-200/50 rounded-2xl w-fit">
@@ -294,28 +319,29 @@ const MaterialPreparation: React.FC<MaterialPreparationProps> = ({ project, onUp
       </div>
 
       <div className="space-y-10 pb-10">
-        {activeSubTab === 'fence' ? (
-          <>
-            {renderTable(fenceMainItems, undefined, undefined, true)}
-            {renderTable(fenceProductionItems, "生產/備料", <PenToolIcon className="w-4 h-4 text-blue-500" />, true)}
-            {renderTable(fenceSubcontractorItems, "協力廠商安排", <UsersIcon className="w-4 h-4 text-indigo-500" />)}
-          </>
+        {allReports.length > 0 ? (
+          activeSubTab === 'fence' ? (
+            <>
+              {renderTable(fenceMainItems, undefined, undefined, true)}
+              {renderTable(fenceProductionItems, "生產/備料", <PenToolIcon className="w-4 h-4 text-blue-500" />, true)}
+              {renderTable(fenceSubcontractorItems, "協力廠商安排", <UsersIcon className="w-4 h-4 text-indigo-500" />)}
+            </>
+          ) : (
+            <>
+              {renderTable(modularStructItems, "主結構", <BoxIcon className="w-4 h-4 text-blue-500" />)}
+              {renderTable(modularRenoItems, "裝修工程", <PlusIcon className="w-4 h-4 text-emerald-500" />)}
+              {renderTable(modularOtherItems, "其他工程", <TruckIcon className="w-4 h-4 text-amber-500" />)}
+              {renderTable(modularDismantleItems, "拆除工程", <TrashIcon className="w-4 h-4 text-red-500" />)}
+            </>
+          )
         ) : (
-          <>
-            {renderTable(modularStructItems, "主結構", <BoxIcon className="w-4 h-4 text-blue-500" />)}
-            {renderTable(modularRenoItems, "裝修工程", <PlusIcon className="w-4 h-4 text-emerald-500" />)}
-            {renderTable(modularOtherItems, "其他工程", <TruckIcon className="w-4 h-4 text-amber-500" />)}
-            {renderTable(modularDismantleItems, "拆除工程", <TrashIcon className="w-4 h-4 text-red-500" />)}
-          </>
+          <div className="p-12 text-center bg-white border-2 border-dashed border-slate-200 rounded-3xl">
+             <FileTextIcon className="w-16 h-16 mx-auto mb-4 text-slate-200" />
+             <p className="text-slate-500 font-bold">本案尚未建立任何報價單</p>
+             <p className="text-xs text-slate-400 mt-1">請先至「報價單」頁面新增規劃內容後，此處將自動產生備料清單</p>
+          </div>
         )}
       </div>
-
-      {!latestPlanningReport && (
-        <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl flex items-center gap-3">
-          <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></div>
-          <span className="text-xs font-bold text-amber-700 uppercase tracking-widest">提示：本案尚未建立任何報價單規劃內容。</span>
-        </div>
-      )}
     </div>
   );
 };
