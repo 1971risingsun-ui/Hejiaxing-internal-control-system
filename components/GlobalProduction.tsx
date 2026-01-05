@@ -65,7 +65,7 @@ const GlobalProduction: React.FC<GlobalProductionProps> = ({ projects, onUpdateP
     projects.forEach(project => {
       if (!project.planningReports || project.planningReports.length === 0) return;
       
-      // 核心修正：移除 latestReportIdx 閥門，循環所有報價單
+      // 遍歷所有報價單，移除最新一筆限制
       project.planningReports.forEach((report, reportIdx) => {
         report.items.forEach((item, itemIdx) => {
           const name = item.name || '';
@@ -191,7 +191,7 @@ const GlobalProduction: React.FC<GlobalProductionProps> = ({ projects, onUpdateP
                 </th>
                 <th className="px-6 py-4 w-40">
                   <button onClick={() => handleSort('date')} className="flex items-center hover:text-indigo-600 transition-colors uppercase tracking-widest">
-                    預計日期 {renderSortIcon('date')}
+                    日期 {renderSortIcon('date')}
                   </button>
                 </th>
                 <th className="px-6 py-4">
