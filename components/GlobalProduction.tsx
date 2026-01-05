@@ -17,7 +17,6 @@ const GlobalProduction: React.FC<GlobalProductionProps> = ({ projects, onUpdateP
     direction: 'asc',
   });
 
-  // 自動判斷分類並產生預設項目 (使用動態公式)
   const getDefaultMaterialItems = (itemName: string, quantity: string): { category: string; items: FenceMaterialItem[] } | null => {
     const baseQty = parseFloat(quantity) || 0;
     if (baseQty <= 0) return null;
@@ -28,7 +27,6 @@ const GlobalProduction: React.FC<GlobalProductionProps> = ({ projects, onUpdateP
     const generatedItems: FenceMaterialItem[] = formulaConfig.items.map(formulaItem => {
       let calcQty = 0;
       try {
-        // eslint-disable-next-line no-new-func
         const func = new Function('baseQty', 'Math', `return ${formulaItem.formula}`);
         calcQty = func(baseQty, Math);
       } catch (e) {
@@ -61,14 +59,13 @@ const GlobalProduction: React.FC<GlobalProductionProps> = ({ projects, onUpdateP
     setSortConfig({ key, direction });
   };
 
-  // 修正：導入所有案場、所有日期的生產備料項目
   const productionItems = useMemo(() => {
     let list: { project: Project; item: CompletionItem; itemIdx: number; reportIdx: number; reportId: string; reportDate: string }[] = [];
     
     projects.forEach(project => {
       if (!project.planningReports || project.planningReports.length === 0) return;
       
-      // 移除 latestReportIdx 閥門，遍歷所有報價單
+      // 核心修正：移除 latestReportIdx 閥門，循環所有報價單
       project.planningReports.forEach((report, reportIdx) => {
         report.items.forEach((item, itemIdx) => {
           const name = item.name || '';
@@ -99,7 +96,6 @@ const GlobalProduction: React.FC<GlobalProductionProps> = ({ projects, onUpdateP
             valB = b.project.name;
             break;
           case 'date':
-            // 優先使用生產日期，若無則使用報價單日期
             valA = a.item.productionDate || a.reportDate || '9999-12-31';
             valB = b.item.productionDate || b.reportDate || '9999-12-31';
             break;
@@ -175,11 +171,11 @@ const GlobalProduction: React.FC<GlobalProductionProps> = ({ projects, onUpdateP
           </div>
           <div>
             <h1 className="text-xl font-bold text-slate-800">生產／備料總覽</h1>
-            <p className="text-xs text-slate-500 font-medium">彙整各案場所有日期之預作項目與詳細材料清單</p>
+            <p className="text-xs text-slate-500 font-medium">彙整各案場「所有日期」之需預作項目與詳細材料清單</p>
           </div>
         </div>
         <div className="text-right hidden sm:block">
-           <span className="text-[10px] font-black text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full border border-indigo-100 uppercase tracking-widest">全日期監控已開啟</span>
+           <span className="text-[10px] font-black text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full border border-indigo-100 uppercase tracking-widest">全日期監控模式</span>
         </div>
       </div>
 
@@ -219,7 +215,7 @@ const GlobalProduction: React.FC<GlobalProductionProps> = ({ projects, onUpdateP
                 const activeCategory = existingSheet?.category || autoData?.category || '';
 
                 return (
-                  <React.Fragment key={`${project.id}-${itemKey}-${reportId}-${idx}`}>
+                  <React.Fragment key={`${project.id}-${reportId}-${itemIdx}-${idx}`}>
                     <tr className={`hover:bg-slate-50/50 transition-colors group ${item.isProduced ? 'opacity-60' : ''}`}>
                       <td className="px-6 py-4 align-top">
                         <div className="flex items-center gap-3">
@@ -354,7 +350,7 @@ const GlobalProduction: React.FC<GlobalProductionProps> = ({ projects, onUpdateP
                   <td colSpan={7} className="py-32 text-center text-slate-400">
                     <BoxIcon className="w-16 h-16 mx-auto mb-4 opacity-10" />
                     <p className="textbase font-bold">目前沒有任何生產備料項目</p>
-                    <p className="text-xs mt-1">系統會自動從所有日期的報價單中篩選預作項目</p>
+                    <p className="text-xs mt-1">系統會自動從報價單中篩選預作項目</p>
                   </td>
                 </tr>
               )}

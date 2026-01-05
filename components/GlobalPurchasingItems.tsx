@@ -58,7 +58,7 @@ const PurchasingItemRow: React.FC<{
   handleUpdateItemDate, handleUpdateItemSupplier, handleUpdateItemName, handleUpdateItemSpec, onUpdateSuppliers,
   onEdit
 }) => {
-  const { project, type, subItem, mainItem, reportIdx, reportDate, mainItemIdx, itemKey, subIdx, rowKey } = entry;
+  const { project, type, subItem, mainItem, reportIdx, reportId, reportDate, mainItemIdx, itemKey, subIdx, rowKey } = entry;
   
   const displayDate = mainItem.productionDate || reportDate || getDaysOffset(project.appointmentDate, -7);
   
@@ -267,14 +267,14 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
                   list.push({ 
                       project, type: 'sub', subItem: sub, mainItem: item, mainItemIdx: itemIdx, reportIdx, 
                       reportId: report.id, reportDate: report.date, itemKey, subIdx,
-                      rowKey: `${project.id}-sub-${itemKey}-${report.id}-${subIdx}`
+                      rowKey: `${project.id}-sub-${report.id}-${itemIdx}-${subIdx}`
                   });
               });
             } else {
               list.push({ 
                 project, type: 'main', mainItem: item, mainItemIdx: itemIdx, reportIdx, 
                 reportId: report.id, reportDate: report.date,
-                rowKey: `${project.id}-main-${itemKey}-${report.id}` 
+                rowKey: `${project.id}-main-${report.id}-${itemIdx}` 
               });
             }
           }
@@ -496,7 +496,7 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
       <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex justify-between items-center flex-shrink-0">
         <div className="flex items-center gap-3">
           <div className="bg-indigo-600 p-2.5 rounded-xl text-white shadow-lg"><ClipboardListIcon className="w-5 h-5" /></div>
-          <div><h1 className="text-lg font-bold text-slate-800">採購總覽</h1><p className="text-[10px] text-slate-500 font-medium">彙整所有報價單規劃，包含歷史日期的所有項目</p></div>
+          <div><h1 className="text-lg font-bold text-slate-800">採購總覽</h1><p className="text-[10px] text-slate-500 font-medium">彙整報價單「所有日期」之規劃，含自動材料換算</p></div>
         </div>
         <button onClick={handleOpenPOModal} className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded-xl text-xs font-black shadow-lg transition-all flex items-center gap-2 active:scale-95">
             <FileTextIcon className="w-4 h-4" /> 建立採購單
@@ -513,7 +513,7 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
                     <input type="checkbox" onChange={(e) => setSelectedRowKeys(e.target.checked ? new Set(allPurchasingItems.filter(i => !(i.type === 'sub' ? i.subItem?.isPoCreated : i.mainItem.isPoCreated)).map(i => i.rowKey)) : new Set())} checked={selectedRowKeys.size > 0 && selectedRowKeys.size === allPurchasingItems.filter(i => !(i.type === 'sub' ? i.subItem?.isPoCreated : i.mainItem.isPoCreated)).length} className="w-4 h-4 rounded text-indigo-600" />
                 </th>
                 <th className="px-3 py-4 w-22 cursor-pointer hover:text-indigo-600" onClick={() => handleSort('projectName')}>案件 {sortConfig.key === 'projectName' && (sortConfig.direction === 'asc' ? '↑' : '↓')}</th>
-                <th className="px-3 py-4 w-20 cursor-pointer hover:text-indigo-600" onClick={() => handleSort('date')}>預計日期 {sortConfig.key === 'date' && (sortConfig.direction === 'asc' ? '↑' : '↓')}</th>
+                <th className="px-3 py-4 w-20 cursor-pointer hover:text-indigo-600" onClick={() => handleSort('date')}>日期 {sortConfig.key === 'date' && (sortConfig.direction === 'asc' ? '↑' : '↓')}</th>
                 <th className="px-3 py-4 w-40 cursor-pointer hover:text-indigo-600" onClick={() => handleSort('supplier')}>供應商 {sortConfig.key === 'supplier' && (sortConfig.direction === 'asc' ? '↑' : '↓')}</th>
                 <th className="px-6 py-4 w-60 cursor-pointer hover:text-indigo-600" onClick={() => handleSort('name')}>品名 {sortConfig.key === 'name' && (sortConfig.direction === 'asc' ? '↑' : '↓')}</th>
                 <th className="px-6 py-4 w-40">規格</th>
