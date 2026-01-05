@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useRef } from 'react';
+import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { Project, CompletionItem, FenceMaterialItem, SystemRules, Supplier, PurchaseOrder, PurchaseOrderItem } from '../types';
 import { ClipboardListIcon, BoxIcon, CalendarIcon, ChevronRightIcon, ArrowLeftIcon, XIcon, CheckCircleIcon, UsersIcon, PlusIcon, FileTextIcon, MapPinIcon, UserIcon, TrashIcon, EditIcon } from './Icons';
 
@@ -47,13 +47,10 @@ const PurchasingItemRow: React.FC<{
   toggleRowSelection: (key: string) => void;
   handleUpdateItemDate: (pId: string, rIdx: number, iIdx: number, val: string) => void;
   handleUpdateItemSupplier: (pId: string, rIdx: number, iIdx: number, val: string, type: 'main' | 'sub', iKey?: string, sIdx?: number) => void;
-  handleUpdateItemName: (pId: string, rIdx: number, iIdx: number, val: string, type: 'main' | 'sub', iKey?: string, sIdx?: number) => void;
-  onUpdateSuppliers: (list: Supplier[]) => void;
   onEdit: (entry: RowData) => void;
 }> = ({ 
   entry, suppliers, allPartners, isPoCreated, selectedRowKeys, toggleRowSelection, 
-  handleUpdateItemDate, handleUpdateItemSupplier, handleUpdateItemName, onUpdateSuppliers,
-  onEdit
+  handleUpdateItemDate, handleUpdateItemSupplier, onEdit
 }) => {
   const { project, type, subItem, mainItem, reportIdx, mainItemIdx, itemKey, subIdx, rowKey } = entry;
   
@@ -70,60 +67,15 @@ const PurchasingItemRow: React.FC<{
   const matchedSupplier = allPartners.find(s => s.id === currentSupplierId);
   const currentSupplierName = matchedSupplier?.name || currentSupplierId || '';
 
-  const promptedRef = useRef<string>('');
-
-  const handleCheckAndPromptAddition = (inputSupplierName: string, inputProductName: string) => {
-    if (!inputSupplierName) return;
-    const promptKey = `${inputSupplierName}-${inputProductName}`;
-    if (promptedRef.current === promptKey) return;
-    promptedRef.current = promptKey;
-
-    const isSupplierExist = suppliers.some(s => s.name === inputSupplierName);
-    const targetSupplier = suppliers.find(s => s.name === inputSupplierName);
-
-    if (!isSupplierExist) {
-        if (window.confirm(`供應商「${inputSupplierName}」不在清冊中，是否將其連同品項「${inputProductName}」加入供應商清冊？`)) {
-            const newSupplier: Supplier = {
-                id: crypto.randomUUID(),
-                name: inputSupplierName,
-                address: '',
-                contact: '',
-                companyPhone: '',
-                mobilePhone: '',
-                productList: [{ name: inputProductName, spec: '', usage: '' }]
-            };
-            onUpdateSuppliers([...suppliers, newSupplier]);
-        }
-    } else if (targetSupplier && inputProductName) {
-        const isProductExist = targetSupplier.productList.some(p => p.name === inputProductName);
-        if (!isProductExist) {
-            if (window.confirm(`供應商「${inputSupplierName}」的產品清單中尚無「${inputProductName}」，是否加入？`)) {
-                const updatedSuppliers = suppliers.map(s => s.id === targetSupplier.id ? {
-                    ...s,
-                    productList: [...s.productList, { name: inputProductName, spec: '', usage: '' }]
-                } : s);
-                onUpdateSuppliers(updatedSuppliers);
-            }
-        }
-    }
-  };
-
   const supplierOptions = useMemo(() => {
     const searchTargets = [rowName, rowNote].filter(Boolean).map(s => s.toLowerCase());
-    // 依據規則：模糊比對「用途」
+    // 規則：模糊比對「用途」。若產品用途以逗號隔開，則拆分比對。
     let filtered = suppliers.filter(s => {
       const usages = s.productList.flatMap(p => (p.usage || '').split(',')).map(u => u.trim().toLowerCase()).filter(Boolean);
       return searchTargets.some(target => usages.some(u => target.includes(u) || u.includes(target)));
     });
 
     if (filtered.length === 0) filtered = suppliers;
-
-    // 如果品名已選，優先顯示有該品名的廠商
-    if (rowName) {
-      const providers = suppliers.filter(s => s.productList.some(p => p.name === rowName));
-      if (providers.length > 0) filtered = providers;
-    }
-
     return filtered.sort((a, b) => a.name.localeCompare(b.name, 'zh-Hant'));
   }, [suppliers, rowName, rowNote]);
 
@@ -146,12 +98,7 @@ const PurchasingItemRow: React.FC<{
         <div className={`font-black text-sm truncate max-w-[80px] text-indigo-700 ${isPoCreated ? 'line-through text-slate-400 opacity-60' : ''}`}>{project.name}</div>
       </td>
       <td className="px-3 py-4 w-20">
-        <input 
-          type="date" 
-          value={displayDate}
-          onChange={(e) => handleUpdateItemDate(project.id, reportIdx, mainItemIdx, e.target.value)}
-          className={`w-full px-2 py-1 bg-transparent border-b border-transparent focus:border-indigo-300 outline-none text-xs font-bold text-slate-500 ${isPoCreated ? 'line-through text-slate-400 opacity-60' : ''}`} 
-        />
+        <input type="date" value={displayDate} onChange={(e) => handleUpdateItemDate(project.id, reportIdx, mainItemIdx, e.target.value)} className={`w-full px-2 py-1 bg-transparent border-b border-transparent focus:border-indigo-300 outline-none text-xs font-bold text-slate-500 ${isPoCreated ? 'line-through text-slate-400 opacity-60' : ''}`} />
       </td>
       <td className="px-3 py-4 w-32">
         <div className="relative">
@@ -159,7 +106,6 @@ const PurchasingItemRow: React.FC<{
             list={`supplier-datalist-${rowKey}`}
             value={currentSupplierName} 
             onChange={(e) => handleUpdateItemSupplier(project.id, reportIdx, mainItemIdx, e.target.value, type, itemKey, subIdx)}
-            onBlur={(e) => handleCheckAndPromptAddition(e.target.value, rowName)}
             placeholder="供應商..."
             className={`w-full px-2 py-1 bg-transparent border-b border-transparent focus:border-indigo-300 outline-none text-[11px] font-bold text-slate-700 ${isPoCreated ? 'line-through text-slate-400 opacity-60' : ''}`}
           />
@@ -539,6 +485,39 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
     }
   };
 
+  const handleCheckAndPromptAddition = (inputSupplierName: string, inputProductName: string) => {
+    if (!inputSupplierName) return;
+    
+    const isSupplierExist = suppliers.some(s => s.name === inputSupplierName);
+    const targetSupplier = suppliers.find(s => s.name === inputSupplierName);
+
+    if (!isSupplierExist) {
+        if (window.confirm(`供應商「${inputSupplierName}」不在清冊中，是否將其連同品項「${inputProductName}」加入供應商清冊？`)) {
+            const newSupplier: Supplier = {
+                id: crypto.randomUUID(),
+                name: inputSupplierName,
+                address: '',
+                contact: '',
+                companyPhone: '',
+                mobilePhone: '',
+                productList: [{ name: inputProductName, spec: '', usage: '' }]
+            };
+            onUpdateSuppliers([...suppliers, newSupplier]);
+        }
+    } else if (targetSupplier && inputProductName) {
+        const isProductExist = targetSupplier.productList.some(p => p.name === inputProductName);
+        if (!isProductExist) {
+            if (window.confirm(`供應商「${inputSupplierName}」的產品清單中尚無「${inputProductName}」，是否加入？`)) {
+                const updatedSuppliers = suppliers.map(s => s.id === targetSupplier.id ? {
+                    ...s,
+                    productList: [...s.productList, { name: inputProductName, spec: '', usage: '' }]
+                } : s);
+                onUpdateSuppliers(updatedSuppliers);
+            }
+        }
+    }
+  };
+
   const renderSortIcon = (key: SortKey) => {
     if (sortConfig.key !== key || !sortConfig.direction) return <span className="opacity-20 ml-1">⇅</span>;
     return <span className="ml-1 text-indigo-500 font-bold">{sortConfig.direction === 'asc' ? '↑' : '↓'}</span>;
@@ -640,8 +619,6 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
                   toggleRowSelection={toggleRowSelection}
                   handleUpdateItemDate={handleUpdateItemDate}
                   handleUpdateItemSupplier={handleUpdateItemSupplier}
-                  handleUpdateItemName={handleUpdateItemName}
-                  onUpdateSuppliers={onUpdateSuppliers}
                   onEdit={setEditingRow}
                 />
               )) : (
@@ -659,7 +636,7 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
 
       {editingRow && (
         <div className="fixed inset-0 z-[250] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in" onClick={() => setEditingRow(null)}>
-          <div className="bg-white w-full max-w-4xl max-h-[90vh] rounded-[32px] shadow-2xl overflow-hidden flex flex-col animate-scale-in" onClick={e => e.stopPropagation()}>
+          <div className="bg-white w-full max-w-xl max-h-[90vh] rounded-[32px] shadow-2xl overflow-hidden flex flex-col animate-scale-in" onClick={e => e.stopPropagation()}>
             <header className="px-8 py-5 border-b border-slate-100 flex justify-between items-center bg-slate-50 flex-shrink-0">
                 <div className="flex items-center gap-3">
                     <div className="bg-indigo-600 p-2 rounded-xl text-white"><EditIcon className="w-5 h-5" /></div>
@@ -691,6 +668,7 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
                                 list={`edit-modal-supplier-datalist`}
                                 value={allPartners.find(s => s.id === (editingRow.type === 'sub' ? editingRow.subItem?.supplierId : editingRow.mainItem.supplierId))?.name || (editingRow.type === 'sub' ? editingRow.subItem?.supplierId : editingRow.mainItem.supplierId) || ''} 
                                 onChange={e => handleUpdateItemSupplier(editingRow.project.id, editingRow.reportIdx, editingRow.mainItemIdx, e.target.value, editingRow.type, editingRow.itemKey, editingRow.subIdx)}
+                                onBlur={e => handleCheckAndPromptAddition(e.target.value, editingRow.type === 'sub' ? (editingRow.subItem?.spec || '') : editingRow.mainItem.name)}
                                 className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-500" 
                             />
                             <datalist id="edit-modal-supplier-datalist">
@@ -702,12 +680,21 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
 
                 <div>
                     <label className="block text-[10px] font-black text-slate-400 uppercase mb-1 tracking-wider">品名規格</label>
-                    <input 
-                        type="text" 
-                        value={editingRow.type === 'sub' ? (editingRow.subItem?.spec || '') : editingRow.mainItem.name} 
-                        onChange={e => handleUpdateItemName(editingRow.project.id, editingRow.reportIdx, editingRow.mainItemIdx, e.target.value, editingRow.type, editingRow.itemKey, editingRow.subIdx)}
-                        className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-black outline-none focus:ring-2 focus:ring-indigo-500" 
-                    />
+                    <div className="relative">
+                      <input 
+                          list={`edit-modal-name-datalist`}
+                          type="text" 
+                          value={editingRow.type === 'sub' ? (editingRow.subItem?.spec || '') : editingRow.mainItem.name} 
+                          onChange={e => handleUpdateItemName(editingRow.project.id, editingRow.reportIdx, editingRow.mainItemIdx, e.target.value, editingRow.type, editingRow.itemKey, editingRow.subIdx)}
+                          onBlur={e => handleCheckAndPromptAddition(allPartners.find(s => s.id === (editingRow.type === 'sub' ? editingRow.subItem?.supplierId : editingRow.mainItem.supplierId))?.name || '', e.target.value)}
+                          className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-black outline-none focus:ring-2 focus:ring-indigo-500" 
+                      />
+                      <datalist id="edit-modal-name-datalist">
+                          {(allPartners.find(s => s.id === (editingRow.type === 'sub' ? editingRow.subItem?.supplierId : editingRow.mainItem.supplierId))?.productList || []).map((p, i) => (
+                              <option key={i} value={p.name}>{p.spec || ''}</option>
+                          ))}
+                      </datalist>
+                    </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
