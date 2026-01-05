@@ -24,8 +24,6 @@ interface RowData {
   mainItem: CompletionItem;
   mainItemIdx: number;
   reportIdx: number;
-  reportId: string;
-  reportDate: string;
   subItem?: FenceMaterialItem;
   itemKey?: string;
   subIdx?: number;
@@ -58,12 +56,12 @@ const PurchasingItemRow: React.FC<{
   handleUpdateItemDate, handleUpdateItemSupplier, handleUpdateItemName, handleUpdateItemSpec, onUpdateSuppliers,
   onEdit
 }) => {
-  const { project, type, subItem, mainItem, reportIdx, reportId, reportDate, mainItemIdx, itemKey, subIdx, rowKey } = entry;
+  const { project, type, subItem, mainItem, reportIdx, mainItemIdx, itemKey, subIdx, rowKey } = entry;
   
-  const displayDate = mainItem.productionDate || reportDate || getDaysOffset(project.appointmentDate, -7);
+  const displayDate = mainItem.productionDate || getDaysOffset(project.appointmentDate, -7);
   
   const rowName = type === 'sub' ? (subItem?.spec || '') : mainItem.name;
-  const rowSpec = type === 'sub' ? (subItem?.name || '') : (mainItem.spec || '');
+  const rowSpec = type === 'sub' ? (subItem?.name || '') : (mainItem.spec || ''); // 注意 subItem 結構特殊性
   const rowQty = type === 'sub' ? subItem?.quantity : mainItem.quantity;
   const rowUnit = type === 'sub' ? subItem?.unit : mainItem.unit;
   const rowNote = type === 'sub' ? (subItem?.name || '-') : (mainItem.itemNote || '-');
@@ -72,22 +70,29 @@ const PurchasingItemRow: React.FC<{
   const matchedSupplier = allPartners.find(s => s.id === currentSupplierId);
   const currentSupplierName = matchedSupplier?.name || currentSupplierId || '';
 
+  // 1. 供應商選項過濾邏輯
   const filteredSupplierOptions = useMemo(() => {
+    // 優先選取已有品項的廠商
     if (rowName) {
       const providers = suppliers.filter(s => s.productList.some(p => p.name === rowName));
       if (providers.length > 0) return providers;
     }
+
+    // 模糊比對「用途」
     const searchTargets = [rowName, rowNote].filter(Boolean).map(s => s.toLowerCase());
     const matched = suppliers.filter(s => {
       const usages = s.productList.flatMap(p => (p.usage || '').split(',')).map(u => u.trim().toLowerCase()).filter(Boolean);
       return searchTargets.some(target => usages.some(u => target.includes(u) || u.includes(target)));
     });
+
     return matched.length > 0 ? matched : suppliers;
   }, [suppliers, rowName, rowNote]);
 
+  // 2. 品名選項過濾邏輯 (連動供應商)
   const filteredProductOptions = useMemo(() => {
     const selectedS = suppliers.find(s => s.name === currentSupplierName);
     if (selectedS) {
+      // 僅顯示該商旗下符合關鍵字的產品
       const searchTargets = [rowNote].filter(Boolean).map(s => s.toLowerCase());
       const matched = selectedS.productList.filter(p => {
         const pUsages = (p.usage || '').split(',').map(u => u.trim().toLowerCase()).filter(Boolean);
@@ -95,14 +100,18 @@ const PurchasingItemRow: React.FC<{
       });
       return matched.length > 0 ? matched : selectedS.productList;
     }
+    // 未選供應商則顯示全部清冊品項
     const allItems = new Map<string, string>();
     suppliers.forEach(s => s.productList.forEach(p => allItems.set(p.name, p.usage)));
     return Array.from(allItems.entries()).map(([name, usage]) => ({ name, spec: '', usage }));
   }, [suppliers, currentSupplierName, rowNote]);
 
+  // 3. 手動輸入確認邏輯 (點擊 CheckCircleIcon 觸發)
   const handleCommitInput = () => {
     if (!currentSupplierName) return;
+
     const targetSupplier = suppliers.find(s => s.name === currentSupplierName);
+
     if (!targetSupplier) {
       if (window.confirm(`供應商「${currentSupplierName}」不在清冊中，是否將其連同品項「${rowName}」加入清冊？`)) {
         const newSupplier: Supplier = {
@@ -123,6 +132,8 @@ const PurchasingItemRow: React.FC<{
           } : s);
           onUpdateSuppliers(updatedSuppliers);
         }
+      } else {
+        alert('已確認輸入內容');
       }
     }
   };
@@ -251,6 +262,7 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
     projects.forEach(project => {
       if (!project.planningReports || project.planningReports.length === 0) return;
       
+      // 需求修正：導入報價單中所有日期的項目
       project.planningReports.forEach((report, reportIdx) => {
         report.items.forEach((item, itemIdx) => {
           const isFence = item.category === 'FENCE_MAIN';
@@ -265,17 +277,12 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
             if (activeSubItems.length > 0) {
               activeSubItems.forEach((sub, subIdx) => {
                   list.push({ 
-                      project, type: 'sub', subItem: sub, mainItem: item, mainItemIdx: itemIdx, reportIdx, 
-                      reportId: report.id, reportDate: report.date, itemKey, subIdx,
-                      rowKey: `${project.id}-sub-${report.id}-${itemIdx}-${subIdx}`
+                      project, type: 'sub', subItem: sub, mainItem: item, mainItemIdx: itemIdx, reportIdx: reportIdx, itemKey, subIdx,
+                      rowKey: `${project.id}-sub-${itemKey}-${reportIdx}-${subIdx}`
                   });
               });
             } else {
-              list.push({ 
-                project, type: 'main', mainItem: item, mainItemIdx: itemIdx, reportIdx, 
-                reportId: report.id, reportDate: report.date,
-                rowKey: `${project.id}-main-${report.id}-${itemIdx}` 
-              });
+              list.push({ project, type: 'main', mainItem: item, mainItemIdx: itemIdx, reportIdx: reportIdx, rowKey: `${project.id}-main-${itemKey}-${reportIdx}` });
             }
           }
         });
@@ -296,8 +303,8 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
         switch (sortConfig.key) {
           case 'projectName': valA = a.project.name; valB = b.project.name; break;
           case 'date':
-            valA = a.mainItem.productionDate || a.reportDate || '9999-12-31';
-            valB = b.mainItem.productionDate || b.reportDate || '9999-12-31';
+            valA = a.mainItem.productionDate || getDaysOffset(a.project.appointmentDate, -7) || '9999-12-31';
+            valB = b.mainItem.productionDate || getDaysOffset(b.project.appointmentDate, -7) || '9999-12-31';
             break;
           case 'name':
             valA = a.type === 'sub' ? (a.subItem?.spec || '') : a.mainItem.name;
@@ -376,7 +383,7 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
     if (type === 'sub' && iKey && sIdx !== undefined) {
         const sheets = { ...(project.fenceMaterialSheets || {}) };
         if (sheets[iKey]) {
-            sheets[iKey].items[sIdx].name = val;
+            sheets[iKey].items[sIdx].name = val; // subItem 用 name 存特殊規格
             onUpdateProject({ ...project, fenceMaterialSheets: sheets });
         }
     } else {
@@ -394,6 +401,7 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
     else if (field === 'name') handleUpdateItemName(project.id, reportIdx, mainItemIdx, val, type, itemKey, subIdx);
     else if (field === 'spec') handleUpdateItemSpec(project.id, reportIdx, mainItemIdx, val, type, itemKey, subIdx);
     else {
+      // 處理數量與單位
       const p = projects.find(p => p.id === project.id);
       if (!p) return;
       if (type === 'sub' && itemKey && subIdx !== undefined) {
@@ -496,7 +504,7 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
       <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex justify-between items-center flex-shrink-0">
         <div className="flex items-center gap-3">
           <div className="bg-indigo-600 p-2.5 rounded-xl text-white shadow-lg"><ClipboardListIcon className="w-5 h-5" /></div>
-          <div><h1 className="text-lg font-bold text-slate-800">採購總覽</h1><p className="text-[10px] text-slate-500 font-medium">彙整報價單「所有日期」之規劃，含自動材料換算</p></div>
+          <div><h1 className="text-lg font-bold text-slate-800">採購總覽</h1><p className="text-[10px] text-slate-500 font-medium">彙整所有報價單規劃與材料換算，支持即時修改與廠商對齊</p></div>
         </div>
         <button onClick={handleOpenPOModal} className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded-xl text-xs font-black shadow-lg transition-all flex items-center gap-2 active:scale-95">
             <FileTextIcon className="w-4 h-4" /> 建立採購單
@@ -553,7 +561,7 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
                 <div className="grid grid-cols-2 gap-4">
                     <div>
                         <label className="block text-[10px] font-black text-slate-400 uppercase mb-1 tracking-wider">預計日期</label>
-                        <input type="date" value={editingRow.mainItem.productionDate || editingRow.reportDate} onChange={e => handleUpdateRowValue('date', e.target.value)} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-500" />
+                        <input type="date" value={editingRow.mainItem.productionDate || getDaysOffset(editingRow.project.appointmentDate, -7)} onChange={e => handleUpdateRowValue('date', e.target.value)} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-500" />
                     </div>
                     <div>
                         <label className="block text-[10px] font-black text-slate-400 uppercase mb-1 tracking-wider">供應商</label>
@@ -584,6 +592,57 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
                 <button onClick={() => setEditingRow(null)} className="w-full py-4 rounded-2xl text-sm font-black bg-indigo-600 text-white hover:bg-indigo-700 shadow-xl transition-all active:scale-95">完成並覆蓋修改</button>
             </footer>
           </div>
+        </div>
+      )}
+
+      {isCreatingPO && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
+            <div className="bg-white w-full max-w-4xl max-h-[90vh] rounded-[32px] shadow-2xl overflow-hidden flex flex-col animate-scale-in">
+                <header className="px-8 py-5 border-b border-slate-100 flex justify-between items-center bg-slate-50 flex-shrink-0">
+                    <div className="flex items-center gap-3"><div className="bg-indigo-600 p-2 rounded-xl text-white"><FileTextIcon className="w-5 h-5" /></div><h3 className="font-black text-slate-800">建立正式採購單 (PO)</h3></div>
+                    <button onClick={() => setIsCreatingPO(false)} className="p-2 text-slate-400 hover:bg-red-50 hover:text-red-500 rounded-full transition-colors"><XIcon className="w-5 h-5" /></button>
+                </header>
+                <div className="flex-1 overflow-y-auto custom-scrollbar p-8">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+                        <div>
+                            <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 tracking-wider">主要供應商</label>
+                            <select value={poForm.supplierId} onChange={e => setPoForm({ ...poForm, supplierId: e.target.value })} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold text-slate-700 focus:ring-2 focus:ring-indigo-500 outline-none">
+                                <option value="">選取廠商...</option>
+                                {allPartners.sort((a,b)=>a.name.localeCompare(b.name,'zh')).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                            </select>
+                        </div>
+                    </div>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10">
+                        <div><label className="text-[10px] uppercase font-black text-slate-400 block mb-1">日期</label><input type="date" value={poForm.date} onChange={e => setPoForm({...poForm, date: e.target.value})} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold" /></div>
+                        <div><label className="text-[10px] uppercase font-black text-slate-400 block mb-1">請購人</label><input type="text" value={poForm.requisitioner} onChange={e => setPoForm({...poForm, requisitioner: e.target.value})} placeholder="姓名" className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold" /></div>
+                        <div><label className="text-[10px] uppercase font-black text-slate-400 block mb-1">到貨日</label><input type="date" value={poForm.deliveryDate} onChange={e => setPoForm({...poForm, deliveryDate: e.target.value})} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold" /></div>
+                        <div><label className="text-[10px] uppercase font-black text-slate-400 block mb-1">收貨人</label><input type="text" value={poForm.receiver} onChange={e => setPoForm({...poForm, receiver: e.target.value})} placeholder="姓名" className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold" /></div>
+                    </div>
+                    <div className="bg-slate-50 rounded-2xl border border-slate-200 overflow-hidden shadow-inner">
+                        <table className="w-full text-left text-xs border-collapse">
+                            <thead className="bg-slate-100 text-slate-400 font-bold border-b border-slate-200">
+                                <tr><th className="px-6 py-2">專案</th><th className="px-6 py-2">品名規格</th><th className="px-6 py-2 text-center">數量</th><th className="px-6 py-2">單位</th></tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                                {allPurchasingItems.filter(i => selectedRowKeys.has(i.rowKey)).map(row => (
+                                    <tr key={row.rowKey} className="bg-white">
+                                        <td className="px-6 py-3 font-bold text-indigo-600 truncate max-w-[150px]">{row.project.name}</td>
+                                        <td className="px-6 py-3 font-black text-slate-800">{poItemsDraft[row.rowKey]?.name || ''}</td>
+                                        <td className="px-6 py-3 text-center">
+                                            <input type="number" step="any" value={poItemsDraft[row.rowKey]?.quantity || '0'} onChange={(e) => setPoItemsDraft(prev => ({ ...prev, [row.rowKey]: { ...prev[row.rowKey], quantity: e.target.value } }))} className="w-20 px-2 py-1 border border-slate-200 rounded text-center outline-none focus:ring-1 focus:ring-indigo-500 font-black text-blue-600" />
+                                        </td>
+                                        <td className="px-6 py-3 text-slate-400 font-bold">{poItemsDraft[row.rowKey]?.unit || ''}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <footer className="p-6 bg-slate-50 border-t border-slate-100 flex gap-3 flex-shrink-0">
+                    <button type="button" onClick={() => setIsCreatingPO(false)} className="flex-1 py-4 rounded-2xl text-sm font-bold text-slate-500 hover:bg-slate-200 transition-colors">取消</button>
+                    <button onClick={confirmCreatePO} className="flex-[2] py-4 rounded-2xl text-sm font-black bg-indigo-600 text-white hover:bg-indigo-700 shadow-xl transition-all active:scale-95 flex items-center justify-center gap-2"><CheckCircleIcon className="w-5 h-5" /> 確定建立</button>
+                </footer>
+            </div>
         </div>
       )}
     </div>

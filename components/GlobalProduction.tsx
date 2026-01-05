@@ -17,6 +17,7 @@ const GlobalProduction: React.FC<GlobalProductionProps> = ({ projects, onUpdateP
     direction: 'asc',
   });
 
+  // 自動判斷分類並產生預設項目 (使用動態公式)
   const getDefaultMaterialItems = (itemName: string, quantity: string): { category: string; items: FenceMaterialItem[] } | null => {
     const baseQty = parseFloat(quantity) || 0;
     if (baseQty <= 0) return null;
@@ -27,6 +28,7 @@ const GlobalProduction: React.FC<GlobalProductionProps> = ({ projects, onUpdateP
     const generatedItems: FenceMaterialItem[] = formulaConfig.items.map(formulaItem => {
       let calcQty = 0;
       try {
+        // eslint-disable-next-line no-new-func
         const func = new Function('baseQty', 'Math', `return ${formulaItem.formula}`);
         calcQty = func(baseQty, Math);
       } catch (e) {
@@ -54,34 +56,31 @@ const GlobalProduction: React.FC<GlobalProductionProps> = ({ projects, onUpdateP
     if (sortConfig.key === key && sortConfig.direction === 'asc') {
       direction = 'desc';
     } else if (sortConfig.key === key && sortConfig.direction === 'desc') {
-      direction = null; 
+      direction = null; // 恢復預設
     }
     setSortConfig({ key, direction });
   };
 
+  // 彙整所有案件的生產備料項目 (使用動態關鍵字)
   const productionItems = useMemo(() => {
-    let list: { project: Project; item: CompletionItem; itemIdx: number; reportIdx: number; reportId: string; reportDate: string }[] = [];
+    let list: { project: Project; item: CompletionItem; itemIdx: number; reportIdx: number }[] = [];
     
     projects.forEach(project => {
       if (!project.planningReports || project.planningReports.length === 0) return;
       
-      // 核心修正：移除 latestReportIdx 閥門，循環所有報價單
-      project.planningReports.forEach((report, reportIdx) => {
-        report.items.forEach((item, itemIdx) => {
-          const name = item.name || '';
-          const isProd = systemRules.productionKeywords.some(kw => name.includes(kw)) && item.category === 'FENCE_MAIN';
-          
-          if (isProd) {
-            list.push({ 
-              project, 
-              item, 
-              itemIdx, 
-              reportIdx,
-              reportId: report.id,
-              reportDate: report.date 
-            });
-          }
-        });
+      const latestReportIdx = project.planningReports.reduce((latestIdx, curr, idx, arr) => {
+        return curr.timestamp > arr[latestIdx].timestamp ? idx : latestIdx;
+      }, 0);
+      
+      const report = project.planningReports[latestReportIdx];
+      
+      report.items.forEach((item, itemIdx) => {
+        const name = item.name || '';
+        const isProd = systemRules.productionKeywords.some(kw => name.includes(kw)) && item.category === 'FENCE_MAIN';
+        
+        if (isProd) {
+          list.push({ project, item, itemIdx, reportIdx: latestReportIdx });
+        }
       });
     });
     
@@ -96,8 +95,8 @@ const GlobalProduction: React.FC<GlobalProductionProps> = ({ projects, onUpdateP
             valB = b.project.name;
             break;
           case 'date':
-            valA = a.item.productionDate || a.reportDate || '9999-12-31';
-            valB = b.item.productionDate || b.reportDate || '9999-12-31';
+            valA = a.item.productionDate || '9999-12-31';
+            valB = b.item.productionDate || '9999-12-31';
             break;
           case 'name':
             valA = a.item.name;
@@ -112,9 +111,10 @@ const GlobalProduction: React.FC<GlobalProductionProps> = ({ projects, onUpdateP
         }
       });
     } else {
+        // 預設排序（依日期）
         list.sort((a, b) => {
-            const dateA = a.item.productionDate || a.reportDate || '9999-12-31';
-            const dateB = b.item.productionDate || b.reportDate || '9999-12-31';
+            const dateA = a.item.productionDate || '9999-12-31';
+            const dateB = b.item.productionDate || '9999-12-31';
             return dateA.localeCompare(dateB);
         });
     }
@@ -171,11 +171,11 @@ const GlobalProduction: React.FC<GlobalProductionProps> = ({ projects, onUpdateP
           </div>
           <div>
             <h1 className="text-xl font-bold text-slate-800">生產／備料總覽</h1>
-            <p className="text-xs text-slate-500 font-medium">彙整各案場「所有日期」之需預作項目與詳細材料清單</p>
+            <p className="text-xs text-slate-500 font-medium">彙整各案場「防溢座、大門、告示牌」等需預作之項目與詳細材料清單</p>
           </div>
         </div>
         <div className="text-right hidden sm:block">
-           <span className="text-[10px] font-black text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full border border-indigo-100 uppercase tracking-widest">全日期監控模式</span>
+           <span className="text-[10px] font-black text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full border border-indigo-100 uppercase tracking-widest">即時生產監控</span>
         </div>
       </div>
 
@@ -191,7 +191,7 @@ const GlobalProduction: React.FC<GlobalProductionProps> = ({ projects, onUpdateP
                 </th>
                 <th className="px-6 py-4 w-40">
                   <button onClick={() => handleSort('date')} className="flex items-center hover:text-indigo-600 transition-colors uppercase tracking-widest">
-                    預計日期 {renderSortIcon('date')}
+                    預計生產日期 {renderSortIcon('date')}
                   </button>
                 </th>
                 <th className="px-6 py-4">
@@ -206,7 +206,7 @@ const GlobalProduction: React.FC<GlobalProductionProps> = ({ projects, onUpdateP
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {productionItems.length > 0 ? productionItems.map(({ project, item, itemIdx, reportIdx, reportId, reportDate }, idx) => {
+              {productionItems.length > 0 ? productionItems.map(({ project, item, itemIdx, reportIdx }, idx) => {
                 const itemKey = getItemKey(item);
                 const existingSheet = project.fenceMaterialSheets?.[itemKey];
                 const autoData = getDefaultMaterialItems(item.name, item.quantity);
@@ -215,7 +215,7 @@ const GlobalProduction: React.FC<GlobalProductionProps> = ({ projects, onUpdateP
                 const activeCategory = existingSheet?.category || autoData?.category || '';
 
                 return (
-                  <React.Fragment key={`${project.id}-${reportId}-${itemIdx}-${idx}`}>
+                  <React.Fragment key={`${project.id}-${itemKey}-${idx}`}>
                     <tr className={`hover:bg-slate-50/50 transition-colors group ${item.isProduced ? 'opacity-60' : ''}`}>
                       <td className="px-6 py-4 align-top">
                         <div className="flex items-center gap-3">
@@ -235,7 +235,7 @@ const GlobalProduction: React.FC<GlobalProductionProps> = ({ projects, onUpdateP
                           <CalendarIcon className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 group-focus-within/date:text-indigo-500" />
                           <input 
                             type="date" 
-                            value={item.productionDate || reportDate}
+                            value={item.productionDate || ''}
                             onChange={(e) => handleUpdateItemDate(project.id, reportIdx, itemIdx, e.target.value)}
                             className="w-full pl-7 pr-2 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-700 outline-none focus:bg-white focus:ring-1 focus:ring-indigo-500 transition-all"
                           />
@@ -262,6 +262,7 @@ const GlobalProduction: React.FC<GlobalProductionProps> = ({ projects, onUpdateP
                       </td>
                     </tr>
                     
+                    {/* 材料單區塊 */}
                     {activeItems.length > 0 && (
                       <tr className="bg-slate-50/30">
                         <td colSpan={7} className="px-8 py-0">
@@ -350,12 +351,19 @@ const GlobalProduction: React.FC<GlobalProductionProps> = ({ projects, onUpdateP
                   <td colSpan={7} className="py-32 text-center text-slate-400">
                     <BoxIcon className="w-16 h-16 mx-auto mb-4 opacity-10" />
                     <p className="textbase font-bold">目前沒有任何生產備料項目</p>
-                    <p className="text-xs mt-1">系統會自動從報價單中篩選預作項目</p>
+                    <p className="text-xs mt-1">系統會自動從報價單中篩選防溢座與大門等預作項目</p>
                   </td>
                 </tr>
               )}
             </tbody>
           </table>
+        </div>
+        <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 text-[10px] font-bold text-slate-400 uppercase tracking-widest flex justify-between items-center flex-shrink-0">
+          <span>共計 {productionItems.length} 項生產清單</span>
+          <span className="animate-pulse flex items-center gap-1">
+            <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full"></div>
+            點擊表頭可進行排序 (連動報價單與材料單)
+          </span>
         </div>
       </div>
     </div>
