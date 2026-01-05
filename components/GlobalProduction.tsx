@@ -69,9 +69,13 @@ const GlobalProduction: React.FC<GlobalProductionProps> = ({ projects, onUpdateP
       project.planningReports.forEach((report, reportIdx) => {
         report.items.forEach((item, itemIdx) => {
           const name = item.name || '';
-          const isProd = systemRules.productionKeywords.some(kw => name.includes(kw)) && item.category === 'FENCE_MAIN';
           
-          if (isProd) {
+          // 分流規則：圍籬項目 vs 組合屋項目
+          const isFenceProd = systemRules.productionKeywords.some(kw => name.includes(kw)) && item.category === 'FENCE_MAIN';
+          const isModularProd = systemRules.modularProductionKeywords?.some(kw => name.includes(kw)) && 
+                               ['MODULAR_STRUCT', 'MODULAR_RENO', 'MODULAR_OTHER', 'MODULAR_DISMANTLE'].includes(item.category);
+          
+          if (isFenceProd || isModularProd) {
             list.push({ 
               project, 
               item, 
@@ -264,7 +268,7 @@ const GlobalProduction: React.FC<GlobalProductionProps> = ({ projects, onUpdateP
                     
                     {activeItems.length > 0 && (
                       <tr className="bg-slate-50/30">
-                        <td colSpan={7} className="px-8 py-0">
+                        <td colSpan={6} className="px-8 py-0">
                           <div className={`border-l-4 border-indigo-200 ml-6 my-2 overflow-hidden rounded-r-xl border border-slate-100 shadow-sm bg-white/50 transition-opacity ${item.isProduced ? 'opacity-50' : ''}`}>
                             <table className="w-full text-xs">
                               <thead className="bg-slate-100 text-slate-400 font-bold uppercase tracking-widest text-[9px]">

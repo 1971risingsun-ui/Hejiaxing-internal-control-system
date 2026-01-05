@@ -1,6 +1,5 @@
 import React, { useState, useRef } from 'react';
 import { User, UserRole, AuditLog, Project, SystemRules, MaterialFormulaConfig, MaterialFormulaItem } from '../types';
-// Fix: Add missing EditIcon import to resolve the "Cannot find name 'EditIcon'" error.
 import { PlusIcon, TrashIcon, ShieldIcon, UserIcon, HistoryIcon, DownloadIcon, UploadIcon, BoxIcon, SettingsIcon, CheckCircleIcon, LoaderIcon, AlertIcon, PenToolIcon, ChevronRightIcon, WrenchIcon, EditIcon } from './Icons';
 import { downloadBlob } from '../utils/fileHelpers';
 
@@ -113,12 +112,16 @@ const UserManagement: React.FC<UserManagementProps> = ({
   };
 
   // --- 規則設定相關函數 ---
-  const handleUpdateKeywords = (type: 'production' | 'subcontractor', value: string) => {
+  const handleUpdateKeywords = (type: 'production' | 'subcontractor' | 'modular-production' | 'modular-subcontractor', value: string) => {
     const keywords = value.split(',').map(s => s.trim()).filter(s => !!s);
     if (type === 'production') {
       onUpdateSystemRules({ ...systemRules, productionKeywords: keywords });
-    } else {
+    } else if (type === 'subcontractor') {
       onUpdateSystemRules({ ...systemRules, subcontractorKeywords: keywords });
+    } else if (type === 'modular-production') {
+      onUpdateSystemRules({ ...systemRules, modularProductionKeywords: keywords });
+    } else if (type === 'modular-subcontractor') {
+      onUpdateSystemRules({ ...systemRules, modularSubcontractorKeywords: keywords });
     }
   };
 
@@ -309,7 +312,7 @@ const UserManagement: React.FC<UserManagementProps> = ({
             {/* 分流關鍵字設定 */}
             <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
               <h3 className="font-bold text-slate-800 mb-6 flex items-center gap-2">
-                <BoxIcon className="w-5 h-5 text-indigo-500" /> 生產與協力分流關鍵字
+                <BoxIcon className="w-5 h-5 text-indigo-500" /> 生產與協力分流關鍵字 (圍籬)
               </h3>
               <div className="space-y-6">
                 <div>
@@ -339,6 +342,39 @@ const UserManagement: React.FC<UserManagementProps> = ({
               </div>
             </div>
 
+            {/* 組合屋分流關鍵字區塊 */}
+            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+              <h3 className="font-bold text-slate-800 mb-6 flex items-center gap-2">
+                <BoxIcon className="w-5 h-5 text-blue-500" /> 組合屋分流關鍵字
+              </h3>
+              <div className="space-y-6">
+                <div>
+                  <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">
+                    生產／備料關鍵字 (以半形逗號隔開)
+                  </label>
+                  <textarea 
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                    rows={2}
+                    value={systemRules.modularProductionKeywords?.join(', ') || ''}
+                    onChange={(e) => handleUpdateKeywords('modular-production', e.target.value)}
+                  />
+                  <p className="text-[10px] text-slate-400 mt-2 font-medium italic">命中後將歸類至「生產／備料」頁面。</p>
+                </div>
+                <div>
+                  <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">
+                    協力廠商關鍵字 (以半形逗號隔開)
+                  </label>
+                  <textarea 
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                    rows={2}
+                    value={systemRules.modularSubcontractorKeywords?.join(', ') || ''}
+                    onChange={(e) => handleUpdateKeywords('modular-subcontractor', e.target.value)}
+                  />
+                  <p className="text-[10px] text-slate-400 mt-2 font-medium italic">命中後將歸類至「協力廠商安排」。</p>
+                </div>
+              </div>
+            </div>
+
             {/* 材料自動換算公式設定 */}
             <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
               <div className="flex justify-between items-center mb-6">
@@ -358,21 +394,23 @@ const UserManagement: React.FC<UserManagementProps> = ({
                   <div key={f.id} className="border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
                     <div className="bg-slate-50 px-5 py-3 border-b border-slate-200 flex justify-between items-center">
                       <div className="flex items-center gap-4">
-                        <div className="flex flex-col">
-                          <label className="text-[9px] font-black text-slate-400 uppercase tracking-tighter">觸發關鍵字</label>
-                          <input 
-                            type="text" value={f.keyword}
-                            onChange={(e) => handleUpdateFormulaConfig(f.id, 'keyword', e.target.value)}
-                            className="bg-transparent border-b border-transparent focus:border-indigo-500 outline-none font-black text-slate-700 text-sm"
-                          />
-                        </div>
-                        <div className="flex flex-col">
-                          <label className="text-[9px] font-black text-slate-400 uppercase tracking-tighter">歸屬分類</label>
-                          <input 
-                            type="text" value={f.category}
-                            onChange={(e) => handleUpdateFormulaConfig(f.id, 'category', e.target.value)}
-                            className="bg-transparent border-b border-transparent focus:border-indigo-500 outline-none font-bold text-indigo-600 text-sm"
-                          />
+                        <div className="flex items-center gap-2">
+                          <div className="flex flex-col">
+                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-tighter">觸發關鍵字</label>
+                            <input 
+                              type="text" value={f.keyword}
+                              onChange={(e) => handleUpdateFormulaConfig(f.id, 'keyword', e.target.value)}
+                              className="bg-transparent border-b border-transparent focus:border-indigo-500 outline-none font-black text-slate-700 text-sm"
+                            />
+                          </div>
+                          <div className="flex flex-col">
+                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-tighter">歸屬分類</label>
+                            <input 
+                              type="text" value={f.category}
+                              onChange={(e) => handleUpdateFormulaConfig(f.id, 'category', e.target.value)}
+                              className="bg-transparent border-b border-transparent focus:border-indigo-500 outline-none font-bold text-indigo-600 text-sm"
+                            />
+                          </div>
                         </div>
                       </div>
                       <div className="flex gap-2">

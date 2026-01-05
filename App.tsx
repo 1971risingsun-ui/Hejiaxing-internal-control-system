@@ -39,6 +39,8 @@ export const generateId = () => {
 const DEFAULT_SYSTEM_RULES: SystemRules = {
   productionKeywords: ['防溢座', '施工大門', '小門', '巨'],
   subcontractorKeywords: ['怪手', '告示牌', '安衛貼紙', '美化帆布', '噪音管制看板', '監測告示牌', '寫字'],
+  modularProductionKeywords: [],
+  modularSubcontractorKeywords: [],
   materialFormulas: [
     {
       id: 'f-1',

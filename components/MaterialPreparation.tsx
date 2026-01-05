@@ -1,6 +1,5 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { Project, User, CompletionItem, FenceMaterialItem, FenceMaterialSheet, SystemRules } from '../types';
-// Fix: Added FileTextIcon to imports to resolve the "Cannot find name 'FileTextIcon'" error.
 import { BoxIcon, TruckIcon, ClipboardListIcon, TrashIcon, UsersIcon, PlusIcon, PenToolIcon, CalendarIcon, FileTextIcon } from './Icons';
 
 interface MaterialPreparationProps {
@@ -37,7 +36,7 @@ const MaterialPreparation: React.FC<MaterialPreparationProps> = ({ project, onUp
 
   const planningItems = currentPlanningReport?.items || [];
 
-  // 過濾圍籬項目並分流 (使用動態關鍵字)
+  // 過濾圍籬項目並分流
   const { fenceMainItems, fenceProductionItems, fenceSubcontractorItems } = useMemo(() => {
     const allFence = planningItems.filter(item => item.category === 'FENCE_MAIN');
     const main: CompletionItem[] = [];
@@ -61,20 +60,36 @@ const MaterialPreparation: React.FC<MaterialPreparationProps> = ({ project, onUp
     };
   }, [planningItems, systemRules]);
 
-  // 過濾組合屋項目並按類別分組
+  // 組合屋分流邏輯更新：改為依據關鍵字分流
   const { 
-    modularStructItems, 
-    modularRenoItems, 
-    modularOtherItems, 
-    modularDismantleItems 
+    modularMainItems, 
+    modularProductionItems, 
+    modularSubcontractorItems 
   } = useMemo(() => {
+    const allModular = planningItems.filter(item => 
+      ['MODULAR_STRUCT', 'MODULAR_RENO', 'MODULAR_OTHER', 'MODULAR_DISMANTLE'].includes(item.category)
+    );
+    const main: CompletionItem[] = [];
+    const prod: CompletionItem[] = [];
+    const sub: CompletionItem[] = [];
+
+    allModular.forEach(item => {
+      const name = item.name || '';
+      // 使用組合屋專屬關鍵字
+      const isSub = systemRules.modularSubcontractorKeywords?.some(kw => name.includes(kw));
+      const isProd = systemRules.modularProductionKeywords?.some(kw => name.includes(kw));
+
+      if (isSub) sub.push(item);
+      else if (isProd) prod.push(item);
+      else main.push(item);
+    });
+
     return {
-      modularStructItems: planningItems.filter(item => item.category === 'MODULAR_STRUCT'),
-      modularRenoItems: planningItems.filter(item => item.category === 'MODULAR_RENO'),
-      modularOtherItems: planningItems.filter(item => item.category === 'MODULAR_OTHER'),
-      modularDismantleItems: planningItems.filter(item => item.category === 'MODULAR_DISMANTLE')
+      modularMainItems: main,
+      modularProductionItems: prod,
+      modularSubcontractorItems: sub
     };
-  }, [planningItems]);
+  }, [planningItems, systemRules]);
 
   const getItemKey = (item: CompletionItem) => `${item.name}_${item.category}_${item.spec || 'no-spec'}`;
 
@@ -328,10 +343,10 @@ const MaterialPreparation: React.FC<MaterialPreparationProps> = ({ project, onUp
             </>
           ) : (
             <>
-              {renderTable(modularStructItems, "主結構", <BoxIcon className="w-4 h-4 text-blue-500" />)}
-              {renderTable(modularRenoItems, "裝修工程", <PlusIcon className="w-4 h-4 text-emerald-500" />)}
-              {renderTable(modularOtherItems, "其他工程", <TruckIcon className="w-4 h-4 text-amber-500" />)}
-              {renderTable(modularDismantleItems, "拆除工程", <TrashIcon className="w-4 h-4 text-red-500" />)}
+              {/* 組合屋分流呈現 */}
+              {renderTable(modularMainItems, "組合屋主要規劃", <BoxIcon className="w-4 h-4 text-blue-500" />, true)}
+              {renderTable(modularProductionItems, "生產/備料", <PenToolIcon className="w-4 h-4 text-emerald-500" />, true)}
+              {renderTable(modularSubcontractorItems, "協力廠商安排", <UsersIcon className="w-4 h-4 text-indigo-500" />)}
             </>
           )
         ) : (

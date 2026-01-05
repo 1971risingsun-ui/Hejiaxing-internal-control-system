@@ -184,6 +184,8 @@ export interface MaterialFormulaConfig {
 export interface SystemRules {
   productionKeywords: string[];
   subcontractorKeywords: string[];
+  modularProductionKeywords: string[];
+  modularSubcontractorKeywords: string[];
   materialFormulas: MaterialFormulaConfig[];
 }
 
