@@ -226,40 +226,39 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
     let list: RowData[] = [];
     projects.forEach(project => {
       if (!project.planningReports || project.planningReports.length === 0) return;
-      const latestReportIdx = project.planningReports.reduce((latestIdx, curr, idx, arr) => {
-        return curr.timestamp > arr[latestIdx].timestamp ? idx : latestIdx;
-      }, 0);
-      const report = project.planningReports[latestReportIdx];
       
-      report.items.forEach((item, itemIdx) => {
-        const name = item.name || '';
-        const isFence = item.category === 'FENCE_MAIN';
-        const isSubKeyword = systemRules.subcontractorKeywords.some(kw => name.includes(kw));
-        const isProdKeyword = systemRules.productionKeywords.some(kw => name.includes(kw));
-        
-        if (isFence && !isSubKeyword && !isProdKeyword) {
-          const itemKey = getItemKey(item);
-          const savedSheet = project.fenceMaterialSheets?.[itemKey];
+      // 改為導入「全部日期」的報價單，而不僅僅是最新一筆
+      project.planningReports.forEach((report, reportIdx) => {
+        report.items.forEach((item, itemIdx) => {
+          const name = item.name || '';
+          const isFence = item.category === 'FENCE_MAIN';
+          const isSubKeyword = systemRules.subcontractorKeywords.some(kw => name.includes(kw));
+          const isProdKeyword = systemRules.productionKeywords.some(kw => name.includes(kw));
           
-          let activeSubItems = savedSheet?.items || [];
-          if (activeSubItems.length === 0) {
-             activeSubItems = getAutoFormulaItems(item.name, item.quantity);
-          }
+          if (isFence && !isSubKeyword && !isProdKeyword) {
+            const itemKey = getItemKey(item);
+            const savedSheet = project.fenceMaterialSheets?.[itemKey];
+            
+            let activeSubItems = savedSheet?.items || [];
+            if (activeSubItems.length === 0) {
+               activeSubItems = getAutoFormulaItems(item.name, item.quantity);
+            }
 
-          if (activeSubItems.length > 0) {
-            activeSubItems.forEach((sub, subIdx) => {
-                list.push({ 
-                    project, type: 'sub', subItem: sub, mainItem: item, mainItemIdx: itemIdx, reportIdx: latestReportIdx, itemKey, subIdx,
-                    rowKey: `${project.id}-sub-${itemKey}-${subIdx}`
-                });
-            });
-          } else {
-            list.push({
-                project, type: 'main', mainItem: item, mainItemIdx: itemIdx, reportIdx: latestReportIdx,
-                rowKey: `${project.id}-main-${itemKey}`
-            });
+            if (activeSubItems.length > 0) {
+              activeSubItems.forEach((sub, subIdx) => {
+                  list.push({ 
+                      project, type: 'sub', subItem: sub, mainItem: item, mainItemIdx: itemIdx, reportIdx, itemKey, subIdx,
+                      rowKey: `${project.id}-r${reportIdx}-sub-${itemKey}-${subIdx}`
+                  });
+              });
+            } else {
+              list.push({
+                  project, type: 'main', mainItem: item, mainItemIdx: itemIdx, reportIdx,
+                  rowKey: `${project.id}-r${reportIdx}-main-${itemKey}`
+              });
+            }
           }
-        }
+        });
       });
     });
     
@@ -567,7 +566,7 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
           <div className="bg-indigo-600 p-3 rounded-xl text-white shadow-lg"><ClipboardListIcon className="w-6 h-6" /></div>
           <div>
             <h1 className="text-xl font-bold text-slate-800">採購項目總覽</h1>
-            <p className="text-xs text-slate-500 font-medium">彙整規劃項目，有材料單項目會自動展開細項</p>
+            <p className="text-xs text-slate-500 font-medium">彙整規劃項目，有材料單項目會自動展開細項 (導入全部報價單日期)</p>
           </div>
         </div>
       </div>
