@@ -64,41 +64,65 @@ const PurchasingItemRow: React.FC<{
   const matchedSupplier = allPartners.find(s => s.id === currentSupplierId);
   const currentSupplierName = matchedSupplier?.name || currentSupplierId || '';
 
-  // 供應商選項過濾邏輯 (模糊比對用途)
+  // 1. 供應商選項過濾邏輯 (模糊比對用途 + 品名連動)
   const filteredSupplierOptions = useMemo(() => {
+    // A. 若已選擇品名，優先顯示有提供該材料的供應商
     if (rowName) {
       const providers = suppliers.filter(s => s.productList.some(p => p.name === rowName));
-      if (providers.length > 0) return providers;
+      if (providers.length > 0) return providers.sort((a, b) => a.name.localeCompare(b.name, 'zh-Hant'));
     }
 
-    const targets = [rowName, rowNote].filter(Boolean).map(t => t.toLowerCase());
-    let matches = suppliers.filter(s => {
-      const usages = s.productList.flatMap(p => (p.usage || '').split(',')).map(u => u.trim().toLowerCase()).filter(Boolean);
-      return targets.some(t => usages.some(u => t.includes(u) || u.includes(t)));
+    // B. 依規則導入：品名、注意/備註 模糊比對 供應商產品用途 (用途以半形逗號隔開視為獨立關鍵字)
+    const searchTargets = [rowName, rowNote].filter(Boolean).map(t => t.toLowerCase());
+    
+    const matches = suppliers.filter(s => {
+      // 提取該供應商所有產品的用途關鍵字
+      const usages = s.productList.flatMap(p => 
+        (p.usage || '').split(',').map(u => u.trim().toLowerCase()).filter(Boolean)
+      );
+      
+      // 比對：任一目標字串 包含 任一用途關鍵字，或反之
+      return searchTargets.some(target => 
+        usages.some(u => target.includes(u) || u.includes(target))
+      );
     });
 
-    if (matches.length === 0) return suppliers;
-    return matches.sort((a, b) => a.name.localeCompare(b.name, 'zh-Hant'));
+    // C. 若無匹配則顯示全部
+    const finalOptions = matches.length > 0 ? matches : suppliers;
+    return [...finalOptions].sort((a, b) => a.name.localeCompare(b.name, 'zh-Hant'));
   }, [suppliers, rowName, rowNote]);
 
-  // 品名下拉選單過濾 (連動供應商)
+  // 2. 品名下拉選單過濾邏輯 (連動供應商 + 用途關鍵字過濾)
   const filteredProductOptions = useMemo(() => {
     const selectedS = suppliers.find(s => s.name === currentSupplierName);
-    if (selectedS) return selectedS.productList;
+    
+    if (selectedS) {
+      // 選供應商後：品名選單會自動過濾，僅顯示該供應商旗下符合「用途」關鍵字的材料
+      const noteKeywords = (rowNote || '').toLowerCase();
+      const matchedProds = selectedS.productList.filter(p => {
+        const pUsages = (p.usage || '').split(',').map(u => u.trim().toLowerCase()).filter(Boolean);
+        return pUsages.some(u => noteKeywords.includes(u) || (rowName && rowName.toLowerCase().includes(u)));
+      });
 
+      // 如果依用途沒過濾到東西，回傳該廠商全品項
+      return matchedProds.length > 0 ? matchedProds : selectedS.productList;
+    }
+
+    // 若未選供應商，顯示所有清冊中不重複的品名
     const uniqueProds = new Map<string, string>();
     suppliers.forEach(s => s.productList.forEach(p => uniqueProds.set(p.name, p.usage)));
     return Array.from(uniqueProds.entries()).map(([name, usage]) => ({ name, spec: '', usage }));
-  }, [suppliers, currentSupplierName]);
+  }, [suppliers, currentSupplierName, rowNote, rowName]);
 
-  // 處理「確認新增至清冊」邏輯
+  // 3. 處理「確認並詢問加入清冊」邏輯
   const handleCommitToSuppliers = () => {
     if (!currentSupplierName) return;
 
     const targetSupplier = suppliers.find(s => s.name === currentSupplierName);
 
     if (!targetSupplier) {
-      if (window.confirm(`供應商「${currentSupplierName}」未在清冊中，是否將其與品項「${rowName}」一併加入供應商清冊？`)) {
+      // 如供應商為手動輸入，詢問是否加入供應商清冊 (供應商名稱 + 品名)
+      if (window.confirm(`供應商「${currentSupplierName}」不在清冊中，是否將其與品項「${rowName}」一併加入清冊？`)) {
         const newSupplier: Supplier = {
           id: crypto.randomUUID(),
           name: currentSupplierName,
@@ -108,9 +132,10 @@ const PurchasingItemRow: React.FC<{
         onUpdateSuppliers([...suppliers, newSupplier]);
       }
     } else if (rowName) {
+      // 如供應商選擇完成但品名是手動輸入，於點擊後詢問是否加入該供應商品項
       const isProductExist = targetSupplier.productList.some(p => p.name === rowName);
       if (!isProductExist) {
-        if (window.confirm(`供應商「${currentSupplierName}」的產品清單中尚無「${rowName}」，是否加入？`)) {
+        if (window.confirm(`供應商「${currentSupplierName}」目前沒有品項「${rowName}」，是否為其新增此品項？`)) {
           const updatedSuppliers = suppliers.map(s => s.id === targetSupplier.id ? {
             ...s,
             productList: [...s.productList, { name: rowName, spec: '', usage: '' }]
@@ -118,7 +143,7 @@ const PurchasingItemRow: React.FC<{
           onUpdateSuppliers(updatedSuppliers);
         }
       } else {
-        alert('已對齊供應商清冊項目');
+        alert('已確認：品項與供應商清冊資料一致。');
       }
     }
   };
@@ -155,8 +180,8 @@ const PurchasingItemRow: React.FC<{
             list={`supplier-dl-${rowKey}`}
             value={currentSupplierName} 
             onChange={(e) => handleUpdateItemSupplier(project.id, reportIdx, mainItemIdx, e.target.value, type, itemKey, subIdx)}
-            placeholder="供應商..."
-            className="flex-1 px-1 py-1 bg-transparent border-b border-transparent focus:border-indigo-300 outline-none text-[11px] font-bold text-slate-700"
+            placeholder="輸入供應商..."
+            className="flex-1 px-1 py-1 bg-transparent border-b border-transparent focus:border-indigo-300 outline-none text-[11px] font-bold text-slate-700 placeholder:font-normal"
           />
           <datalist id={`supplier-dl-${rowKey}`}>
             {filteredSupplierOptions.map(s => <option key={s.id} value={s.name} />)}
@@ -169,13 +194,17 @@ const PurchasingItemRow: React.FC<{
                 list={`product-dl-${rowKey}`}
                 value={rowName}
                 onChange={(e) => handleUpdateItemName(project.id, reportIdx, mainItemIdx, e.target.value, type, itemKey, subIdx)}
-                placeholder="品名..."
-                className="flex-1 px-1 py-1 bg-transparent border-b border-transparent focus:border-indigo-300 outline-none text-[11px] font-bold text-slate-800"
+                placeholder="輸入或選取品名..."
+                className="flex-1 px-1 py-1 bg-transparent border-b border-transparent focus:border-indigo-300 outline-none text-[11px] font-bold text-slate-800 placeholder:font-normal"
             />
             <datalist id={`product-dl-${rowKey}`}>
                 {filteredProductOptions.map((p, i) => <option key={i} value={p.name}>{p.usage}</option>)}
             </datalist>
-            <button onClick={handleCommitToSuppliers} className="p-1 text-slate-300 hover:text-indigo-600 transition-colors" title="確認輸入並檢查清冊">
+            <button 
+              onClick={handleCommitToSuppliers} 
+              className="p-1 text-slate-300 hover:text-indigo-600 transition-colors" 
+              title="提交並檢查供應商清冊"
+            >
               <CheckCircleIcon className="w-3.5 h-3.5" />
             </button>
         </div>
