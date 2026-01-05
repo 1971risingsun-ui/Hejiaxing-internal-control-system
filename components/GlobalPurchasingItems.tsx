@@ -84,7 +84,12 @@ const PurchasingItemRow: React.FC<{
     if (!isSupplierExist) {
         if (window.confirm(`供應商「${inputSupplierName}」不在清冊中，是否將其連同品項「${inputProductName}」加入供應商清冊？`)) {
             const newSupplier: Supplier = {
-                id: crypto.randomUUID(), name: inputSupplierName, address: '', contact: '', companyPhone: '', mobilePhone: '',
+                id: crypto.randomUUID(),
+                name: inputSupplierName,
+                address: '',
+                contact: '',
+                companyPhone: '',
+                mobilePhone: '',
                 productList: [{ name: inputProductName, spec: '', usage: '' }]
             };
             onUpdateSuppliers([...suppliers, newSupplier]);
@@ -94,7 +99,8 @@ const PurchasingItemRow: React.FC<{
         if (!isProductExist) {
             if (window.confirm(`供應商「${inputSupplierName}」的產品清單中尚無「${inputProductName}」，是否加入？`)) {
                 const updatedSuppliers = suppliers.map(s => s.id === targetSupplier.id ? {
-                    ...s, productList: [...s.productList, { name: inputProductName, spec: '', usage: '' }]
+                    ...s,
+                    productList: [...s.productList, { name: inputProductName, spec: '', usage: '' }]
                 } : s);
                 onUpdateSuppliers(updatedSuppliers);
             }
@@ -104,15 +110,20 @@ const PurchasingItemRow: React.FC<{
 
   const supplierOptions = useMemo(() => {
     const searchTargets = [rowName, rowNote].filter(Boolean).map(s => s.toLowerCase());
+    // 依據規則：模糊比對「用途」
     let filtered = suppliers.filter(s => {
       const usages = s.productList.flatMap(p => (p.usage || '').split(',')).map(u => u.trim().toLowerCase()).filter(Boolean);
       return searchTargets.some(target => usages.some(u => target.includes(u) || u.includes(target)));
     });
+
     if (filtered.length === 0) filtered = suppliers;
+
+    // 如果品名已選，優先顯示有該品名的廠商
     if (rowName) {
       const providers = suppliers.filter(s => s.productList.some(p => p.name === rowName));
       if (providers.length > 0) filtered = providers;
     }
+
     return filtered.sort((a, b) => a.name.localeCompare(b.name, 'zh-Hant'));
   }, [suppliers, rowName, rowNote]);
 
@@ -135,7 +146,12 @@ const PurchasingItemRow: React.FC<{
         <div className={`font-black text-sm truncate max-w-[80px] text-indigo-700 ${isPoCreated ? 'line-through text-slate-400 opacity-60' : ''}`}>{project.name}</div>
       </td>
       <td className="px-3 py-4 w-20">
-        <input type="date" value={displayDate} onChange={(e) => handleUpdateItemDate(project.id, reportIdx, mainItemIdx, e.target.value)} className={`w-full px-2 py-1 bg-transparent border-b border-transparent focus:border-indigo-300 outline-none text-xs font-bold text-slate-500 ${isPoCreated ? 'line-through text-slate-400 opacity-60' : ''}`} />
+        <input 
+          type="date" 
+          value={displayDate}
+          onChange={(e) => handleUpdateItemDate(project.id, reportIdx, mainItemIdx, e.target.value)}
+          className={`w-full px-2 py-1 bg-transparent border-b border-transparent focus:border-indigo-300 outline-none text-xs font-bold text-slate-500 ${isPoCreated ? 'line-through text-slate-400 opacity-60' : ''}`} 
+        />
       </td>
       <td className="px-3 py-4 w-32">
         <div className="relative">
@@ -643,7 +659,7 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
 
       {editingRow && (
         <div className="fixed inset-0 z-[250] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in" onClick={() => setEditingRow(null)}>
-          <div className="bg-white w-full max-w-lg rounded-[32px] shadow-2xl overflow-hidden flex flex-col animate-scale-in" onClick={e => e.stopPropagation()}>
+          <div className="bg-white w-full max-w-4xl max-h-[90vh] rounded-[32px] shadow-2xl overflow-hidden flex flex-col animate-scale-in" onClick={e => e.stopPropagation()}>
             <header className="px-8 py-5 border-b border-slate-100 flex justify-between items-center bg-slate-50 flex-shrink-0">
                 <div className="flex items-center gap-3">
                     <div className="bg-indigo-600 p-2 rounded-xl text-white"><EditIcon className="w-5 h-5" /></div>
@@ -726,7 +742,7 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
                 </div>
             </div>
 
-            <footer className="p-6 bg-slate-50 border-t border-slate-100 flex flex-col gap-3">
+            <footer className="p-6 bg-slate-50 border-t border-slate-100 flex flex-col gap-3 flex-shrink-0">
                 <button 
                   onClick={() => setEditingRow(null)}
                   className="w-full py-4 rounded-2xl text-sm font-black bg-indigo-600 text-white hover:bg-indigo-700 shadow-xl shadow-indigo-100 transition-all active:scale-95"
