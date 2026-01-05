@@ -18,7 +18,6 @@ import HRManagement from './components/HRManagement';
 import PurchasingModule from './components/PurchasingModule';
 import SupplierList from './components/SupplierList';
 import PurchaseOrders from './components/PurchaseOrders';
-import InboundDetails from './components/InboundDetails';
 import GlobalProduction from './components/GlobalProduction';
 import GlobalPurchasingItems from './components/GlobalPurchasingItems';
 import StockAlert from './components/StockAlert';
@@ -556,7 +555,7 @@ const App: React.FC = () => {
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [view, setView] = useState<'engineering' | 'engineering_hub' | 'driving_time' | 'weekly_schedule' | 'daily_dispatch' | 'engineering_groups' | 'construction' | 'modular_house' | 'maintenance' | 'purchasing_hub' | 'purchasing_items' | 'stock_alert' | 'purchasing_suppliers' | 'purchasing_subcontractors' | 'purchasing_orders' | 'purchasing_inbounds' | 'production' | 'hr' | 'equipment' | 'report' | 'users'>('engineering');
+  const [view, setView] = useState<'engineering' | 'engineering_hub' | 'driving_time' | 'weekly_schedule' | 'daily_dispatch' | 'engineering_groups' | 'construction' | 'modular_house' | 'maintenance' | 'purchasing_hub' | 'purchasing_items' | 'stock_alert' | 'purchasing_suppliers' | 'purchasing_subcontractors' | 'purchasing_orders' | 'production' | 'hr' | 'equipment' | 'report' | 'users'>('engineering');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   const handleLogin = (user: User) => { setCurrentUser(user); setView('engineering'); };
@@ -690,7 +689,6 @@ const App: React.FC = () => {
       case 'purchasing_suppliers': return '供應商清冊';
       case 'purchasing_subcontractors': return '協力廠商清冊';
       case 'purchasing_orders': return '採購單管理';
-      case 'purchasing_inbounds': return '進料明細';
       case 'production': return '生產／備料總覽';
       case 'hr': return '人事管理模組';
       case 'equipment': return '設備／工具模組';
@@ -762,12 +760,6 @@ const App: React.FC = () => {
               <div className="flex flex-col flex-1 min-h-0">
                 <div className="px-6 pt-4"><button onClick={() => setView('purchasing_hub')} className="flex items-center gap-2 text-slate-500 hover:text-blue-600 font-bold text-xs"><ArrowLeftIcon className="w-3 h-3" /> 返回採購</button></div>
                 <div className="flex-1 overflow-hidden"><PurchaseOrders projects={projects} suppliers={[...suppliers, ...subcontractors]} purchaseOrders={purchaseOrders} onUpdatePurchaseOrders={setPurchaseOrders} onUpdateProject={handleUpdateProject} /></div>
-              </div>
-           ) :
-           view === 'purchasing_inbounds' ? (
-              <div className="flex flex-col flex-1 min-h-0">
-                <div className="px-6 pt-4"><button onClick={() => setView('purchasing_hub')} className="flex items-center gap-2 text-slate-500 hover:text-blue-600 font-bold text-xs"><ArrowLeftIcon className="w-3 h-3" /> 返回採購</button></div>
-                <div className="flex-1 overflow-hidden"><InboundDetails projects={projects} suppliers={[...suppliers, ...subcontractors]} purchaseOrders={purchaseOrders} onUpdatePurchaseOrders={setPurchaseOrders} /></div>
               </div>
            ) :
            view === 'hr' ? (<div className="flex-1 overflow-hidden"><HRManagement employees={employees} attendance={attendance} overtime={overtime} monthRemarks={monthRemarks} dailyDispatches={dailyDispatches} onUpdateEmployees={setEmployees} onUpdateAttendance={setAttendance} onUpdateOvertime={setOvertime} onUpdateMonthRemarks={setMonthRemarks} /></div>) :

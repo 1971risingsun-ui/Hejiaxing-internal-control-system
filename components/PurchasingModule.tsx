@@ -1,5 +1,5 @@
 import React from 'react';
-import { BoxIcon, FileTextIcon, UsersIcon, ClipboardListIcon, AlertIcon, TruckIcon } from './Icons';
+import { BoxIcon, FileTextIcon, UsersIcon, ClipboardListIcon, AlertIcon } from './Icons';
 
 interface PurchasingModuleProps {
   onNavigate: (view: any) => void;
@@ -27,13 +27,6 @@ const PurchasingModule: React.FC<PurchasingModuleProps> = ({ onNavigate }) => {
       icon: <FileTextIcon className="w-6 h-6" />, 
       color: 'bg-blue-50 text-blue-600', 
       desc: '建立對供應商的正式採購單' 
-    },
-    { 
-      id: 'purchasing_inbounds', 
-      label: '進料明細', 
-      icon: <TruckIcon className="w-6 h-6" />, 
-      color: 'bg-amber-50 text-amber-600', 
-      desc: '追蹤已下單採購項目的到貨進度' 
     },
     { 
       id: 'purchasing_suppliers', 

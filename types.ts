@@ -312,5 +312,4 @@ export interface PurchaseOrder {
   deliveryLocation?: string;
   receiver?: string;
   remarks?: string;
-  isOrdered?: boolean; // 新增：標記是否已下單移至進料明細
 }
