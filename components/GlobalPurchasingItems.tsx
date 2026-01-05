@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useRef } from 'react';
 import { Project, CompletionItem, FenceMaterialItem, SystemRules, Supplier, PurchaseOrder, PurchaseOrderItem } from '../types';
-import { ClipboardListIcon, BoxIcon, CalendarIcon, ArrowLeftIcon, XIcon, CheckCircleIcon, UsersIcon, FileTextIcon, EditIcon, SaveIcon } from './Icons';
+import { ClipboardListIcon, BoxIcon, CalendarIcon, ChevronRightIcon, ArrowLeftIcon, XIcon, CheckCircleIcon, UsersIcon, PlusIcon, FileTextIcon, MapPinIcon, UserIcon, TrashIcon, EditIcon, SaveIcon } from './Icons';
 
 interface GlobalPurchasingItemsProps {
   projects: Project[];
@@ -48,102 +48,92 @@ const PurchasingItemRow: React.FC<{
   handleUpdateItemDate: (pId: string, rIdx: number, iIdx: number, val: string) => void;
   handleUpdateItemSupplier: (pId: string, rIdx: number, iIdx: number, val: string, type: 'main' | 'sub', iKey?: string, sIdx?: number) => void;
   handleUpdateItemName: (pId: string, rIdx: number, iIdx: number, val: string, type: 'main' | 'sub', iKey?: string, sIdx?: number) => void;
+  handleUpdateItemSpec: (pId: string, rIdx: number, iIdx: number, val: string, type: 'main' | 'sub', iKey?: string, sIdx?: number) => void;
   onUpdateSuppliers: (list: Supplier[]) => void;
+  onEdit: (entry: RowData) => void;
 }> = ({ 
   entry, suppliers, allPartners, isPoCreated, selectedRowKeys, toggleRowSelection, 
-  handleUpdateItemDate, handleUpdateItemSupplier, handleUpdateItemName, onUpdateSuppliers
+  handleUpdateItemDate, handleUpdateItemSupplier, handleUpdateItemName, handleUpdateItemSpec, onUpdateSuppliers,
+  onEdit
 }) => {
   const { project, type, subItem, mainItem, reportIdx, mainItemIdx, itemKey, subIdx, rowKey } = entry;
   
   const displayDate = mainItem.productionDate || getDaysOffset(project.appointmentDate, -7);
   
   const rowName = type === 'sub' ? (subItem?.spec || '') : mainItem.name;
+  const rowSpec = type === 'sub' ? (subItem?.name || '') : (mainItem.spec || ''); // 注意 subItem 結構特殊性
+  const rowQty = type === 'sub' ? subItem?.quantity : mainItem.quantity;
+  const rowUnit = type === 'sub' ? subItem?.unit : mainItem.unit;
   const rowNote = type === 'sub' ? (subItem?.name || '-') : (mainItem.itemNote || '-');
   
   const currentSupplierId = type === 'sub' ? subItem?.supplierId : mainItem.supplierId;
   const matchedSupplier = allPartners.find(s => s.id === currentSupplierId);
   const currentSupplierName = matchedSupplier?.name || currentSupplierId || '';
 
-  // 1. 供應商選項過濾邏輯 (模糊比對用途 + 品名連動)
+  // 1. 供應商選項過濾邏輯
   const filteredSupplierOptions = useMemo(() => {
-    // A. 若已選擇品名，優先顯示有提供該材料的供應商
+    // 優先選取已有品項的廠商
     if (rowName) {
       const providers = suppliers.filter(s => s.productList.some(p => p.name === rowName));
-      if (providers.length > 0) return providers.sort((a, b) => a.name.localeCompare(b.name, 'zh-Hant'));
+      if (providers.length > 0) return providers;
     }
 
-    // B. 依規則導入：品名、注意/備註 模糊比對 供應商產品用途 (用途以半形逗號隔開視為獨立關鍵字)
-    const searchTargets = [rowName, rowNote].filter(Boolean).map(t => t.toLowerCase());
-    
-    const matches = suppliers.filter(s => {
-      // 提取該供應商所有產品的用途關鍵字
-      const usages = s.productList.flatMap(p => 
-        (p.usage || '').split(',').map(u => u.trim().toLowerCase()).filter(Boolean)
-      );
-      
-      // 比對：任一目標字串 包含 任一用途關鍵字，或反之
-      return searchTargets.some(target => 
-        usages.some(u => target.includes(u) || u.includes(target))
-      );
+    // 模糊比對「用途」
+    const searchTargets = [rowName, rowNote].filter(Boolean).map(s => s.toLowerCase());
+    const matched = suppliers.filter(s => {
+      const usages = s.productList.flatMap(p => (p.usage || '').split(',')).map(u => u.trim().toLowerCase()).filter(Boolean);
+      return searchTargets.some(target => usages.some(u => target.includes(u) || u.includes(target)));
     });
 
-    // C. 若無匹配則顯示全部
-    const finalOptions = matches.length > 0 ? matches : suppliers;
-    return [...finalOptions].sort((a, b) => a.name.localeCompare(b.name, 'zh-Hant'));
+    return matched.length > 0 ? matched : suppliers;
   }, [suppliers, rowName, rowNote]);
 
-  // 2. 品名下拉選單過濾邏輯 (連動供應商 + 用途關鍵字過濾)
+  // 2. 品名選項過濾邏輯 (連動供應商)
   const filteredProductOptions = useMemo(() => {
     const selectedS = suppliers.find(s => s.name === currentSupplierName);
-    
     if (selectedS) {
-      // 選供應商後：品名選單會自動過濾，僅顯示該供應商旗下符合「用途」關鍵字的材料
-      const noteKeywords = (rowNote || '').toLowerCase();
-      const matchedProds = selectedS.productList.filter(p => {
+      // 僅顯示該商旗下符合關鍵字的產品
+      const searchTargets = [rowNote].filter(Boolean).map(s => s.toLowerCase());
+      const matched = selectedS.productList.filter(p => {
         const pUsages = (p.usage || '').split(',').map(u => u.trim().toLowerCase()).filter(Boolean);
-        return pUsages.some(u => noteKeywords.includes(u) || (rowName && rowName.toLowerCase().includes(u)));
+        return searchTargets.some(target => pUsages.some(u => target.includes(u) || u.includes(target)));
       });
-
-      // 如果依用途沒過濾到東西，回傳該廠商全品項
-      return matchedProds.length > 0 ? matchedProds : selectedS.productList;
+      return matched.length > 0 ? matched : selectedS.productList;
     }
+    // 未選供應商則顯示全部清冊品項
+    const allItems = new Map<string, string>();
+    suppliers.forEach(s => s.productList.forEach(p => allItems.set(p.name, p.usage)));
+    return Array.from(allItems.entries()).map(([name, usage]) => ({ name, spec: '', usage }));
+  }, [suppliers, currentSupplierName, rowNote]);
 
-    // 若未選供應商，顯示所有清冊中不重複的品名
-    const uniqueProds = new Map<string, string>();
-    suppliers.forEach(s => s.productList.forEach(p => uniqueProds.set(p.name, p.usage)));
-    return Array.from(uniqueProds.entries()).map(([name, usage]) => ({ name, spec: '', usage }));
-  }, [suppliers, currentSupplierName, rowNote, rowName]);
-
-  // 3. 處理「確認並詢問加入清冊」邏輯
-  const handleCommitToSuppliers = () => {
+  // 3. 手動輸入確認邏輯 (點擊 CheckCircleIcon 觸發)
+  const handleCommitInput = () => {
     if (!currentSupplierName) return;
 
     const targetSupplier = suppliers.find(s => s.name === currentSupplierName);
 
     if (!targetSupplier) {
-      // 如供應商為手動輸入，詢問是否加入供應商清冊 (供應商名稱 + 品名)
-      if (window.confirm(`供應商「${currentSupplierName}」不在清冊中，是否將其與品項「${rowName}」一併加入清冊？`)) {
+      if (window.confirm(`供應商「${currentSupplierName}」不在清冊中，是否將其連同品項「${rowName}」加入清冊？`)) {
         const newSupplier: Supplier = {
           id: crypto.randomUUID(),
           name: currentSupplierName,
           address: '', contact: '', companyPhone: '', mobilePhone: '',
-          productList: [{ name: rowName, spec: '', usage: '' }]
+          productList: [{ name: rowName, spec: rowSpec, usage: '' }]
         };
         onUpdateSuppliers([...suppliers, newSupplier]);
       }
     } else if (rowName) {
-      // 如供應商選擇完成但品名是手動輸入，於點擊後詢問是否加入該供應商品項
       const isProductExist = targetSupplier.productList.some(p => p.name === rowName);
       if (!isProductExist) {
-        if (window.confirm(`供應商「${currentSupplierName}」目前沒有品項「${rowName}」，是否為其新增此品項？`)) {
+        if (window.confirm(`供應商「${currentSupplierName}」的產品清單中尚無「${rowName}」，是否加入？`)) {
           const updatedSuppliers = suppliers.map(s => s.id === targetSupplier.id ? {
             ...s,
-            productList: [...s.productList, { name: rowName, spec: '', usage: '' }]
+            productList: [...s.productList, { name: rowName, spec: rowSpec, usage: '' }]
           } : s);
           onUpdateSuppliers(updatedSuppliers);
         }
       } else {
-        alert('已確認：品項與供應商清冊資料一致。');
+        alert('已確認輸入內容');
       }
     }
   };
@@ -175,44 +165,54 @@ const PurchasingItemRow: React.FC<{
         />
       </td>
       <td className="px-3 py-4 w-40">
-        <div className="flex items-center gap-1">
-          <input 
-            list={`supplier-dl-${rowKey}`}
-            value={currentSupplierName} 
-            onChange={(e) => handleUpdateItemSupplier(project.id, reportIdx, mainItemIdx, e.target.value, type, itemKey, subIdx)}
-            placeholder="輸入供應商..."
-            className="flex-1 px-1 py-1 bg-transparent border-b border-transparent focus:border-indigo-300 outline-none text-[11px] font-bold text-slate-700 placeholder:font-normal"
-          />
-          <datalist id={`supplier-dl-${rowKey}`}>
-            {filteredSupplierOptions.map(s => <option key={s.id} value={s.name} />)}
-          </datalist>
-        </div>
+        <input 
+          list={`supplier-datalist-${rowKey}`}
+          value={currentSupplierName} 
+          onChange={(e) => handleUpdateItemSupplier(project.id, reportIdx, mainItemIdx, e.target.value, type, itemKey, subIdx)}
+          placeholder="輸入或選擇..."
+          className="w-full px-1 py-1 bg-transparent border-b border-transparent focus:border-indigo-300 outline-none text-[11px] font-bold text-slate-700"
+        />
+        <datalist id={`supplier-datalist-${rowKey}`}>
+          {filteredSupplierOptions.map(s => <option key={s.id} value={s.name} />)}
+        </datalist>
       </td>
       <td className="px-6 py-4 w-60">
         <div className="flex items-center gap-1">
-            <input 
-                list={`product-dl-${rowKey}`}
-                value={rowName}
-                onChange={(e) => handleUpdateItemName(project.id, reportIdx, mainItemIdx, e.target.value, type, itemKey, subIdx)}
-                placeholder="輸入或選取品名..."
-                className="flex-1 px-1 py-1 bg-transparent border-b border-transparent focus:border-indigo-300 outline-none text-[11px] font-bold text-slate-800 placeholder:font-normal"
-            />
-            <datalist id={`product-dl-${rowKey}`}>
-                {filteredProductOptions.map((p, i) => <option key={i} value={p.name}>{p.usage}</option>)}
-            </datalist>
-            <button 
-              onClick={handleCommitToSuppliers} 
-              className="p-1 text-slate-300 hover:text-indigo-600 transition-colors" 
-              title="提交並檢查供應商清冊"
-            >
-              <CheckCircleIcon className="w-3.5 h-3.5" />
-            </button>
+          <input 
+            list={`item-datalist-${rowKey}`}
+            value={rowName}
+            onChange={(e) => handleUpdateItemName(project.id, reportIdx, mainItemIdx, e.target.value, type, itemKey, subIdx)}
+            placeholder="輸入或選擇..."
+            className="flex-1 px-1 py-1 bg-transparent border-b border-transparent focus:border-indigo-300 outline-none text-[11px] font-bold text-slate-800"
+          />
+          <datalist id={`item-datalist-${rowKey}`}>
+            {filteredProductOptions.map((p, i) => <option key={i} value={p.name}>{p.usage}</option>)}
+          </datalist>
+          <button onClick={handleCommitInput} className="p-1 text-slate-300 hover:text-indigo-600 transition-colors" title="確認輸入並檢查清冊">
+            <CheckCircleIcon className="w-3.5 h-3.5" />
+          </button>
         </div>
       </td>
-      <td className="px-6 py-4 w-40 text-xs text-slate-500 truncate">{type === 'sub' ? '(細項項目)' : (mainItem.spec || '-')}</td>
-      <td className="px-6 py-4 w-20 text-center font-black text-blue-600 text-xs">{type === 'sub' ? subItem?.quantity : mainItem.quantity}</td>
-      <td className="px-6 py-4 w-16 text-center text-[10px] text-slate-400 font-bold uppercase">{type === 'sub' ? subItem?.unit : mainItem.unit}</td>
+      <td className="px-6 py-4 w-40">
+        <input 
+          type="text" 
+          value={rowSpec}
+          onChange={(e) => handleUpdateItemSpec(project.id, reportIdx, mainItemIdx, e.target.value, type, itemKey, subIdx)}
+          placeholder="輸入規格..."
+          className="w-full px-1 py-1 bg-transparent border-b border-transparent focus:border-indigo-300 outline-none text-[11px] font-medium text-slate-500"
+        />
+      </td>
+      <td className="px-6 py-4 w-20 text-center font-black text-blue-600 text-xs">{rowQty}</td>
+      <td className="px-6 py-4 w-16 text-center text-[10px] text-slate-400 font-bold uppercase">{rowUnit}</td>
       <td className="px-6 py-4 text-[10px] text-slate-500 truncate max-w-[120px]">{rowNote}</td>
+      <td className="px-6 py-4 w-12 text-right">
+        <button 
+          onClick={() => onEdit(entry)}
+          className="p-2 text-slate-300 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
+        >
+          <EditIcon className="w-4 h-4" />
+        </button>
+      </td>
     </tr>
   );
 };
@@ -229,6 +229,7 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
   const [supplierFilter, setSupplierFilter] = useState<string>('ALL');
   const [selectedRowKeys, setSelectedRowKeys] = useState<Set<string>>(new Set());
   const [isCreatingPO, setIsCreatingPO] = useState(false);
+  const [editingRow, setEditingRow] = useState<RowData | null>(null);
   
   const [poForm, setPoForm] = useState({
     projectIds: [] as string[], supplierId: '', date: new Date().toISOString().split('T')[0],
@@ -377,6 +378,51 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
     }
   };
 
+  const handleUpdateItemSpec = (pId: string, rIdx: number, iIdx: number, val: string, type: 'main' | 'sub', iKey?: string, sIdx?: number) => {
+    const project = projects.find(p => p.id === pId);
+    if (!project) return;
+    if (type === 'sub' && iKey && sIdx !== undefined) {
+        const sheets = { ...(project.fenceMaterialSheets || {}) };
+        if (sheets[iKey]) {
+            sheets[iKey].items[sIdx].name = val; // subItem 用 name 存特殊規格
+            onUpdateProject({ ...project, fenceMaterialSheets: sheets });
+        }
+    } else {
+        const updatedReports = [...project.planningReports];
+        updatedReports[rIdx].items[iIdx].spec = val;
+        onUpdateProject({ ...project, planningReports: updatedReports });
+    }
+  };
+
+  const handleUpdateRowValue = (field: string, val: string) => {
+    if (!editingRow) return;
+    const { project, type, reportIdx, mainItemIdx, itemKey, subIdx } = editingRow;
+    if (field === 'date') handleUpdateItemDate(project.id, reportIdx, mainItemIdx, val);
+    else if (field === 'supplier') handleUpdateItemSupplier(project.id, reportIdx, mainItemIdx, val, type, itemKey, subIdx);
+    else if (field === 'name') handleUpdateItemName(project.id, reportIdx, mainItemIdx, val, type, itemKey, subIdx);
+    else if (field === 'spec') handleUpdateItemSpec(project.id, reportIdx, mainItemIdx, val, type, itemKey, subIdx);
+    else {
+      // 處理數量與單位
+      const p = projects.find(p => p.id === project.id);
+      if (!p) return;
+      if (type === 'sub' && itemKey && subIdx !== undefined) {
+        const sheets = { ...(p.fenceMaterialSheets || {}) };
+        if (sheets[itemKey]) {
+          const item = sheets[itemKey].items[subIdx];
+          if (field === 'quantity') item.quantity = parseFloat(val) || 0;
+          else if (field === 'unit') item.unit = val;
+          onUpdateProject({ ...p, fenceMaterialSheets: sheets });
+        }
+      } else {
+        const reports = [...p.planningReports];
+        const item = reports[reportIdx].items[mainItemIdx];
+        if (field === 'quantity') item.quantity = val;
+        else if (field === 'unit') item.unit = val;
+        onUpdateProject({ ...p, planningReports: reports });
+      }
+    }
+  };
+
   const handleOpenPOModal = () => {
     if (selectedRowKeys.size === 0) return alert('請先勾選項目');
     const selectedItems = allPurchasingItems.filter(i => selectedRowKeys.has(i.rowKey));
@@ -459,7 +505,7 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
       <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex justify-between items-center flex-shrink-0">
         <div className="flex items-center gap-3">
           <div className="bg-indigo-600 p-2.5 rounded-xl text-white shadow-lg"><ClipboardListIcon className="w-5 h-5" /></div>
-          <div><h1 className="text-lg font-bold text-slate-800">採購項目總覽</h1><p className="text-[10px] text-slate-500 font-medium">彙整各案規劃與備料細項，追蹤採購狀態</p></div>
+          <div><h1 className="text-lg font-bold text-slate-800">採購總覽</h1><p className="text-[10px] text-slate-500 font-medium">彙整規劃與材料換算，支持即時修改與廠商對齊</p></div>
         </div>
         <button onClick={handleOpenPOModal} className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded-xl text-xs font-black shadow-lg transition-all flex items-center gap-2 active:scale-95">
             <FileTextIcon className="w-4 h-4" /> 建立採購單
@@ -468,7 +514,7 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex-1 flex flex-col min-h-0">
         <div className="overflow-x-auto custom-scrollbar flex-1">
-          <table className="w-full text-left border-collapse min-w-[1100px]">
+          <table className="w-full text-left border-collapse min-w-[1200px]">
             <thead className="bg-slate-50 text-slate-500 text-[10px] uppercase font-black tracking-widest border-b border-slate-200 sticky top-0 z-10">
               <tr>
                 <th className="px-4 py-4 w-10 text-center">狀態</th>
@@ -476,13 +522,14 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
                     <input type="checkbox" onChange={(e) => setSelectedRowKeys(e.target.checked ? new Set(allPurchasingItems.filter(i => !(i.type === 'sub' ? i.subItem?.isPoCreated : i.mainItem.isPoCreated)).map(i => i.rowKey)) : new Set())} checked={selectedRowKeys.size > 0 && selectedRowKeys.size === allPurchasingItems.filter(i => !(i.type === 'sub' ? i.subItem?.isPoCreated : i.mainItem.isPoCreated)).length} className="w-4 h-4 rounded text-indigo-600" />
                 </th>
                 <th className="px-3 py-4 w-22 cursor-pointer hover:text-indigo-600" onClick={() => handleSort('projectName')}>案件 {sortConfig.key === 'projectName' && (sortConfig.direction === 'asc' ? '↑' : '↓')}</th>
-                <th className="px-3 py-4 w-20 cursor-pointer hover:text-indigo-600" onClick={() => handleSort('date')}>預計日期 {sortConfig.key === 'date' && (sortConfig.direction === 'asc' ? '↑' : '↓')}</th>
+                <th className="px-3 py-4 w-20 cursor-pointer hover:text-indigo-600" onClick={() => handleSort('date')}>日期 {sortConfig.key === 'date' && (sortConfig.direction === 'asc' ? '↑' : '↓')}</th>
                 <th className="px-3 py-4 w-40 cursor-pointer hover:text-indigo-600" onClick={() => handleSort('supplier')}>供應商 {sortConfig.key === 'supplier' && (sortConfig.direction === 'asc' ? '↑' : '↓')}</th>
                 <th className="px-6 py-4 w-60 cursor-pointer hover:text-indigo-600" onClick={() => handleSort('name')}>品名 {sortConfig.key === 'name' && (sortConfig.direction === 'asc' ? '↑' : '↓')}</th>
                 <th className="px-6 py-4 w-40">規格</th>
                 <th className="px-6 py-4 w-20 text-center">數量</th>
                 <th className="px-6 py-4 w-16 text-center">單位</th>
-                <th className="px-6 py-4">備註</th>
+                <th className="px-6 py-4">注意</th>
+                <th className="px-6 py-4 w-12 text-right">操作</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -492,13 +539,62 @@ const GlobalPurchasingItems: React.FC<GlobalPurchasingItemsProps> = ({
                   isPoCreated={entry.type === 'sub' ? entry.subItem?.isPoCreated : entry.mainItem.isPoCreated}
                   selectedRowKeys={selectedRowKeys} toggleRowSelection={toggleRowSelection}
                   handleUpdateItemDate={handleUpdateItemDate} handleUpdateItemSupplier={handleUpdateItemSupplier}
-                  handleUpdateItemName={handleUpdateItemName} onUpdateSuppliers={onUpdateSuppliers}
+                  handleUpdateItemName={handleUpdateItemName} handleUpdateItemSpec={handleUpdateItemSpec}
+                  onUpdateSuppliers={onUpdateSuppliers} onEdit={setEditingRow}
                 />
               ))}
             </tbody>
           </table>
         </div>
       </div>
+
+      {editingRow && (
+        <div className="fixed inset-0 z-[250] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in" onClick={() => setEditingRow(null)}>
+          <div className="bg-white w-full max-w-xl max-h-[90vh] rounded-[32px] shadow-2xl overflow-hidden flex flex-col animate-scale-in" onClick={e => e.stopPropagation()}>
+            <header className="px-8 py-5 border-b border-slate-100 flex justify-between items-center bg-slate-50 flex-shrink-0">
+                <div className="flex items-center gap-3">
+                    <div className="bg-indigo-600 p-2 rounded-xl text-white"><EditIcon className="w-5 h-5" /></div>
+                    <h3 className="font-black text-slate-800 text-lg">編輯項目詳細</h3>
+                </div>
+                <button onClick={() => setEditingRow(null)} className="p-2 text-slate-400 hover:bg-red-50 hover:text-red-500 rounded-full transition-colors"><XIcon className="w-5 h-5" /></button>
+            </header>
+            <div className="p-8 space-y-6 flex-1 overflow-y-auto custom-scrollbar">
+                <div className="grid grid-cols-2 gap-4">
+                    <div>
+                        <label className="block text-[10px] font-black text-slate-400 uppercase mb-1 tracking-wider">預計日期</label>
+                        <input type="date" value={editingRow.mainItem.productionDate || getDaysOffset(editingRow.project.appointmentDate, -7)} onChange={e => handleUpdateRowValue('date', e.target.value)} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-500" />
+                    </div>
+                    <div>
+                        <label className="block text-[10px] font-black text-slate-400 uppercase mb-1 tracking-wider">供應商</label>
+                        <input list="modal-s-list" value={allPartners.find(s => s.id === (editingRow.type === 'sub' ? editingRow.subItem?.supplierId : editingRow.mainItem.supplierId))?.name || (editingRow.type === 'sub' ? editingRow.subItem?.supplierId : editingRow.mainItem.supplierId) || ''} onChange={e => handleUpdateRowValue('supplier', e.target.value)} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-500" />
+                        <datalist id="modal-s-list">{allPartners.map(s => <option key={s.id} value={s.name} />)}</datalist>
+                    </div>
+                </div>
+                <div>
+                    <label className="block text-[10px] font-black text-slate-400 uppercase mb-1 tracking-wider">品名</label>
+                    <input type="text" value={editingRow.type === 'sub' ? (editingRow.subItem?.spec || '') : editingRow.mainItem.name} onChange={e => handleUpdateRowValue('name', e.target.value)} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-black outline-none focus:ring-2 focus:ring-indigo-500" />
+                </div>
+                <div>
+                    <label className="block text-[10px] font-black text-slate-400 uppercase mb-1 tracking-wider">規格</label>
+                    <input type="text" value={editingRow.type === 'sub' ? (editingRow.subItem?.name || '') : (editingRow.mainItem.spec || '')} onChange={e => handleUpdateRowValue('spec', e.target.value)} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-500" />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                    <div>
+                        <label className="block text-[10px] font-black text-slate-400 uppercase mb-1 tracking-wider">數量</label>
+                        <input type="text" value={editingRow.type === 'sub' ? (editingRow.subItem?.quantity || '0') : editingRow.mainItem.quantity} onChange={e => handleUpdateRowValue('quantity', e.target.value)} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-black text-indigo-600 outline-none focus:ring-2 focus:ring-indigo-500" />
+                    </div>
+                    <div>
+                        <label className="block text-[10px] font-black text-slate-400 uppercase mb-1 tracking-wider">單位</label>
+                        <input type="text" value={editingRow.type === 'sub' ? (editingRow.subItem?.unit || '') : editingRow.mainItem.unit} onChange={e => handleUpdateRowValue('unit', e.target.value)} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-500 outline-none focus:ring-2 focus:ring-indigo-500" />
+                    </div>
+                </div>
+            </div>
+            <footer className="p-6 bg-slate-50 border-t border-slate-100 flex flex-col gap-3 flex-shrink-0">
+                <button onClick={() => setEditingRow(null)} className="w-full py-4 rounded-2xl text-sm font-black bg-indigo-600 text-white hover:bg-indigo-700 shadow-xl transition-all active:scale-95">完成並覆蓋修改</button>
+            </footer>
+          </div>
+        </div>
+      )}
 
       {isCreatingPO && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
