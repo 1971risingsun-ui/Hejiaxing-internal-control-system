@@ -462,12 +462,17 @@ const App: React.FC = () => {
         const assistantList = assistantsStr.split(',').map(s => s.trim()).filter(Boolean);
         
         assistantList.forEach(aStr => {
-            const isHalfDay = aStr.includes('(半天)');
-            const cleanAssistantName = aStr.replace('(半天)', '').trim();
+            const isHalfDay = aStr.includes('(半天)') || aStr.includes('半天');
+            const cleanAssistantName = aStr.replace('(半天)', '').replace('半天', '').trim();
+            
+            // 在員工名單中尋找匹配的人員
             const emp = employees.find(e => (e.nickname || e.name) === cleanAssistantName);
             
             if (emp) {
+                // 狀態字串定義：以師傅名稱為基礎
                 const status = isHalfDay ? `${worker}(半天)` : worker;
+                
+                // 尋找是否已有該員工在該日期的紀錄
                 const existingIdx = newAttendance.findIndex(rec => rec.date === date && rec.employeeId === emp.id);
                 if (existingIdx !== -1) {
                     newAttendance[existingIdx] = { ...newAttendance[existingIdx], status };
@@ -488,13 +493,16 @@ const App: React.FC = () => {
       const arrayBuffer = await file.arrayBuffer();
       const base64Pdf = await bufferToBase64(arrayBuffer, "application/pdf");
       
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const apiKey = process.env.API_KEY;
+      if (!apiKey) throw new Error("API key is missing.");
+
+      const ai = new GoogleGenAI({ apiKey });
       const response = await ai.models.generateContent({
         model: "gemini-3-flash-preview",
         contents: {
           parts: [
             { inlineData: { mimeType: "application/pdf", data: base64Pdf } },
-            { text: "請解析此施工紀錄 PDF 並返回 JSON 數組。欄位包含: projectName (專案名稱), date (日期 YYYY-MM-DD), item (項目), quantity (數量), unit (單位), location (位置), worker (師傅), assistant (助手)。助手名稱若包含半天標註請一併保留。" }
+            { text: "請解析此施工紀錄 PDF 並返回 JSON 數組。欄位包含: projectName (專案名稱), date (日期 YYYY-MM-DD), item (項目), quantity (數量), unit (單位), location (位置), worker (師傅姓名), assistant (助手姓名)。助手名稱若包含半天標註請務必完整保留在 assistant 欄位中。" }
           ]
         },
         config: { 
@@ -540,6 +548,7 @@ const App: React.FC = () => {
         newProjects[pIdx].constructionItems = [...(newProjects[pIdx].constructionItems || []), newItem];
         importCount++;
 
+        // 落實助手出勤連動
         updateAttendanceForAssistants(row.date, row.worker || '', row.assistant || '');
       });
 
@@ -562,13 +571,16 @@ const App: React.FC = () => {
       const arrayBuffer = await file.arrayBuffer();
       const base64Pdf = await bufferToBase64(arrayBuffer, "application/pdf");
       
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const apiKey = process.env.API_KEY;
+      if (!apiKey) throw new Error("API key is missing.");
+
+      const ai = new GoogleGenAI({ apiKey });
       const response = await ai.models.generateContent({
         model: "gemini-3-flash-preview",
         contents: {
           parts: [
             { inlineData: { mimeType: "application/pdf", data: base64Pdf } },
-            { text: "請解析此施工報告 PDF 並返回 JSON 數組。欄位包含: projectName (專案名稱), date (日期 YYYY-MM-DD), content (內容), weather (天氣: sunny/cloudy/rainy), worker (師傅), assistant (助手)。助手名稱若包含半天標註請一併保留。" }
+            { text: "請解析此施工報告 PDF 並返回 JSON 數組。欄位包含: projectName (專案名稱), date (日期 YYYY-MM-DD), content (內容), weather (天氣: sunny/cloudy/rainy), worker (師傅姓名), assistant (助手姓名)。助手名稱若包含半天標註請務必完整保留在 assistant 欄位中。" }
           ]
         },
         config: { 
@@ -612,6 +624,7 @@ const App: React.FC = () => {
         newProjects[pIdx].reports = [...(newProjects[pIdx].reports || []).filter(r => r.date !== row.date), newReport];
         importCount++;
 
+        // 落實助手出勤連動
         updateAttendanceForAssistants(row.date, row.worker || '', row.assistant || '');
       });
 
