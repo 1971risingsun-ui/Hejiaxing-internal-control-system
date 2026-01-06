@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { Project, ConstructionItem, User, UserRole, ConstructionSignature, DailyReport, SitePhoto, ProjectType } from '../types';
 import { DownloadIcon, PlusIcon, ClipboardListIcon, ArrowLeftIcon, ChevronRightIcon, TrashIcon, CheckCircleIcon as SubmitIcon, PenToolIcon, XIcon, StampIcon, XCircleIcon, SunIcon, CloudIcon, RainIcon, CameraIcon, LoaderIcon, FileTextIcon, BoxIcon, ImageIcon, EditIcon } from './Icons';
@@ -114,6 +115,7 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
   const reportPhotoInputRef = useRef<HTMLInputElement>(null);
   
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
+  const [isGeneratingExcel, setIsGeneratingExcel] = useState(false);
 
   const canEdit = currentUser.role === UserRole.ADMIN || currentUser.role === UserRole.MANAGER;
   const currentStandardItems = isMaintenance ? MAINTENANCE_CONSTRUCTION_ITEMS : STANDARD_CONSTRUCTION_ITEMS;
@@ -360,7 +362,7 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
     const signature = (project.constructionSignatures || []).find(s => s.date === date);
     const container = document.createElement('div');
     container.style.position = 'fixed'; container.style.top = '-9999px'; container.style.left = '-9999px'; container.style.width = '800px'; container.style.backgroundColor = '#ffffff'; document.body.appendChild(container);
-    const weatherText = report ? (report.weather === 'sunny' ? '晴天' : report.weather === 'cloudy' ? '陰天' : '雨天') : '未紀錄';
+    const weatherText = report ? (report.weather === 'sunny' ? '晴天' : report.weather === 'cloudy' ? '陰天' : report.weather === 'rainy' ? '雨天' : '未紀錄') : '未紀錄';
     container.innerHTML = `<div style="font-family: 'Microsoft JhengHei', sans-serif; padding: 40px; color: #333; background: white;"><h1 style="text-align: center; border-bottom: 2px solid #333; padding-bottom: 15px; font-size: 28px; font-weight: bold; margin-bottom: 25px;">${mainTitle}</h1><div style="display: flex; justify-content: space-between; margin-bottom: 25px; font-size: 16px;"><div><span style="font-weight: bold;">專案：</span>${project.name}</div><div><span style="font-weight: bold;">日期：</span>${date}</div></div><div style="border: 1px solid #ccc; padding: 15px; border-radius: 8px; margin-bottom: 30px; background-color: #f8f9fa;"><div style="margin-bottom: 8px;"><strong style="color: #4b5563;">人員：</strong> 師傅: ${items[0]?.worker || '無'} / 助手: ${items[0]?.assistant || '無'}</div><div><strong style="color: #4b5563;">天氣：</strong> ${weatherText}</div></div><div style="font-size: 18px; font-weight: bold; margin-bottom: 15px; border-left: 5px solid #3b82f6; padding-left: 12px; color: #1f2937;">施工項目</div><table style="width: 100%; border-collapse: collapse; margin-bottom: 30px; font-size: 15px;"><thead><tr style="background-color: #f3f4f6;"><th style="border: 1px solid #e5e7eb; padding: 10px; text-align: center;">#</th><th style="border: 1px solid #e5e7eb; padding: 10px; text-align: left;">項目</th><th style="border: 1px solid #e5e7eb; padding: 10px; text-align: center;">數量</th><th style="border: 1px solid #e5e7eb; padding: 10px; text-align: center;">單位</th><th style="border: 1px solid #e5e7eb; padding: 10px; text-align: left;">${isMaintenance ? '作業' : '位置'}</th></tr></thead><tbody>${items.length > 0 ? items.map((item, idx) => `<tr><td style="border: 1px solid #e5e7eb; padding: 10px; text-align: center;">${idx + 1}</td><td style="border: 1px solid #e5e7eb; padding: 10px;">${item.name}</td><td style="border: 1px solid #e5e7eb; padding: 10px; text-align: center;">${item.quantity}</td><td style="border: 1px solid #e5e7eb; padding: 10px; text-align: center;">${item.unit}</td><td style="border: 1px solid #e5e7eb; padding: 10px;">${item.location || ''}</td></tr>`).join('') : '<tr><td colspan="5" style="border: 1px solid #e5e7eb; padding: 20px; text-align: center;">無施工項目</td></tr>'}</tbody></table><div style="font-size: 18px; font-weight: bold; margin-bottom: 15px; border-left: 5px solid #3b82f6; padding-left: 12px; color: #1f2937;">施工內容與備註</div><div style="white-space: pre-wrap; margin-bottom: 30px; border: 1px solid #e5e7eb; padding: 15px; min-height: 100px; border-radius: 4px;">${report ? report.content : '無內容'}</div><div style="font-size: 18px; font-weight: bold; margin-bottom: 15px; border-left: 5px solid #3b82f6; padding-left: 12px; color: #1f2937;">現場照片</div><div style="grid-template-columns: repeat(2, 1fr); gap: 20px; margin-bottom: 30px; display: grid;">${report?.photos?.length ? report.photos.map(pid => { const photo = project.photos.find(p => p.id === pid); return photo ? `<div style="border: 1px solid #e5e7eb; padding: 8px; background: #fff;"><img src="${photo.url}" style="width: 100%; height: auto; display: block;" /></div>` : ''; }).join('') : '<div style="grid-column: span 2; padding: 20px; text-align: center;">無照片</div>'}</div>${signature ? `<div style="margin-top: 50px; display: flex; flex-direction: column; align-items: flex-end;"><div style="font-size: 16px; font-weight: bold; margin-bottom: 10px;">現場人員簽名：</div><div style="border-bottom: 2px solid #333;"><img src="${signature.url}" style="width: 350px; height: auto;" /></div></div>` : ''}</div>`;
     await new Promise(resolve => setTimeout(resolve, 500));
     try {
@@ -376,6 +378,77 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
         while (heightLeft > 0) { position = heightLeft - imgHeight; pdf.addPage(); pdf.addImage(imgData, 'JPEG', 0, position, pdfWidth, imgHeight); heightLeft -= pdfHeight; }
         downloadBlob(pdf.output('blob'), `${project.name}_${mainTitle}_${date}.pdf`);
     } catch (error) { alert("PDF 生成失敗"); } finally { document.body.removeChild(container); setIsGeneratingPDF(false); }
+  };
+
+  const generateReportExcel = async (date: string) => {
+    setIsGeneratingExcel(true);
+    try {
+        const items = (project.constructionItems || []).filter(i => i.date === date);
+        const report = (project.reports || []).find(r => r.date === date);
+        const signature = (project.constructionSignatures || []).find(s => s.date === date);
+        
+        const workbook = new ExcelJS.Workbook();
+        const worksheet = workbook.addWorksheet(date);
+
+        // 基本資訊
+        worksheet.addRow([`${mainTitle} - ${project.name}`]);
+        worksheet.addRow(['日期', date]);
+        const weatherText = report ? (report.weather === 'sunny' ? '晴天' : report.weather === 'cloudy' ? '陰天' : report.weather === 'rainy' ? '雨天' : '未紀錄') : '未紀錄';
+        worksheet.addRow(['人員', `師傅: ${items[0]?.worker || '無'} / 助手: ${items[0]?.assistant || '無'}`]);
+        worksheet.addRow(['天氣', weatherText]);
+        worksheet.addRow([]);
+
+        // 項目表頭
+        const headerRow = worksheet.addRow(['#', '項目', '數量', '單位', isMaintenance ? '作業' : '位置']);
+        headerRow.font = { bold: true };
+        headerRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD9E1F2' } };
+
+        // 填寫項目
+        items.forEach((item, idx) => {
+            worksheet.addRow([idx + 1, item.name, item.quantity, item.unit, item.location || '']);
+        });
+
+        worksheet.addRow([]);
+        worksheet.addRow(['施工內容與備註']);
+        const noteRow = worksheet.addRow([report ? report.content : '無內容']);
+        worksheet.mergeCells(`A${noteRow.number}:E${noteRow.number}`);
+        noteRow.height = 60;
+        noteRow.alignment = { wrapText: true, vertical: 'top' };
+
+        // 插入簽名圖片
+        if (signature) {
+            const splitData = signature.url.split(',');
+            if (splitData.length > 1) {
+                const imageId = workbook.addImage({
+                    base64: splitData[1],
+                    extension: 'jpeg',
+                });
+                worksheet.addRow([]);
+                const sigLabelRow = worksheet.addRow(['', '', '', '', '現場人員簽名']);
+                sigLabelRow.getCell(5).font = { bold: true };
+                
+                worksheet.addImage(imageId, {
+                    tl: { col: 3, row: sigLabelRow.number },
+                    ext: { width: 200, height: 100 }
+                });
+            }
+        }
+
+        // 設定欄寬
+        worksheet.getColumn(1).width = 5;
+        worksheet.getColumn(2).width = 30;
+        worksheet.getColumn(3).width = 10;
+        worksheet.getColumn(4).width = 10;
+        worksheet.getColumn(5).width = 25;
+
+        const buffer = await workbook.xlsx.writeBuffer();
+        const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        downloadBlob(blob, `${project.name}_${mainTitle}_${date}.xlsx`);
+    } catch (error) {
+        alert("Excel 匯出失敗");
+    } finally {
+        setIsGeneratingExcel(false);
+    }
   };
 
   const handleExportPartitionTable = async () => {
@@ -554,7 +627,7 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
                 <td className="px-6 py-4 font-medium text-slate-800">{item.date}</td>
                 <td className="px-6 py-4 text-slate-600">{item.worker || '-'}</td>
                 <td className="px-6 py-4 text-center">{(project.constructionSignatures || []).some(s => s.date === item.date) ? <StampIcon className="w-5 h-5 text-green-600 mx-auto" /> : <XCircleIcon className="w-5 h-5 text-slate-300 mx-auto" />}</td>
-                <td className="px-6 py-4 text-right"><div className="flex justify-end gap-2"><button onClick={(e) => { e.stopPropagation(); generateReportPDF(item.date); }} className="p-1.5 text-slate-400 hover:text-green-600 rounded"><FileTextIcon className="w-4 h-4" /></button></div></td>
+                <td className="px-6 py-4 text-right"><div className="flex justify-end gap-2"><button onClick={(e) => { e.stopPropagation(); generateReportExcel(item.date); }} className="p-1.5 text-slate-400 hover:text-emerald-600 rounded" title="匯出 Excel"><DownloadIcon className="w-4 h-4" /></button><button onClick={(e) => { e.stopPropagation(); generateReportPDF(item.date); }} className="p-1.5 text-slate-400 hover:text-green-600 rounded" title="匯出 PDF"><FileTextIcon className="w-4 h-4" /></button></div></td>
               </tr>
             )) : <tr><td colSpan={4} className="px-6 py-12 text-center text-slate-400">尚無紀錄</td></tr>}</tbody>
           </table>
@@ -576,7 +649,8 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
                  <h3 className="font-bold text-lg text-slate-800">{isMaintenance ? '施工報告 (Báo cáo thi công)' : '編輯紀錄'}</h3>
               </div>
             <div className="flex items-center gap-1">
-                <button onClick={() => generateReportPDF(constructionDate)} className="p-2 text-slate-500 hover:text-blue-600 rounded-full"><FileTextIcon className="w-5 h-5" /></button>
+                <button onClick={() => generateReportExcel(constructionDate)} disabled={isGeneratingExcel} className="p-2 text-slate-500 hover:text-emerald-600 rounded-full" title="匯出 Excel">{isGeneratingExcel ? <LoaderIcon className="w-5 h-5 animate-spin" /> : <DownloadIcon className="w-5 h-5" />}</button>
+                <button onClick={() => generateReportPDF(constructionDate)} disabled={isGeneratingPDF} className="p-2 text-slate-500 hover:text-blue-600 rounded-full" title="匯出 PDF">{isGeneratingPDF ? <LoaderIcon className="w-5 h-5 animate-spin" /> : <FileTextIcon className="w-5 h-5" />}</button>
                 {signatureData && <div className="text-green-600 flex items-center gap-1 text-xs font-bold border border-green-200 bg-green-50 px-2 py-1 rounded ml-1"><StampIcon className="w-3.5 h-3.5" /><span>已簽證</span></div>}
             </div>
           </div>

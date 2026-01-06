@@ -491,72 +491,55 @@ const App: React.FC = () => {
     setIsWorkspaceLoading(true);
     try {
       const arrayBuffer = await file.arrayBuffer();
-      const base64Pdf = await bufferToBase64(arrayBuffer, "application/pdf");
-      
-      const apiKey = process.env.API_KEY;
-      if (!apiKey) throw new Error("API key is missing.");
+      const workbook = new ExcelJS.Workbook();
+      await workbook.xlsx.load(arrayBuffer);
+      const worksheet = workbook.getWorksheet(1);
+      if (!worksheet) throw new Error('找不到工作表');
 
-      const ai = new GoogleGenAI({ apiKey });
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: {
-          parts: [
-            { inlineData: { mimeType: "application/pdf", data: base64Pdf } },
-            { text: "請解析此施工紀錄 PDF 並返回 JSON 數組。欄位包含: projectName (專案名稱), date (日期 YYYY-MM-DD), item (項目), quantity (數量), unit (單位), location (位置), worker (師傅姓名), assistant (助手姓名)。助手名稱若包含半天標註請務必完整保留在 assistant 欄位中。" }
-          ]
-        },
-        config: { 
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.ARRAY,
-            items: {
-              type: Type.OBJECT,
-              properties: {
-                projectName: { type: Type.STRING },
-                date: { type: Type.STRING },
-                item: { type: Type.STRING },
-                quantity: { type: Type.STRING },
-                unit: { type: Type.STRING },
-                location: { type: Type.STRING },
-                worker: { type: Type.STRING },
-                assistant: { type: Type.STRING }
-              }
-            }
-          }
-        }
+      const headers: Record<string, number> = {};
+      worksheet.getRow(1).eachCell((cell, col) => {
+        const text = cell.value?.toString().trim();
+        if (text) headers[text] = col;
       });
 
-      const extractedItems = JSON.parse(response.text || '[]');
+      const required = ['專案名稱', '日期', '項目', '數量'];
+      required.forEach(r => { if (!headers[r]) throw new Error(`缺少必要欄位: ${r}`); });
+
       const newProjects = [...projects];
       let importCount = 0;
 
-      extractedItems.forEach((row: any) => {
-        const pIdx = newProjects.findIndex(p => p.name === row.projectName);
+      worksheet.eachRow((row, rowNumber) => {
+        if (rowNumber === 1) return;
+        const pName = row.getCell(headers['專案名稱']).value?.toString().trim();
+        if (!pName) return;
+
+        const date = parseExcelDate(row.getCell(headers['日期']).value);
+        const pIdx = newProjects.findIndex(p => p.name === pName);
         if (pIdx === -1) return;
 
         const newItem: ConstructionItem = {
           id: generateId(),
-          name: row.item || '',
-          quantity: row.quantity || '',
-          unit: row.unit || '',
-          location: row.location || '',
-          worker: row.worker || '',
-          assistant: row.assistant || '',
-          date: row.date
+          name: row.getCell(headers['項目']).value?.toString() || '',
+          quantity: row.getCell(headers['數量']).value?.toString() || '',
+          unit: row.getCell(headers['單位'] || 0).value?.toString() || '',
+          location: row.getCell(headers['位置'] || 0).value?.toString() || '',
+          worker: row.getCell(headers['師傅'] || 0).value?.toString() || '',
+          assistant: row.getCell(headers['助手'] || 0).value?.toString() || '',
+          date: date
         };
 
         newProjects[pIdx].constructionItems = [...(newProjects[pIdx].constructionItems || []), newItem];
         importCount++;
 
         // 落實助手出勤連動
-        updateAttendanceForAssistants(row.date, row.worker || '', row.assistant || '');
+        updateAttendanceForAssistants(date, newItem.worker, newItem.assistant);
       });
 
       setProjects(newProjects);
       updateLastAction(`批量匯入施工紀錄 (${importCount} 筆)`);
       alert(`匯入施工紀錄完成，共計 ${importCount} 筆。`);
     } catch (err: any) {
-      alert('匯入失敗: ' + (err.message || '未知錯誤'));
+      alert('匯入失敗: ' + err.message);
     } finally {
       setIsWorkspaceLoading(false);
       if (importConstructionRecordsRef.current) importConstructionRecordsRef.current.value = '';
@@ -569,70 +552,55 @@ const App: React.FC = () => {
     setIsWorkspaceLoading(true);
     try {
       const arrayBuffer = await file.arrayBuffer();
-      const base64Pdf = await bufferToBase64(arrayBuffer, "application/pdf");
-      
-      const apiKey = process.env.API_KEY;
-      if (!apiKey) throw new Error("API key is missing.");
+      const workbook = new ExcelJS.Workbook();
+      await workbook.xlsx.load(arrayBuffer);
+      const worksheet = workbook.getWorksheet(1);
+      if (!worksheet) throw new Error('找不到工作表');
 
-      const ai = new GoogleGenAI({ apiKey });
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: {
-          parts: [
-            { inlineData: { mimeType: "application/pdf", data: base64Pdf } },
-            { text: "請解析此施工報告 PDF 並返回 JSON 數組。欄位包含: projectName (專案名稱), date (日期 YYYY-MM-DD), content (內容), weather (天氣: sunny/cloudy/rainy), worker (師傅姓名), assistant (助手姓名)。助手名稱若包含半天標註請務必完整保留在 assistant 欄位中。" }
-          ]
-        },
-        config: { 
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.ARRAY,
-            items: {
-              type: Type.OBJECT,
-              properties: {
-                projectName: { type: Type.STRING },
-                date: { type: Type.STRING },
-                content: { type: Type.STRING },
-                weather: { type: Type.STRING },
-                worker: { type: Type.STRING },
-                assistant: { type: Type.STRING }
-              }
-            }
-          }
-        }
+      const headers: Record<string, number> = {};
+      worksheet.getRow(1).eachCell((cell, col) => {
+        const text = cell.value?.toString().trim();
+        if (text) headers[text] = col;
       });
 
-      const extractedReports = JSON.parse(response.text || '[]');
+      const required = ['專案名稱', '日期', '內容'];
+      required.forEach(r => { if (!headers[r]) throw new Error(`缺少必要欄位: ${r}`); });
+
       const newProjects = [...projects];
       let importCount = 0;
 
-      extractedReports.forEach((row: any) => {
-        const pIdx = newProjects.findIndex(p => p.name === row.projectName);
+      worksheet.eachRow((row, rowNumber) => {
+        if (rowNumber === 1) return;
+        const pName = row.getCell(headers['專案名稱']).value?.toString().trim();
+        if (!pName) return;
+
+        const date = parseExcelDate(row.getCell(headers['日期']).value);
+        const pIdx = newProjects.findIndex(p => p.name === pName);
         if (pIdx === -1) return;
 
         const newReport: DailyReport = {
           id: generateId(),
-          date: row.date,
-          weather: row.weather as any,
-          content: row.content || '',
+          date: date,
+          weather: (row.getCell(headers['天氣'] || 0).value?.toString() as any) || 'sunny',
+          content: row.getCell(headers['內容']).value?.toString() || '',
           reporter: currentUser?.name || '系統匯入',
           timestamp: Date.now(),
-          worker: row.worker || '',
-          assistant: row.assistant || ''
+          worker: row.getCell(headers['師傅'] || 0).value?.toString() || '',
+          assistant: row.getCell(headers['助手'] || 0).value?.toString() || ''
         };
 
-        newProjects[pIdx].reports = [...(newProjects[pIdx].reports || []).filter(r => r.date !== row.date), newReport];
+        newProjects[pIdx].reports = [...(newProjects[pIdx].reports || []).filter(r => r.date !== date), newReport];
         importCount++;
 
         // 落實助手出勤連動
-        updateAttendanceForAssistants(row.date, row.worker || '', row.assistant || '');
+        updateAttendanceForAssistants(date, newReport.worker || '', newReport.assistant || '');
       });
 
       setProjects(newProjects);
       updateLastAction(`批量匯入施工報告 (${importCount} 筆)`);
       alert(`匯入施工報告完成，共計 ${importCount} 筆。`);
     } catch (err: any) {
-      alert('匯入失敗: ' + (err.message || '未知錯誤'));
+      alert('匯入失敗: ' + err.message);
     } finally {
       setIsWorkspaceLoading(false);
       if (importConstructionReportsRef.current) importConstructionReportsRef.current.value = '';
@@ -1085,8 +1053,8 @@ const App: React.FC = () => {
       </div>
 
       <input type="file" accept=".xlsx, .xls" ref={excelInputRef} className="hidden" onChange={handleImportExcel} />
-      <input type="file" accept=".pdf" ref={importConstructionRecordsRef} className="hidden" onChange={handleImportConstructionRecords} />
-      <input type="file" accept=".pdf" ref={importConstructionReportsRef} className="hidden" onChange={handleImportConstructionReports} />
+      <input type="file" accept=".xlsx, .xls" ref={importConstructionRecordsRef} className="hidden" onChange={handleImportConstructionRecords} />
+      <input type="file" accept=".xlsx, .xls" ref={importConstructionReportsRef} className="hidden" onChange={handleImportConstructionReports} />
       <input type="file" accept=".xlsx, .xls" ref={importCompletionReportsRef} className="hidden" onChange={handleImportCompletionReports} />
 
       {isDrivingTimeModalOpen && (
