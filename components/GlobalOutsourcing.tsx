@@ -29,7 +29,8 @@ const GlobalOutsourcing: React.FC<GlobalOutsourcingProps> = ({ projects, onUpdat
     setSortConfig({ key, direction });
   };
 
-  const outsourcingItems = useMemo(() => {
+  // 1. 先算出所有符合外包規則的原始項目清單 (不分廠商篩選)
+  const baseOutsourcingItems = useMemo(() => {
     let list: { project: Project; item: CompletionItem; itemIdx: number; reportIdx: number; reportId: string; reportDate: string }[] = [];
     
     projects.forEach(project => {
@@ -39,15 +40,11 @@ const GlobalOutsourcing: React.FC<GlobalOutsourcingProps> = ({ projects, onUpdat
         report.items.forEach((item, itemIdx) => {
           const name = item.name || '';
           
-          // 分流規則：協力廠商關鍵字 (圍籬 vs 組合屋)
           const isFenceSub = systemRules.subcontractorKeywords.some(kw => name.includes(kw)) && item.category === 'FENCE_MAIN';
           const isModularSub = systemRules.modularSubcontractorKeywords?.some(kw => name.includes(kw)) && 
                                ['MODULAR_STRUCT', 'MODULAR_RENO', 'MODULAR_OTHER', 'MODULAR_DISMANTLE'].includes(item.category);
           
           if (isFenceSub || isModularSub) {
-            // 套用廠商篩選
-            if (vendorFilter !== 'ALL' && item.supplierId !== vendorFilter) return;
-
             list.push({ 
               project, 
               item, 
@@ -60,6 +57,22 @@ const GlobalOutsourcing: React.FC<GlobalOutsourcingProps> = ({ projects, onUpdat
         });
       });
     });
+    return list;
+  }, [projects, systemRules]);
+
+  // 2. 取得目前所有項目中「確實有被選取/指派」的廠商清單，用於篩選選單
+  const activeSubcontractors = useMemo(() => {
+    const usedVendorIds = new Set(baseOutsourcingItems.map(i => i.item.supplierId).filter(Boolean));
+    return subcontractors
+      .filter(s => usedVendorIds.has(s.id))
+      .sort((a, b) => a.name.localeCompare(b.name, 'zh-Hant'));
+  }, [baseOutsourcingItems, subcontractors]);
+
+  // 3. 根據篩選值與排序規則產生最終顯示的清單
+  const outsourcingItems = useMemo(() => {
+    let list = vendorFilter === 'ALL' 
+      ? [...baseOutsourcingItems] 
+      : baseOutsourcingItems.filter(i => i.item.supplierId === vendorFilter);
     
     if (sortConfig.direction) {
       list.sort((a, b) => {
@@ -100,7 +113,7 @@ const GlobalOutsourcing: React.FC<GlobalOutsourcingProps> = ({ projects, onUpdat
     }
     
     return list;
-  }, [projects, sortConfig, systemRules, subcontractors, vendorFilter]);
+  }, [baseOutsourcingItems, sortConfig, subcontractors, vendorFilter]);
 
   const handleUpdateItemDate = (projId: string, reportIdx: number, itemIdx: number, newDate: string) => {
     const project = projects.find(p => p.id === projId);
@@ -165,7 +178,7 @@ const GlobalOutsourcing: React.FC<GlobalOutsourcingProps> = ({ projects, onUpdat
               className="pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500 transition-all appearance-none cursor-pointer"
             >
               <option value="ALL">全部廠商 (所有項目)</option>
-              {subcontractors.sort((a, b) => a.name.localeCompare(b.name, 'zh-Hant')).map(s => (
+              {activeSubcontractors.map(s => (
                 <option key={s.id} value={s.id}>{s.name}</option>
               ))}
             </select>
