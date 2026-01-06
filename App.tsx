@@ -760,7 +760,7 @@ const App: React.FC = () => {
            view === 'purchasing_subcontractors' ? (
             <div className="flex flex-col flex-1 min-h-0">
               <div className="px-6 pt-4"><button onClick={() => setView('purchasing_hub')} className="flex items-center gap-2 text-slate-500 hover:text-blue-600 font-bold text-xs"><ArrowLeftIcon className="w-3 h-3" /> 返回採購</button></div>
-              <div className="flex-1 overflow-hidden"><SupplierList title="協力廠商清冊" typeLabel="協力廠商" themeColor="indigo" suppliers={subcontractors} onUpdateSuppliers={setSuppliers} /></div>
+              <div className="flex-1 overflow-hidden"><SupplierList title="協力廠商清冊" typeLabel="協力廠商" themeColor="indigo" suppliers={subcontractors} onUpdateSuppliers={setSubcontractors} /></div>
             </div>
          ) :
            view === 'purchasing_orders' ? (
