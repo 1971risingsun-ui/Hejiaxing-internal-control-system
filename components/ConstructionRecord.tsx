@@ -401,32 +401,32 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
         const contentFont: any = { name: 'Microsoft JhengHei', size: 10 };
         const blueAccentColor = 'FF1E40AF'; // 深藍色
 
-        // 1. A1: 主標題 (置中底線大字)
+        // 1. A1: 主標題 (置中底線大字，符合匯入規則需包含「施工報告 - 專案名稱」)
         worksheet.mergeCells('A1:E1');
         const titleCell = worksheet.getCell('A1');
         titleCell.value = `${mainTitle} - ${project.name}`;
         titleCell.font = titleFont;
         titleCell.alignment = centerStyle;
-        worksheet.getRow(1).height = 40;
+        worksheet.getRow(1).height = 45;
 
         // 2. 日期、人員、天氣資訊 (灰色盒狀區域 A2:E4)
         const infoFill: any = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF2F2F2' } };
         
-        // Row 2: 日期
+        // Row 2: 日期 (精準對應匯入規則 B2)
         worksheet.getCell('A2').value = '日期';
         worksheet.getCell('A2').font = headerFont;
         worksheet.getCell('B2').value = date;
         worksheet.getCell('B2').font = contentFont;
         worksheet.mergeCells('B2:E2');
         
-        // Row 3: 人員
+        // Row 3: 人員 (精準對應匯入規則 B3)
         worksheet.getCell('A3').value = '人員';
         worksheet.getCell('A3').font = headerFont;
         worksheet.getCell('B3').value = `師傅: ${items[0]?.worker || '無'} / 助手: ${items[0]?.assistant || '無'}`;
         worksheet.getCell('B3').font = contentFont;
         worksheet.mergeCells('B3:E3');
 
-        // Row 4: 天氣
+        // Row 4: 天氣 (精準對應匯入規則 B4)
         const weatherText = report ? (report.weather === 'sunny' ? '晴天' : report.weather === 'cloudy' ? '陰天' : report.weather === 'rainy' ? '雨天' : '未紀錄') : '未紀錄';
         worksheet.getCell('A4').value = '天氣';
         worksheet.getCell('A4').font = headerFont;
@@ -442,42 +442,43 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
                 cell.alignment = leftStyle;
                 cell.border = borderThin;
             }
+            worksheet.getRow(r).height = 25;
         }
 
-        // 3. 施工項目 章節標頭 (Row 6)
-        worksheet.getRow(5).height = 15; // Spacer
-        
-        const section1Cell = worksheet.getCell('B6');
+        // 3. 施工項目 章節標頭 (Row 5)
+        worksheet.getRow(5).height = 30;
+        const section1Cell = worksheet.getCell('B5');
         section1Cell.value = '施工項目';
-        section1Cell.font = headerFont;
+        section1Cell.font = { ...headerFont, size: 14, color: { argb: 'FF1E293B' } };
         section1Cell.alignment = leftStyle;
         // 左側藍色側條
-        const accent1 = worksheet.getCell('A6');
+        const accent1 = worksheet.getCell('A5');
         accent1.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: blueAccentColor } };
         
-        // 4. 表格表頭 (Row 7)
-        const tableHeaderRow = worksheet.getRow(7);
+        // 4. 表格表頭 (Row 6)
+        const tableHeaderRow = worksheet.getRow(6);
+        tableHeaderRow.height = 25;
         const headers = ['#', '項目', '數量', '單位', isMaintenance ? '作業' : '位置'];
         headers.forEach((h, i) => {
             const cell = tableHeaderRow.getCell(i + 1);
             cell.value = h;
             cell.font = { ...headerFont, color: { argb: 'FFFFFFFF' } };
-            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF444444' } };
+            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF475569' } }; // 深灰色
             cell.alignment = centerStyle;
             cell.border = borderThin;
         });
 
-        // 5. 填寫項目數據 (從 Row 8 開始)
-        let currentRow = 8;
+        // 5. 填寫項目數據 (從 Row 7 開始，精準對應匯入規則)
+        let currentRow = 7;
         items.forEach((item, idx) => {
             const row = worksheet.getRow(currentRow);
+            row.height = 22;
             row.getCell(1).value = idx + 1;
             row.getCell(2).value = item.name;
             row.getCell(3).value = item.quantity;
             row.getCell(4).value = item.unit;
             row.getCell(5).value = item.location || '';
             
-            // 數據列樣式
             for(let i=1; i<=5; i++) {
                 const cell = row.getCell(i);
                 cell.font = contentFont;
@@ -489,9 +490,10 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
 
         // 6. 施工內容與備註 章節標頭
         currentRow += 1;
+        worksheet.getRow(currentRow).height = 30;
         const section2Cell = worksheet.getCell(`B${currentRow}`);
         section2Cell.value = '施工內容與備註';
-        section2Cell.font = headerFont;
+        section2Cell.font = { ...headerFont, size: 14, color: { argb: 'FF1E293B' } };
         section2Cell.alignment = leftStyle;
         const accent2 = worksheet.getCell(`A${currentRow}`);
         accent2.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: blueAccentColor } };
@@ -503,26 +505,28 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
         noteCell.value = report ? report.content : '無內容';
         noteCell.font = contentFont;
         noteCell.alignment = { vertical: 'top', horizontal: 'left', wrapText: true };
-        worksheet.mergeCells(`A${currentRow}:E${currentRow + 3}`);
+        worksheet.mergeCells(`A${currentRow}:E${currentRow + 4}`);
         // 畫框
-        for(let r=currentRow; r<=currentRow+3; r++) {
+        for(let r=currentRow; r<=currentRow+4; r++) {
+            worksheet.getRow(r).height = 20;
             for(let c=1; c<=5; c++) {
                 worksheet.getRow(r).getCell(c).border = borderThin;
             }
         }
-        currentRow += 4;
+        currentRow += 5;
 
         // 8. 現場照片 章節標頭
         currentRow += 1;
+        worksheet.getRow(currentRow).height = 30;
         const section3Cell = worksheet.getCell(`B${currentRow}`);
         section3Cell.value = '現場照片';
-        section3Cell.font = headerFont;
+        section3Cell.font = { ...headerFont, size: 14, color: { argb: 'FF1E293B' } };
         section3Cell.alignment = leftStyle;
         const accent3 = worksheet.getCell(`A${currentRow}`);
         accent3.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: blueAccentColor } };
         currentRow += 1;
 
-        // 9. 插入簽名圖片 (放置於備註下方或最底端)
+        // 9. 插入簽名圖片
         if (signature) {
             const splitData = signature.url.split(',');
             if (splitData.length > 1) {
@@ -531,26 +535,34 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
                     extension: 'jpeg',
                 });
                 
-                const sigLabelRow = currentRow + 1;
+                const sigLabelRow = currentRow + 2;
                 const sigLabelCell = worksheet.getCell(`D${sigLabelRow}`);
                 sigLabelCell.value = '現場人員簽名：';
                 sigLabelCell.font = headerFont;
                 sigLabelCell.alignment = { vertical: 'middle', horizontal: 'right' };
                 
                 worksheet.addImage(imageId, {
-                    tl: { col: 3.5, row: sigLabelRow + 0.5 },
-                    ext: { width: 180, height: 80 }
+                    tl: { col: 3.8, row: sigLabelRow + 0.2 },
+                    ext: { width: 140, height: 60 }
                 });
                 currentRow += 6;
             }
+        } else {
+            // 無照片提示
+            const noPhotoCell = worksheet.getCell(`A${currentRow}`);
+            noPhotoCell.value = '無照片';
+            noPhotoCell.font = { ...contentFont, italic: true, color: { argb: 'FF94A3B8' } };
+            noPhotoCell.alignment = centerStyle;
+            worksheet.mergeCells(`A${currentRow}:E${currentRow + 2}`);
+            currentRow += 3;
         }
 
         // 設定欄寬
-        worksheet.getColumn(1).width = 6;
-        worksheet.getColumn(2).width = 32;
+        worksheet.getColumn(1).width = 7;
+        worksheet.getColumn(2).width = 35;
         worksheet.getColumn(3).width = 12;
         worksheet.getColumn(4).width = 10;
-        worksheet.getColumn(5).width = 28;
+        worksheet.getColumn(5).width = 30;
 
         const buffer = await workbook.xlsx.writeBuffer();
         const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
