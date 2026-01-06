@@ -240,7 +240,7 @@ export interface AuditLog {
   timestamp: number;
 }
 
-export type EmployeeCategory = '做件' | '現場' | '廠內';
+export type EmployeeCategory = '做件' | '現場' | '廠內' | '辦公室';
 
 export interface Employee {
   id: string;

@@ -83,6 +83,7 @@ const SalarySummary: React.FC<SalarySummaryProps> = ({
                     <span className={`px-3 py-1 rounded-full text-[11px] font-bold ${
                       emp.category === '現場' ? 'bg-blue-100 text-blue-700' :
                       emp.category === '做件' ? 'bg-orange-100 text-orange-700' :
+                      emp.category === '辦公室' ? 'bg-purple-100 text-purple-700' :
                       'bg-emerald-100 text-emerald-700'
                     }`}>
                       {emp.category}

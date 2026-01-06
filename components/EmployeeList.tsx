@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Employee, EmployeeCategory } from '../types';
 import { PlusIcon, TrashIcon, EditIcon } from './Icons';
@@ -91,8 +92,8 @@ const EmployeeList: React.FC<EmployeeListProps> = ({ employees, onUpdateEmployee
             </div>
             <div>
               <label className="block text-xs font-bold text-slate-400 uppercase mb-2 tracking-widest">職務類別</label>
-              <div className="grid grid-cols-3 gap-2">
-                {['做件', '現場', '廠內'].map(cat => (
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {['做件', '現場', '廠內', '辦公室'].map(cat => (
                   <button 
                     key={cat}
                     onClick={() => setFormState({...formState, category: cat as EmployeeCategory})}
@@ -133,6 +134,7 @@ const EmployeeList: React.FC<EmployeeListProps> = ({ employees, onUpdateEmployee
                     <span className={`text-[11px] font-bold px-3 py-1.5 rounded-lg border ${
                       emp.category === '現場' ? 'bg-blue-50 text-blue-600 border-blue-100' :
                       emp.category === '做件' ? 'bg-orange-50 text-orange-600 border-orange-100' :
+                      emp.category === '辦公室' ? 'bg-purple-50 text-purple-600 border-purple-100' :
                       'bg-emerald-50 text-emerald-600 border-emerald-100'
                     }`}>
                       {emp.category}
