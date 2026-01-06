@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { Project, CompletionItem, SystemRules, Supplier } from '../types';
-import { BriefcaseIcon, BoxIcon, CalendarIcon, ChevronRightIcon } from './Icons';
+import { BriefcaseIcon, BoxIcon, CalendarIcon, ChevronRightIcon, XIcon, SearchIcon } from './Icons';
 
 interface GlobalOutsourcingProps {
   projects: Project[];
@@ -17,6 +17,7 @@ const GlobalOutsourcing: React.FC<GlobalOutsourcingProps> = ({ projects, onUpdat
     key: 'date',
     direction: 'asc',
   });
+  const [vendorFilter, setVendorFilter] = useState<string>('ALL');
 
   const handleSort = (key: SortKey) => {
     let direction: SortDirection = 'asc';
@@ -44,6 +45,9 @@ const GlobalOutsourcing: React.FC<GlobalOutsourcingProps> = ({ projects, onUpdat
                                ['MODULAR_STRUCT', 'MODULAR_RENO', 'MODULAR_OTHER', 'MODULAR_DISMANTLE'].includes(item.category);
           
           if (isFenceSub || isModularSub) {
+            // 套用廠商篩選
+            if (vendorFilter !== 'ALL' && item.supplierId !== vendorFilter) return;
+
             list.push({ 
               project, 
               item, 
@@ -76,10 +80,8 @@ const GlobalOutsourcing: React.FC<GlobalOutsourcingProps> = ({ projects, onUpdat
             valB = b.item.name;
             break;
           case 'vendor':
-            const vendorA = subcontractors.find(s => s.id === a.item.supplierId)?.name || a.item.supplierId || '';
-            const vendorB = subcontractors.find(s => s.id === b.item.supplierId)?.name || b.item.supplierId || '';
-            valA = vendorA;
-            valB = vendorB;
+            valA = subcontractors.find(s => s.id === a.item.supplierId)?.name || a.item.supplierId || '';
+            valB = subcontractors.find(s => s.id === b.item.supplierId)?.name || b.item.supplierId || '';
             break;
         }
 
@@ -98,7 +100,7 @@ const GlobalOutsourcing: React.FC<GlobalOutsourcingProps> = ({ projects, onUpdat
     }
     
     return list;
-  }, [projects, sortConfig, systemRules, subcontractors]);
+  }, [projects, sortConfig, systemRules, subcontractors, vendorFilter]);
 
   const handleUpdateItemDate = (projId: string, reportIdx: number, itemIdx: number, newDate: string) => {
     const project = projects.find(p => p.id === projId);
@@ -155,8 +157,23 @@ const GlobalOutsourcing: React.FC<GlobalOutsourcingProps> = ({ projects, onUpdat
             <p className="text-xs text-slate-500 font-medium">彙整各案場所有日期之協力廠商外包調度項目</p>
           </div>
         </div>
-        <div className="text-right hidden sm:block">
-           <span className="text-[10px] font-black text-blue-600 bg-blue-50 px-3 py-1 rounded-full border border-blue-100 uppercase tracking-widest">協力廠商監控模式</span>
+        <div className="flex items-center gap-3">
+          <div className="relative">
+            <select
+              value={vendorFilter}
+              onChange={(e) => setVendorFilter(e.target.value)}
+              className="pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500 transition-all appearance-none cursor-pointer"
+            >
+              <option value="ALL">全部廠商 (所有項目)</option>
+              {subcontractors.sort((a, b) => a.name.localeCompare(b.name, 'zh-Hant')).map(s => (
+                <option key={s.id} value={s.id}>{s.name}</option>
+              ))}
+            </select>
+            <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+          </div>
+          <div className="text-right hidden sm:block">
+            <span className="text-[10px] font-black text-blue-600 bg-blue-50 px-3 py-1 rounded-full border border-blue-100 uppercase tracking-widest">協力廠商監控模式</span>
+          </div>
         </div>
       </div>
 
