@@ -96,7 +96,11 @@ const bufferToBase64 = (buffer: ArrayBuffer, mimeType: string): Promise<string> 
   return new Promise((resolve, reject) => {
     const blob = new Blob([buffer], { type: mimeType });
     const reader = new FileReader();
-    reader.onloadend = () => resolve(reader.result as string);
+    reader.onloadend = () => {
+      const dataUrl = reader.result as string;
+      const base64 = dataUrl.split(',')[1];
+      resolve(base64);
+    };
     reader.onerror = reject;
     reader.readAsDataURL(blob);
   });
@@ -158,7 +162,6 @@ const App: React.FC = () => {
   const [subcontractors, setSubcontractors] = useState<Supplier[]>([]);
   const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>([]);
 
-  // --- 新增：設備與工具狀態 ---
   const [tools, setTools] = useState<Tool[]>([]);
   const [assets, setAssets] = useState<Asset[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
@@ -207,8 +210,6 @@ const App: React.FC = () => {
           if (cachedState.subcontractors) setSubcontractors(cachedState.subcontractors);
           if (cachedState.purchaseOrders) setPurchaseOrders(cachedState.purchaseOrders);
           if (cachedState.stockAlertItems) setStockAlertItems(cachedState.stockAlertItems);
-          
-          // 加載設備相關
           if (Array.isArray(cachedState.tools)) setTools(cachedState.tools);
           if (Array.isArray(cachedState.assets)) setAssets(cachedState.assets);
           if (Array.isArray(cachedState.vehicles)) setVehicles(cachedState.vehicles);
@@ -300,12 +301,9 @@ const App: React.FC = () => {
     if (Array.isArray(data.subcontractors)) setSubcontractors(data.subcontractors);
     if (Array.isArray(data.purchaseOrders)) setPurchaseOrders(data.purchaseOrders);
     if (Array.isArray(data.stockAlertItems)) setStockAlertItems(data.stockAlertItems);
-    
-    // 設備還原
     if (Array.isArray(data.tools)) setTools(data.tools);
     if (Array.isArray(data.assets)) setAssets(data.assets);
     if (Array.isArray(data.vehicles)) setVehicles(data.vehicles);
-
     if (data.lastUpdateInfo) setLastUpdateInfo(data.lastUpdateInfo);
   };
 
@@ -325,15 +323,11 @@ const App: React.FC = () => {
   const handleImportDbJson = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
     const reader = new FileReader();
     reader.onload = (evt) => {
       try {
         const json = JSON.parse(evt.target?.result as string);
-        if (!json.projects || !Array.isArray(json.projects)) {
-          throw new Error('不正確的備份檔案格式');
-        }
-
+        if (!json.projects || !Array.isArray(json.projects)) throw new Error('不正確的備份檔案格式');
         if (window.confirm(`匯入將會完全覆蓋目前的系統資料，確定要繼續嗎？`)) {
           restoreDataToState(json);
           updateLastAction('匯入系統資料');
@@ -397,7 +391,7 @@ const App: React.FC = () => {
                 name: `匯入圖片_${rowNumber}_${idx}.${img.extension}`,
                 size: img.buffer.byteLength,
                 type: mimeType,
-                url: base64
+                url: `data:${mimeType};base64,${base64}`
               });
             }
           } catch (e) {
@@ -448,7 +442,6 @@ const App: React.FC = () => {
       setProjects(sortProjects(currentProjects));
       updateLastAction('Excel 匯入更新');
       alert(`匯入完成！\n新增：${newCount} 筆\n更新：${updateCount} 筆`);
-      setAuditLogs(prev => [{ id: generateId(), userId: currentUser?.id || 'system', userName: currentUser?.name || '系統', action: 'IMPORT_EXCEL', details: `匯入 Excel: ${file.name}, 新增 ${newCount}, 更新 ${updateCount}`, timestamp: Date.now() }, ...prev]);
     } catch (error: any) {
       alert('Excel 匯入失敗: ' + error.message);
     } finally {
@@ -459,6 +452,7 @@ const App: React.FC = () => {
 
   /**
    * 輔助函式：根據助手字串連動更新出勤狀態
+   * 按照助手暱稱將師父暱稱覆蓋「出勤紀錄」該助手該日期欄位，有勾選「半天」則覆蓋調整成「師父暱稱(半天)」。
    */
   const updateAttendanceForAssistants = (date: string, worker: string, assistantsStr: string) => {
     if (!date || !worker || !assistantsStr) return;
@@ -473,7 +467,6 @@ const App: React.FC = () => {
             const emp = employees.find(e => (e.nickname || e.name) === cleanAssistantName);
             
             if (emp) {
-                // 邏輯修正：助手狀態為師傅名稱
                 const status = isHalfDay ? `${worker}(半天)` : worker;
                 const existingIdx = newAttendance.findIndex(rec => rec.date === date && rec.employeeId === emp.id);
                 if (existingIdx !== -1) {
@@ -483,7 +476,6 @@ const App: React.FC = () => {
                 }
             }
         });
-        
         return newAttendance;
     });
   };
@@ -494,19 +486,17 @@ const App: React.FC = () => {
     setIsWorkspaceLoading(true);
     try {
       const arrayBuffer = await file.arrayBuffer();
-      const base64Pdf = btoa(new Uint8Array(arrayBuffer).reduce((data, byte) => data + String.fromCharCode(byte), ''));
+      const base64Pdf = await bufferToBase64(arrayBuffer, "application/pdf");
       
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
       const response = await ai.models.generateContent({
         model: "gemini-3-flash-preview",
-        contents: [
-          {
-            parts: [
-              { inlineData: { mimeType: "application/pdf", data: base64Pdf } },
-              { text: "請解析此施工紀錄 PDF 並返回 JSON 數組。欄位包含: projectName (專案名稱), date (日期 YYYY-MM-DD), item (項目), quantity (數量), unit (單位), location (位置), worker (師傅), assistant (助手)。" }
-            ]
-          }
-        ],
+        contents: {
+          parts: [
+            { inlineData: { mimeType: "application/pdf", data: base64Pdf } },
+            { text: "請解析此施工紀錄 PDF 並返回 JSON 數組。欄位包含: projectName (專案名稱), date (日期 YYYY-MM-DD), item (項目), quantity (數量), unit (單位), location (位置), worker (師傅), assistant (助手)。助手名稱若包含半天標註請一併保留。" }
+          ]
+        },
         config: { 
           responseMimeType: "application/json",
           responseSchema: {
@@ -528,7 +518,7 @@ const App: React.FC = () => {
         }
       });
 
-      const extractedItems = JSON.parse(response.text);
+      const extractedItems = JSON.parse(response.text || '[]');
       const newProjects = [...projects];
       let importCount = 0;
 
@@ -550,7 +540,6 @@ const App: React.FC = () => {
         newProjects[pIdx].constructionItems = [...(newProjects[pIdx].constructionItems || []), newItem];
         importCount++;
 
-        // 連動更新出勤
         updateAttendanceForAssistants(row.date, row.worker || '', row.assistant || '');
       });
 
@@ -558,7 +547,7 @@ const App: React.FC = () => {
       updateLastAction(`批量匯入施工紀錄 (${importCount} 筆)`);
       alert(`匯入施工紀錄完成，共計 ${importCount} 筆。`);
     } catch (err: any) {
-      alert('匯入失敗: ' + err.message);
+      alert('匯入失敗: ' + (err.message || '未知錯誤'));
     } finally {
       setIsWorkspaceLoading(false);
       if (importConstructionRecordsRef.current) importConstructionRecordsRef.current.value = '';
@@ -571,19 +560,17 @@ const App: React.FC = () => {
     setIsWorkspaceLoading(true);
     try {
       const arrayBuffer = await file.arrayBuffer();
-      const base64Pdf = btoa(new Uint8Array(arrayBuffer).reduce((data, byte) => data + String.fromCharCode(byte), ''));
+      const base64Pdf = await bufferToBase64(arrayBuffer, "application/pdf");
       
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
       const response = await ai.models.generateContent({
         model: "gemini-3-flash-preview",
-        contents: [
-          {
-            parts: [
-              { inlineData: { mimeType: "application/pdf", data: base64Pdf } },
-              { text: "請解析此施工報告 PDF 並返回 JSON 數組。欄位包含: projectName (專案名稱), date (日期 YYYY-MM-DD), content (內容), weather (天氣: sunny/cloudy/rainy), worker (師傅), assistant (助手)。" }
-            ]
-          }
-        ],
+        contents: {
+          parts: [
+            { inlineData: { mimeType: "application/pdf", data: base64Pdf } },
+            { text: "請解析此施工報告 PDF 並返回 JSON 數組。欄位包含: projectName (專案名稱), date (日期 YYYY-MM-DD), content (內容), weather (天氣: sunny/cloudy/rainy), worker (師傅), assistant (助手)。助手名稱若包含半天標註請一併保留。" }
+          ]
+        },
         config: { 
           responseMimeType: "application/json",
           responseSchema: {
@@ -603,7 +590,7 @@ const App: React.FC = () => {
         }
       });
 
-      const extractedReports = JSON.parse(response.text);
+      const extractedReports = JSON.parse(response.text || '[]');
       const newProjects = [...projects];
       let importCount = 0;
 
@@ -625,7 +612,6 @@ const App: React.FC = () => {
         newProjects[pIdx].reports = [...(newProjects[pIdx].reports || []).filter(r => r.date !== row.date), newReport];
         importCount++;
 
-        // 連動更新出勤
         updateAttendanceForAssistants(row.date, row.worker || '', row.assistant || '');
       });
 
@@ -633,7 +619,7 @@ const App: React.FC = () => {
       updateLastAction(`批量匯入施工報告 (${importCount} 筆)`);
       alert(`匯入施工報告完成，共計 ${importCount} 筆。`);
     } catch (err: any) {
-      alert('匯入失敗: ' + err.message);
+      alert('匯入失敗: ' + (err.message || '未知錯誤'));
     } finally {
       setIsWorkspaceLoading(false);
       if (importConstructionReportsRef.current) importConstructionReportsRef.current.value = '';
@@ -650,34 +636,23 @@ const App: React.FC = () => {
       await workbook.xlsx.load(arrayBuffer);
       const worksheet = workbook.getWorksheet(1);
       if (!worksheet) throw new Error('找不到工作表');
-
       const headers: Record<string, number> = {};
       worksheet.getRow(1).eachCell((cell, col) => {
         const text = cell.value?.toString().trim();
         if (text) headers[text] = col;
       });
-
       const required = ['專案名稱', '日期', '項目', '數量'];
       required.forEach(r => { if (!headers[r]) throw new Error(`缺少必要欄位: ${r}`); });
-
       const newProjects = [...projects];
       let importCount = 0;
-
-      // 按專案+日期分組處理
       const groupMap: Record<string, any> = {};
-
       worksheet.eachRow((row, rowNumber) => {
         if (rowNumber === 1) return;
         const pName = row.getCell(headers['專案名稱']).value?.toString().trim();
         if (!pName) return;
-
         const date = parseExcelDate(row.getCell(headers['日期']).value);
         const key = `${pName}|${date}`;
-        
-        if (!groupMap[key]) {
-          groupMap[key] = { items: [], worker: row.getCell(headers['師傅'] || 0).value?.toString() || '' };
-        }
-
+        if (!groupMap[key]) groupMap[key] = { items: [], worker: row.getCell(headers['師傅'] || 0).value?.toString() || '' };
         groupMap[key].items.push({
           name: row.getCell(headers['項目']).value?.toString() || '',
           action: (row.getCell(headers['動作'] || 0).value?.toString().includes('拆') ? 'dismantle' : 'install') as any,
@@ -687,12 +662,10 @@ const App: React.FC = () => {
         });
         importCount++;
       });
-
       Object.keys(groupMap).forEach(key => {
         const [pName, date] = key.split('|');
         const pIdx = newProjects.findIndex(p => p.name === pName);
         if (pIdx === -1) return;
-
         const newReport: CompletionReport = {
           id: generateId(),
           date,
@@ -702,10 +675,8 @@ const App: React.FC = () => {
           signature: '',
           timestamp: Date.now()
         };
-
         newProjects[pIdx].completionReports = [...(newProjects[pIdx].completionReports || []).filter(r => r.date !== date), newReport];
       });
-
       setProjects(newProjects);
       updateLastAction(`批量匯入完工報告 (${importCount} 項)`);
       alert(`匯入完工報告完成，共處理 ${Object.keys(groupMap).length} 份報告，共 ${importCount} 個品項。`);
@@ -735,11 +706,7 @@ const App: React.FC = () => {
       worksheet.columns = columns;
       const headerRow = worksheet.getRow(1);
       headerRow.font = { bold: true };
-      headerRow.fill = {
-        type: 'pattern',
-        pattern: 'solid',
-        fgColor: { argb: 'FFE0E0E0' }
-      };
+      headerRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE0E0E0' } };
       const minRowHeightPoints = 100; 
       const photoHeightPoints = 100; 
       const pointsToPixels = 1.333; 
@@ -807,26 +774,13 @@ const App: React.FC = () => {
         row.eachCell({ includeEmpty: true }, (cell) => {
           cell.alignment = { vertical: 'middle', horizontal: 'left', wrapText: true };
           if (rowNumber > 1) {
-            cell.border = {
-              top: { style: 'thin' },
-              left: { style: 'thin' },
-              bottom: { style: 'thin' },
-              right: { style: 'thin' }
-            };
+            cell.border = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } };
           }
         });
       });
       const buffer = await workbook.xlsx.writeBuffer();
       const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
       await downloadBlob(blob, `合家興案件排程表_${new Date().toISOString().split('T')[0]}.xlsx`);
-      setAuditLogs(prev => [{ 
-        id: generateId(), 
-        userId: currentUser?.id || 'system', 
-        userName: currentUser?.name || '系統', 
-        action: 'EXPORT_EXCEL', 
-        details: `匯出 Excel 案件表`, 
-        timestamp: Date.now() 
-      }, ...prev]);
     } catch (error: any) {
       alert('匯出 Excel 失敗: ' + error.message);
     }
