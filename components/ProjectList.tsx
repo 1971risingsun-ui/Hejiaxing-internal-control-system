@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { Project, ProjectStatus, User, UserRole, ProjectType, GlobalTeamConfigs } from '../types';
 import { CalendarIcon, MapPinIcon, SearchIcon, MoreVerticalIcon, EditIcon, CopyIcon, TrashIcon, LayoutGridIcon, ListIcon, PlusIcon, NavigationIcon, CheckCircleIcon, XIcon, UsersIcon, ClipboardListIcon, PaperclipIcon, BoxIcon, FileTextIcon, DownloadIcon } from './Icons';
@@ -77,6 +78,14 @@ const ProjectList: React.FC<ProjectListProps> = ({
       default:
         return { label: '圍籬', color: 'bg-indigo-50 text-indigo-600 border-indigo-100' };
     }
+  };
+
+  const formatDescription = (text: string) => {
+    if (!text) return '';
+    // 依據項目數字 (1. 2. 3. 等) 在前面插入換行符號
+    return text.replace(/(\d+\.\s)/g, (match, p1, offset) => {
+      return offset === 0 ? match : `\n${match}`;
+    }).trim();
   };
 
   const filteredProjects = projects.filter(project => {
@@ -355,8 +364,8 @@ const ProjectList: React.FC<ProjectListProps> = ({
                                         {project.name}
                                     </h3>
                                     
-                                    <p className="text-slate-500 text-sm md:text-base mb-6 line-clamp-5 min-h-[5em] leading-relaxed">
-                                        {project.description}
+                                    <p className="text-slate-500 text-sm md:text-base mb-6 line-clamp-5 min-h-[5em] leading-relaxed whitespace-pre-wrap">
+                                        {formatDescription(project.description)}
                                     </p>
 
                                     <div className="space-y-1.5 text-xs md:text-sm text-slate-600 mt-auto pt-4 border-t border-slate-50">
@@ -415,7 +424,7 @@ const ProjectList: React.FC<ProjectListProps> = ({
                                             </td>
                                             <td className="px-6 py-4 align-top">
                                                 <div className="font-black text-slate-800 text-sm mb-1 group-hover:text-blue-600 transition-colors">{project.name}</div>
-                                                <div className="text-slate-400 text-xs line-clamp-2 max-w-[300px]">{project.description}</div>
+                                                <div className="text-slate-400 text-xs line-clamp-2 max-w-[300px] whitespace-pre-wrap">{formatDescription(project.description)}</div>
                                             </td>
                                             <td className="px-6 py-4 align-top">
                                                 <div className="text-sm font-bold text-slate-700">{project.clientName}</div>
