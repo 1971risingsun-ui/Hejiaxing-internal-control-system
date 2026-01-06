@@ -456,6 +456,36 @@ const App: React.FC = () => {
     }
   };
 
+  /**
+   * 輔助函式：根據助手字串連動更新出勤狀態
+   */
+  const updateAttendanceForAssistants = (date: string, worker: string, assistantsStr: string) => {
+    if (!date || !worker || !assistantsStr) return;
+    
+    setAttendance(prev => {
+        const newAttendance = [...prev];
+        const assistantList = assistantsStr.split(',').map(s => s.trim()).filter(Boolean);
+        
+        assistantList.forEach(aStr => {
+            const isHalfDay = aStr.includes('(半天)');
+            const cleanAssistantName = aStr.replace('(半天)', '').trim();
+            const emp = employees.find(e => (e.nickname || e.name) === cleanAssistantName);
+            
+            if (emp) {
+                const status = isHalfDay ? `${worker}(半天)` : worker;
+                const existingIdx = newAttendance.findIndex(rec => rec.date === date && rec.employeeId === emp.id);
+                if (existingIdx !== -1) {
+                    newAttendance[existingIdx] = { ...newAttendance[existingIdx], status };
+                } else {
+                    newAttendance.push({ date, employeeId: emp.id, status });
+                }
+            }
+        });
+        
+        return newAttendance;
+    });
+  };
+
   const handleImportConstructionRecords = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -487,19 +517,26 @@ const App: React.FC = () => {
         const pIdx = newProjects.findIndex(p => p.name === pName);
         if (pIdx === -1) return;
 
+        const workerOnRow = row.getCell(headers['師傅'] || 0).value?.toString() || '';
+        const assistantsOnRow = row.getCell(headers['助手'] || 0).value?.toString() || '';
+        const dateOnRow = parseExcelDate(row.getCell(headers['日期']).value);
+
         const newItem: ConstructionItem = {
           id: generateId(),
           name: row.getCell(headers['項目']).value?.toString() || '',
           quantity: row.getCell(headers['數量']).value?.toString() || '',
           unit: row.getCell(headers['單位'] || 0).value?.toString() || '',
           location: row.getCell(headers['位置'] || 0).value?.toString() || '',
-          worker: row.getCell(headers['師傅'] || 0).value?.toString() || '',
-          assistant: row.getCell(headers['助手'] || 0).value?.toString() || '',
-          date: parseExcelDate(row.getCell(headers['日期']).value)
+          worker: workerOnRow,
+          assistant: assistantsOnRow,
+          date: dateOnRow
         };
 
         newProjects[pIdx].constructionItems = [...(newProjects[pIdx].constructionItems || []), newItem];
         importCount++;
+
+        // 連動更新出勤
+        updateAttendanceForAssistants(dateOnRow, workerOnRow, assistantsOnRow);
       });
 
       setProjects(newProjects);
@@ -544,20 +581,26 @@ const App: React.FC = () => {
         const pIdx = newProjects.findIndex(p => p.name === pName);
         if (pIdx === -1) return;
 
-        const date = parseExcelDate(row.getCell(headers['日期']).value);
+        const dateOnRow = parseExcelDate(row.getCell(headers['日期']).value);
+        const workerOnRow = row.getCell(headers['師傅'] || 0).value?.toString() || '';
+        const assistantsOnRow = row.getCell(headers['助手'] || 0).value?.toString() || '';
+
         const newReport: DailyReport = {
           id: generateId(),
-          date,
+          date: dateOnRow,
           weather: (row.getCell(headers['天氣'] || 0).value?.toString().includes('雨') ? 'rainy' : row.getCell(headers['天氣'] || 0).value?.toString().includes('陰') ? 'cloudy' : 'sunny') as any,
           content: row.getCell(headers['內容']).value?.toString() || '',
           reporter: currentUser?.name || '系統匯入',
           timestamp: Date.now(),
-          worker: row.getCell(headers['師傅'] || 0).value?.toString() || '',
-          assistant: row.getCell(headers['助手'] || 0).value?.toString() || ''
+          worker: workerOnRow,
+          assistant: assistantsOnRow
         };
 
-        newProjects[pIdx].reports = [...(newProjects[pIdx].reports || []).filter(r => r.date !== date), newReport];
+        newProjects[pIdx].reports = [...(newProjects[pIdx].reports || []).filter(r => r.date !== dateOnRow), newReport];
         importCount++;
+
+        // 連動更新出勤
+        updateAttendanceForAssistants(dateOnRow, workerOnRow, assistantsOnRow);
       });
 
       setProjects(newProjects);
@@ -935,7 +978,7 @@ const App: React.FC = () => {
       { id: 'daily_dispatch', label: '明日工作排程', icon: <ClipboardListIcon className="w-6 h-6" />, color: 'bg-blue-50 text-blue-600', desc: '確認明日施工地點與人員' },
       { id: 'driving_time', label: '估計行車時間', icon: <NavigationIcon className="w-6 h-6" />, color: 'bg-amber-50 text-amber-600', desc: '預估早上 8:00 路徑耗時' },
       { id: 'weekly_schedule', label: '週間工作排程', icon: <CalendarIcon className="w-6 h-6" />, color: 'bg-indigo-50 text-indigo-600', desc: '規劃本週各小組派工任務' },
-      { id: 'outsourcing', label: '外包管理', icon: <BriefcaseIcon className="w-6 h-6" />, color: 'bg-blue-50 text-blue-600', desc: '外包廠商調度與進度控管' },
+      { id: 'outsourcing', label: '外包廠商管理', icon: <BriefcaseIcon className="w-6 h-6" />, color: 'bg-blue-50 text-blue-600', desc: '外包廠商調度與進度控管' },
       { id: 'engineering_groups', label: '工程小組設定', icon: <UsersIcon className="w-6 h-6" />, color: 'bg-emerald-50 text-emerald-600', desc: '管理師傅、助手與車號預設' },
     ];
     return (
