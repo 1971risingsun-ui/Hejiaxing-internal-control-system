@@ -560,7 +560,7 @@ const App: React.FC = () => {
       const worksheet = workbook.getWorksheet(1);
       if (!worksheet) throw new Error('找不到工作表');
 
-      // 修正匯入規則：從 Row 1 解析「施工報告 - 專案名稱」
+      // 解析專案名稱：從 Row 1 解析「施工報告 - 專案名稱」
       const titleStr = worksheet.getRow(1).getCell(1).value?.toString() || '';
       const pName = titleStr.includes(' - ') ? titleStr.split(' - ')[1].trim() : '';
       if (!pName) throw new Error('無法從首列辨識專案名稱（格式需為：施工報告 - 專案名稱）');
@@ -568,10 +568,12 @@ const App: React.FC = () => {
       const date = parseExcelDate(worksheet.getRow(2).getCell(2).value);
       if (!date) throw new Error('無法辨識日期（需在第二列第二欄）');
 
-      // 人員：師傅: XXX / 助手: YYY
+      // 解析人員：師傅: XXX / 助手: YYY
       const personnelStr = worksheet.getRow(3).getCell(2).value?.toString() || '';
       const worker = personnelStr.match(/師傅:\s*(.*?)\s*\//)?.[1] || personnelStr.match(/師傅:\s*(.*?)$/)?.[1] || '';
       const assistant = personnelStr.match(/助手:\s*(.*)$/)?.[1] || '';
+      
+      // 解析天氣：讀取 B4 (第 4 列、第 2 欄)
       const weatherVal = worksheet.getRow(4).getCell(2).value?.toString() || '晴天';
       const weatherMap: any = { '晴天': 'sunny', '陰天': 'cloudy', '雨天': 'rainy' };
       const weather = weatherMap[weatherVal] || 'sunny';
@@ -579,10 +581,30 @@ const App: React.FC = () => {
       const pIdx = projects.findIndex(p => p.name === pName);
       if (pIdx === -1) throw new Error(`系統中找不到名為「${pName}」的專案`);
 
-      // 尋找內容列 (搜尋 A 欄包含「施工內容與備註」)
+      // 解析施工項目明細：從第 7 列開始，B 欄品名、C 欄數量、D 欄單位、E 欄作業。B 為空則結束。
+      const newItems: ConstructionItem[] = [];
+      let rNum = 7;
+      while (rNum <= worksheet.rowCount) {
+          const row = worksheet.getRow(rNum);
+          const itemName = row.getCell(2).value?.toString()?.trim();
+          if (!itemName) break;
+          newItems.push({
+              id: generateId(),
+              name: itemName,
+              quantity: row.getCell(3).value?.toString() || '',
+              unit: row.getCell(4).value?.toString() || '',
+              location: row.getCell(5).value?.toString() || '', // 施工報告的「作業」對應系統中的 location 欄位
+              worker: worker,
+              assistant: assistant,
+              date: date
+          });
+          rNum++;
+      }
+
+      // 尋找備註內容列 (搜尋 A 欄包含「施工內容與備註」文字)
       let contentRowIdx = -1;
       worksheet.eachRow((row, rowNumber) => {
-          if (row.getCell(1).value?.toString() === '施工內容與備註') {
+          if (row.getCell(1).value?.toString()?.trim() === '施工內容與備註') {
               contentRowIdx = rowNumber + 1;
           }
       });
@@ -600,13 +622,17 @@ const App: React.FC = () => {
       };
 
       const updatedProjects = [...projects];
+      // 更新案件的日誌報告
       updatedProjects[pIdx].reports = [...(updatedProjects[pIdx].reports || []).filter(r => r.date !== date), newReport];
+      // 同步更新案件的施工項目紀錄，並排除該日期舊有紀錄以防重複
+      const otherItems = (updatedProjects[pIdx].constructionItems || []).filter(i => i.date !== date);
+      updatedProjects[pIdx].constructionItems = [...otherItems, ...newItems];
       
       setProjects(updatedProjects);
       updateAttendanceForAssistants(date, worker, assistant);
       
       updateLastAction(`匯入施工報告: ${pName}`);
-      alert(`成功匯入 ${pName} 在 ${date} 的施工報告`);
+      alert(`成功匯入 ${pName} 在 ${date} 的施工報告及 ${newItems.length} 筆施工細項`);
     } catch (err: any) {
       alert('匯入失敗: ' + err.message);
     } finally {
@@ -927,7 +953,7 @@ const App: React.FC = () => {
       case 'purchasing_items': return '採購項目總覽';
       case 'stock_alert': return '常備庫存爆量通知';
       case 'purchasing_suppliers': return '供應商清冊';
-      case 'purchasing_subcontractors': return '外包清冊';
+      case 'purchasing_subcontractors': return '外包廠商';
       case 'purchasing_orders': return '採購單管理';
       case 'purchasing_inbounds': return '進料明細';
       case 'production': return '生產／備料總覽';
