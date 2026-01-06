@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { App as CapacitorApp } from '@capacitor/app';
-import { Project, ProjectStatus, User, UserRole, MaterialStatus, AuditLog, ProjectType, Attachment, WeeklySchedule as WeeklyScheduleType, DailyDispatch as DailyDispatchType, GlobalTeamConfigs, Employee, AttendanceRecord, OvertimeRecord, MonthSummaryRemark, Supplier, PurchaseOrder, SitePhoto, SystemRules, StockAlertItem, Tool, Asset, Vehicle } from './types';
+import { Project, ProjectStatus, User, UserRole, MaterialStatus, AuditLog, ProjectType, Attachment, WeeklySchedule as WeeklyScheduleType, DailyDispatch as DailyDispatchType, GlobalTeamConfigs, Employee, AttendanceRecord, OvertimeRecord, MonthSummaryRemark, Supplier, PurchaseOrder, SitePhoto, SystemRules, StockAlertItem, Tool, Asset, Vehicle, ConstructionItem, DailyReport, CompletionReport } from './types';
 import ProjectList from './components/ProjectList';
 import ProjectDetail from './components/ProjectDetail';
 import UserManagement from './components/UserManagement';
@@ -28,7 +28,7 @@ import EquipmentModule from './components/EquipmentModule';
 import ToolManagement from './components/ToolManagement';
 import AssetManagement from './components/AssetManagement';
 import VehicleManagement from './components/VehicleManagement';
-import { HomeIcon, UserIcon, LogOutIcon, ShieldIcon, MenuIcon, XIcon, ChevronRightIcon, WrenchIcon, UploadIcon, LoaderIcon, ClipboardListIcon, LayoutGridIcon, BoxIcon, DownloadIcon, FileTextIcon, CheckCircleIcon, AlertIcon, XCircleIcon, UsersIcon, TruckIcon, BriefcaseIcon, ArrowLeftIcon, CalendarIcon, ClockIcon, NavigationIcon, SaveIcon, ExternalLinkIcon, RefreshIcon, PenToolIcon } from './components/Icons';
+import { HomeIcon, UserIcon, LogOutIcon, ShieldIcon, MenuIcon, XIcon, ChevronRightIcon, WrenchIcon, UploadIcon, LoaderIcon, ClipboardListIcon, LayoutGridIcon, BoxIcon, DownloadIcon, FileTextIcon, CheckCircleIcon, AlertIcon, XCircleIcon, UsersIcon, TruckIcon, BriefcaseIcon, ArrowLeftIcon, CalendarIcon, ClockIcon, NavigationIcon, SaveIcon, ExternalLinkIcon, RefreshIcon, PenToolIcon, StampIcon } from './components/Icons';
 import { getDirectoryHandle, saveDbToLocal, loadDbFromLocal, getHandleFromIdb, clearHandleFromIdb, saveAppStateToIdb, loadAppStateFromIdb, saveHandleToIdb } from './utils/fileSystem';
 import { downloadBlob } from './utils/fileHelpers';
 import ExcelJS from 'exceljs';
@@ -173,6 +173,9 @@ const App: React.FC = () => {
   const [isDrivingTimeModalOpen, setIsDrivingTimeModalOpen] = useState(false);
   const excelInputRef = useRef<HTMLInputElement>(null);
   const dbJsonInputRef = useRef<HTMLInputElement>(null);
+  const importConstructionRecordsRef = useRef<HTMLInputElement>(null);
+  const importConstructionReportsRef = useRef<HTMLInputElement>(null);
+  const importCompletionReportsRef = useRef<HTMLInputElement>(null);
 
   const sortProjects = (list: Project[]) => {
     if (!Array.isArray(list)) return [];
@@ -318,7 +321,6 @@ const App: React.FC = () => {
     }
   };
 
-  // Fix: Added handleImportDbJson function to handle database restore from a JSON file.
   const handleImportDbJson = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -451,6 +453,198 @@ const App: React.FC = () => {
     } finally {
       setIsWorkspaceLoading(false);
       if (excelInputRef.current) excelInputRef.current.value = '';
+    }
+  };
+
+  const handleImportConstructionRecords = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsWorkspaceLoading(true);
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const workbook = new ExcelJS.Workbook();
+      await workbook.xlsx.load(arrayBuffer);
+      const worksheet = workbook.getWorksheet(1);
+      if (!worksheet) throw new Error('找不到工作表');
+
+      const headers: Record<string, number> = {};
+      worksheet.getRow(1).eachCell((cell, col) => {
+        const text = cell.value?.toString().trim();
+        if (text) headers[text] = col;
+      });
+
+      const required = ['專案名稱', '日期', '項目', '數量'];
+      required.forEach(r => { if (!headers[r]) throw new Error(`缺少必要欄位: ${r}`); });
+
+      const newProjects = [...projects];
+      let importCount = 0;
+
+      worksheet.eachRow((row, rowNumber) => {
+        if (rowNumber === 1) return;
+        const pName = row.getCell(headers['專案名稱']).value?.toString().trim();
+        if (!pName) return;
+
+        const pIdx = newProjects.findIndex(p => p.name === pName);
+        if (pIdx === -1) return;
+
+        const newItem: ConstructionItem = {
+          id: generateId(),
+          name: row.getCell(headers['項目']).value?.toString() || '',
+          quantity: row.getCell(headers['數量']).value?.toString() || '',
+          unit: row.getCell(headers['單位'] || 0).value?.toString() || '',
+          location: row.getCell(headers['位置'] || 0).value?.toString() || '',
+          worker: row.getCell(headers['師傅'] || 0).value?.toString() || '',
+          assistant: row.getCell(headers['助手'] || 0).value?.toString() || '',
+          date: parseExcelDate(row.getCell(headers['日期']).value)
+        };
+
+        newProjects[pIdx].constructionItems = [...(newProjects[pIdx].constructionItems || []), newItem];
+        importCount++;
+      });
+
+      setProjects(newProjects);
+      updateLastAction(`批量匯入施工紀錄 (${importCount} 筆)`);
+      alert(`匯入施工紀錄完成，共計 ${importCount} 筆。`);
+    } catch (err: any) {
+      alert('匯入失敗: ' + err.message);
+    } finally {
+      setIsWorkspaceLoading(false);
+      if (importConstructionRecordsRef.current) importConstructionRecordsRef.current.value = '';
+    }
+  };
+
+  const handleImportConstructionReports = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsWorkspaceLoading(true);
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const workbook = new ExcelJS.Workbook();
+      await workbook.xlsx.load(arrayBuffer);
+      const worksheet = workbook.getWorksheet(1);
+      if (!worksheet) throw new Error('找不到工作表');
+
+      const headers: Record<string, number> = {};
+      worksheet.getRow(1).eachCell((cell, col) => {
+        const text = cell.value?.toString().trim();
+        if (text) headers[text] = col;
+      });
+
+      const required = ['專案名稱', '日期', '內容'];
+      required.forEach(r => { if (!headers[r]) throw new Error(`缺少必要欄位: ${r}`); });
+
+      const newProjects = [...projects];
+      let importCount = 0;
+
+      worksheet.eachRow((row, rowNumber) => {
+        if (rowNumber === 1) return;
+        const pName = row.getCell(headers['專案名稱']).value?.toString().trim();
+        if (!pName) return;
+
+        const pIdx = newProjects.findIndex(p => p.name === pName);
+        if (pIdx === -1) return;
+
+        const date = parseExcelDate(row.getCell(headers['日期']).value);
+        const newReport: DailyReport = {
+          id: generateId(),
+          date,
+          weather: (row.getCell(headers['天氣'] || 0).value?.toString().includes('雨') ? 'rainy' : row.getCell(headers['天氣'] || 0).value?.toString().includes('陰') ? 'cloudy' : 'sunny') as any,
+          content: row.getCell(headers['內容']).value?.toString() || '',
+          reporter: currentUser?.name || '系統匯入',
+          timestamp: Date.now(),
+          worker: row.getCell(headers['師傅'] || 0).value?.toString() || '',
+          assistant: row.getCell(headers['助手'] || 0).value?.toString() || ''
+        };
+
+        newProjects[pIdx].reports = [...(newProjects[pIdx].reports || []).filter(r => r.date !== date), newReport];
+        importCount++;
+      });
+
+      setProjects(newProjects);
+      updateLastAction(`批量匯入施工報告 (${importCount} 筆)`);
+      alert(`匯入施工報告完成，共計 ${importCount} 筆。`);
+    } catch (err: any) {
+      alert('匯入失敗: ' + err.message);
+    } finally {
+      setIsWorkspaceLoading(false);
+      if (importConstructionReportsRef.current) importConstructionReportsRef.current.value = '';
+    }
+  };
+
+  const handleImportCompletionReports = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsWorkspaceLoading(true);
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const workbook = new ExcelJS.Workbook();
+      await workbook.xlsx.load(arrayBuffer);
+      const worksheet = workbook.getWorksheet(1);
+      if (!worksheet) throw new Error('找不到工作表');
+
+      const headers: Record<string, number> = {};
+      worksheet.getRow(1).eachCell((cell, col) => {
+        const text = cell.value?.toString().trim();
+        if (text) headers[text] = col;
+      });
+
+      const required = ['專案名稱', '日期', '項目', '數量'];
+      required.forEach(r => { if (!headers[r]) throw new Error(`缺少必要欄位: ${r}`); });
+
+      const newProjects = [...projects];
+      let importCount = 0;
+
+      // 按專案+日期分組處理
+      const groupMap: Record<string, any> = {};
+
+      worksheet.eachRow((row, rowNumber) => {
+        if (rowNumber === 1) return;
+        const pName = row.getCell(headers['專案名稱']).value?.toString().trim();
+        if (!pName) return;
+
+        const date = parseExcelDate(row.getCell(headers['日期']).value);
+        const key = `${pName}|${date}`;
+        
+        if (!groupMap[key]) {
+          groupMap[key] = { items: [], worker: row.getCell(headers['師傅'] || 0).value?.toString() || '' };
+        }
+
+        groupMap[key].items.push({
+          name: row.getCell(headers['項目']).value?.toString() || '',
+          action: (row.getCell(headers['動作'] || 0).value?.toString().includes('拆') ? 'dismantle' : 'install') as any,
+          quantity: row.getCell(headers['數量']).value?.toString() || '',
+          unit: row.getCell(headers['單位'] || 0).value?.toString() || '',
+          category: 'OTHER'
+        });
+        importCount++;
+      });
+
+      Object.keys(groupMap).forEach(key => {
+        const [pName, date] = key.split('|');
+        const pIdx = newProjects.findIndex(p => p.name === pName);
+        if (pIdx === -1) return;
+
+        const newReport: CompletionReport = {
+          id: generateId(),
+          date,
+          worker: groupMap[key].worker,
+          items: groupMap[key].items,
+          notes: '',
+          signature: '',
+          timestamp: Date.now()
+        };
+
+        newProjects[pIdx].completionReports = [...(newProjects[pIdx].completionReports || []).filter(r => r.date !== date), newReport];
+      });
+
+      setProjects(newProjects);
+      updateLastAction(`批量匯入完工報告 (${importCount} 項)`);
+      alert(`匯入完工報告完成，共處理 ${Object.keys(groupMap).length} 份報告，共 ${importCount} 個品項。`);
+    } catch (err: any) {
+      alert('匯入失敗: ' + err.message);
+    } finally {
+      setIsWorkspaceLoading(false);
+      if (importCompletionReportsRef.current) importCompletionReportsRef.current.value = '';
     }
   };
 
@@ -788,7 +982,7 @@ const App: React.FC = () => {
            view === 'purchasing_subcontractors' ? (
             <div className="flex flex-col flex-1 min-h-0">
               <div className="px-6 pt-4"><button onClick={() => setView('purchasing_hub')} className="flex items-center gap-2 text-slate-500 hover:text-blue-600 font-bold text-xs"><ArrowLeftIcon className="w-3 h-3" /> 返回採購</button></div>
-              <div className="flex-1 overflow-hidden"><SupplierList title="外包廠商清冊" typeLabel="外包廠商" themeColor="indigo" suppliers={subcontractors} onUpdateSuppliers={setSubcontractors} /></div>
+              <div className="flex-1 overflow-hidden"><SupplierList title="外包廠商清冊" typeLabel="外包廠商" themeColor="indigo" suppliers={subcontractors} onUpdateSuppliers={setSuppliers} /></div>
             </div>
          ) :
            view === 'purchasing_orders' ? (
@@ -850,11 +1044,14 @@ const App: React.FC = () => {
               </div>
            ) :
            selectedProject ? (<div className="flex-1 overflow-hidden"><ProjectDetail project={selectedProject} currentUser={currentUser} onBack={() => setSelectedProject(null)} onUpdateProject={handleUpdateProject} onEditProject={setEditingProject} onAddToSchedule={handleAddToSchedule} globalTeamConfigs={globalTeamConfigs} systemRules={systemRules} /></div>) : 
-           (<div className="flex-1 overflow-auto"><ProjectList title={getTitle()} projects={currentViewProjects} currentUser={currentUser} lastUpdateInfo={lastUpdateInfo} onSelectProject={setSelectedProject} onAddProject={() => setIsAddModalOpen(true)} onDeleteProject={handleDeleteProject} onDuplicateProject={()=>{}} onEditProject={setEditingProject} onOpenDrivingTime={() => setIsDrivingTimeModalOpen(true)} onImportExcel={() => excelInputRef.current?.click()} onExportExcel={handleExportExcel} onAddToSchedule={handleAddToSchedule} globalTeamConfigs={globalTeamConfigs} /></div>)}
+           (<div className="flex-1 overflow-auto"><ProjectList title={getTitle()} projects={currentViewProjects} currentUser={currentUser} lastUpdateInfo={lastUpdateInfo} onSelectProject={setSelectedProject} onAddProject={() => setIsAddModalOpen(true)} onDeleteProject={handleDeleteProject} onDuplicateProject={()=>{}} onEditProject={setEditingProject} onOpenDrivingTime={() => setIsDrivingTimeModalOpen(true)} onImportExcel={() => excelInputRef.current?.click()} onExportExcel={handleExportExcel} onImportConstructionRecords={() => importConstructionRecordsRef.current?.click()} onImportConstructionReports={() => importConstructionReportsRef.current?.click()} onImportCompletionReports={() => importCompletionReportsRef.current?.click()} onAddToSchedule={handleAddToSchedule} globalTeamConfigs={globalTeamConfigs} /></div>)}
         </main>
       </div>
 
       <input type="file" accept=".xlsx, .xls" ref={excelInputRef} className="hidden" onChange={handleImportExcel} />
+      <input type="file" accept=".xlsx, .xls" ref={importConstructionRecordsRef} className="hidden" onChange={handleImportConstructionRecords} />
+      <input type="file" accept=".xlsx, .xls" ref={importConstructionReportsRef} className="hidden" onChange={handleImportConstructionReports} />
+      <input type="file" accept=".xlsx, .xls" ref={importCompletionReportsRef} className="hidden" onChange={handleImportCompletionReports} />
 
       {isDrivingTimeModalOpen && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">

@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Project, ProjectStatus, User, UserRole, ProjectType, GlobalTeamConfigs } from '../types';
-import { CalendarIcon, MapPinIcon, SearchIcon, MoreVerticalIcon, EditIcon, CopyIcon, TrashIcon, LayoutGridIcon, ListIcon, PlusIcon, NavigationIcon, CheckCircleIcon, XIcon, UsersIcon, ClipboardListIcon, PaperclipIcon, BoxIcon, FileTextIcon, DownloadIcon } from './Icons';
+import { CalendarIcon, MapPinIcon, SearchIcon, MoreVerticalIcon, EditIcon, CopyIcon, TrashIcon, LayoutGridIcon, ListIcon, PlusIcon, NavigationIcon, CheckCircleIcon, XIcon, UsersIcon, ClipboardListIcon, PaperclipIcon, BoxIcon, FileTextIcon, DownloadIcon, StampIcon, UploadIcon } from './Icons';
 
 interface ProjectListProps {
   title?: string;
@@ -16,6 +16,9 @@ interface ProjectListProps {
   onOpenDrivingTime?: () => void;
   onImportExcel?: () => void;
   onExportExcel?: () => void;
+  onImportConstructionRecords?: () => void;
+  onImportConstructionReports?: () => void;
+  onImportCompletionReports?: () => void;
   onAddToSchedule?: (date: string, teamId: number, taskName: string) => boolean;
   globalTeamConfigs?: GlobalTeamConfigs;
 }
@@ -23,13 +26,15 @@ interface ProjectListProps {
 const ProjectList: React.FC<ProjectListProps> = ({ 
   title, projects, currentUser, lastUpdateInfo, onSelectProject, onAddProject, 
   onDeleteProject, onDuplicateProject, onEditProject, onOpenDrivingTime,
-  onImportExcel, onExportExcel, onAddToSchedule, globalTeamConfigs
+  onImportExcel, onExportExcel, onImportConstructionRecords, onImportConstructionReports, onImportCompletionReports,
+  onAddToSchedule, globalTeamConfigs
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<ProjectStatus | 'ALL'>('ALL');
   const [typeFilter, setTypeFilter] = useState<ProjectType | 'ALL'>('ALL');
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid'); 
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
+  const [importMenuOpen, setImportMenuOpen] = useState(false);
   
   // 排程相關狀態
   const [schedulingProject, setSchedulingProject] = useState<Project | null>(null);
@@ -38,11 +43,15 @@ const ProjectList: React.FC<ProjectListProps> = ({
   const [pastedDone, setPastedDone] = useState(false);
 
   const menuRef = useRef<HTMLDivElement>(null);
+  const importMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
         setActiveMenuId(null);
+      }
+      if (importMenuRef.current && !importMenuRef.current.contains(event.target as Node)) {
+        setImportMenuOpen(false);
       }
     };
 
@@ -168,6 +177,58 @@ const ProjectList: React.FC<ProjectListProps> = ({
           )}
         </div>
         <div className="flex gap-2">
+          {/* 整合後的批量匯入中心 */}
+          {(onImportConstructionRecords || onImportConstructionReports || onImportCompletionReports) && (
+            <div className="relative" ref={importMenuRef}>
+              <button
+                onClick={() => setImportMenuOpen(!importMenuOpen)}
+                className="bg-indigo-100 hover:bg-indigo-200 text-indigo-700 w-10 h-10 rounded-full shadow-sm flex items-center justify-center transition-all active:scale-95"
+                title="批量匯入工具"
+              >
+                <UploadIcon className="w-5 h-5" />
+              </button>
+              
+              {importMenuOpen && (
+                <div className="absolute right-0 top-full mt-2 w-56 bg-white rounded-2xl shadow-xl border border-slate-100 z-[120] overflow-hidden animate-fade-in p-1">
+                   <div className="px-3 py-2 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-50 mb-1">匯入選項</div>
+                   {onImportConstructionRecords && (
+                     <button 
+                        onClick={() => { onImportConstructionRecords(); setImportMenuOpen(false); }}
+                        className="w-full text-left px-4 py-3 text-xs font-bold text-slate-700 hover:bg-slate-50 rounded-xl flex items-center gap-3 transition-colors"
+                     >
+                        <div className="w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center">
+                          <ClipboardListIcon className="w-4 h-4 text-slate-500" />
+                        </div>
+                        批量匯入施工紀錄
+                     </button>
+                   )}
+                   {onImportConstructionReports && (
+                     <button 
+                        onClick={() => { onImportConstructionReports(); setImportMenuOpen(false); }}
+                        className="w-full text-left px-4 py-3 text-xs font-bold text-slate-700 hover:bg-slate-50 rounded-xl flex items-center gap-3 transition-colors"
+                     >
+                        <div className="w-7 h-7 rounded-lg bg-orange-100 flex items-center justify-center">
+                          <FileTextIcon className="w-4 h-4 text-orange-600" />
+                        </div>
+                        批量匯入施工報告
+                     </button>
+                   )}
+                   {onImportCompletionReports && (
+                     <button 
+                        onClick={() => { onImportCompletionReports(); setImportMenuOpen(false); }}
+                        className="w-full text-left px-4 py-3 text-xs font-bold text-slate-700 hover:bg-slate-50 rounded-xl flex items-center gap-3 transition-colors"
+                     >
+                        <div className="w-7 h-7 rounded-lg bg-blue-100 flex items-center justify-center">
+                          <StampIcon className="w-4 h-4 text-blue-600" />
+                        </div>
+                        批量匯入完工報告
+                     </button>
+                   )}
+                </div>
+              )}
+            </div>
+          )}
+
           {onExportExcel && (
             <button
               onClick={onExportExcel}
