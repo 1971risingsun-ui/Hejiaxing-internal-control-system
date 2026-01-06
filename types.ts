@@ -1,3 +1,4 @@
+
 export enum ProjectStatus {
   PLANNING = '規劃中',
   IN_PROGRESS = '進行中',
@@ -105,7 +106,7 @@ export interface CompletionItem {
   productionDate?: string; 
   isProduced?: boolean; 
   supplierId?: string;
-  isPoCreated?: boolean; // 新增：是否已建立採購單
+  isPoCreated?: boolean; 
 }
 
 export interface CompletionReport {
@@ -159,7 +160,7 @@ export interface FenceMaterialItem {
   quantity: number;
   unit: string;
   supplierId?: string;
-  isPoCreated?: boolean; // 新增：是否已建立採購單
+  isPoCreated?: boolean; 
 }
 
 export interface FenceMaterialSheet {
@@ -302,7 +303,7 @@ export interface PurchaseOrder {
   poNumber: string;
   date: string; 
   projectId: string;
-  projectIds?: string[]; // 新增：支援專案複選
+  projectIds?: string[]; 
   projectName: string;
   supplierId: string;
   supplierName: string;
@@ -314,5 +315,40 @@ export interface PurchaseOrder {
   deliveryLocation?: string;
   receiver?: string;
   remarks?: string;
-  isOrdered?: boolean; // 新增：標記是否已下單移至進料明細
+  isOrdered?: boolean; 
+}
+
+// --- 新增：設備與工具相關介面 ---
+
+export interface Tool {
+  id: string;
+  name: string;
+  brand: string;
+  model: string;
+  status: 'available' | 'in_use' | 'maintenance';
+  borrower?: string;
+  lastMaintenance?: string;
+  notes?: string;
+}
+
+export interface Asset {
+  id: string;
+  name: string;
+  spec: string;
+  purchaseDate: string;
+  location: string;
+  nextInspection?: string;
+  owner: string;
+  notes?: string;
+}
+
+export interface Vehicle {
+  id: string;
+  plateNumber: string;
+  model: string;
+  currentMileage: number;
+  nextMaintenanceMileage: number;
+  insuranceExpiry: string;
+  mainDriver: string;
+  notes?: string;
 }

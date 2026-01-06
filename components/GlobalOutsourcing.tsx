@@ -167,7 +167,7 @@ const GlobalOutsourcing: React.FC<GlobalOutsourcingProps> = ({ projects, onUpdat
           </div>
           <div>
             <h1 className="text-xl font-bold text-slate-800">外包管理</h1>
-            <p className="text-xs text-slate-500 font-medium">彙整各案場所有日期之協力廠商外包調度項目</p>
+            <p className="text-xs text-slate-500 font-medium">彙整各案場所有日期之外包廠商調度項目</p>
           </div>
         </div>
         <div className="flex items-center gap-3">
@@ -185,7 +185,7 @@ const GlobalOutsourcing: React.FC<GlobalOutsourcingProps> = ({ projects, onUpdat
             <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
           </div>
           <div className="text-right hidden sm:block">
-            <span className="text-[10px] font-black text-blue-600 bg-blue-50 px-3 py-1 rounded-full border border-blue-100 uppercase tracking-widest">協力廠商監控模式</span>
+            <span className="text-[10px] font-black text-blue-600 bg-blue-50 px-3 py-1 rounded-full border border-blue-100 uppercase tracking-widest">外包廠商監控模式</span>
           </div>
         </div>
       </div>

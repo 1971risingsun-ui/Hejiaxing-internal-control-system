@@ -44,7 +44,7 @@ const PurchasingModule: React.FC<PurchasingModuleProps> = ({ onNavigate }) => {
     },
     { 
       id: 'purchasing_subcontractors', 
-      label: '協力廠商', 
+      label: '外包廠商', 
       icon: <UsersIcon className="w-6 h-6" />, 
       color: 'bg-indigo-50 text-indigo-600', 
       desc: '管理長期合作之點工、吊卡等協力夥伴' 

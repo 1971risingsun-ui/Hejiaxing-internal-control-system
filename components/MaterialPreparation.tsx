@@ -339,14 +339,14 @@ const MaterialPreparation: React.FC<MaterialPreparationProps> = ({ project, onUp
             <>
               {renderTable(fenceMainItems, undefined, undefined, true)}
               {renderTable(fenceProductionItems, "生產/備料", <PenToolIcon className="w-4 h-4 text-blue-500" />, true)}
-              {renderTable(fenceSubcontractorItems, "協力廠商安排", <UsersIcon className="w-4 h-4 text-indigo-500" />)}
+              {renderTable(fenceSubcontractorItems, "外包廠商安排", <UsersIcon className="w-4 h-4 text-indigo-500" />)}
             </>
           ) : (
             <>
               {/* 組合屋分流呈現 */}
               {renderTable(modularMainItems, "組合屋主要規劃", <BoxIcon className="w-4 h-4 text-blue-500" />, true)}
               {renderTable(modularProductionItems, "生產/備料", <PenToolIcon className="w-4 h-4 text-emerald-500" />, true)}
-              {renderTable(modularSubcontractorItems, "協力廠商安排", <UsersIcon className="w-4 h-4 text-indigo-500" />)}
+              {renderTable(modularSubcontractorItems, "外包廠商安排", <UsersIcon className="w-4 h-4 text-indigo-500" />)}
             </>
           )
         ) : (

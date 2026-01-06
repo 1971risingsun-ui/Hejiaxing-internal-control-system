@@ -1,6 +1,7 @@
+
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { App as CapacitorApp } from '@capacitor/app';
-import { Project, ProjectStatus, User, UserRole, MaterialStatus, AuditLog, ProjectType, Attachment, WeeklySchedule as WeeklyScheduleType, DailyDispatch as DailyDispatchType, GlobalTeamConfigs, Employee, AttendanceRecord, OvertimeRecord, MonthSummaryRemark, Supplier, PurchaseOrder, SitePhoto, SystemRules, StockAlertItem } from './types';
+import { Project, ProjectStatus, User, UserRole, MaterialStatus, AuditLog, ProjectType, Attachment, WeeklySchedule as WeeklyScheduleType, DailyDispatch as DailyDispatchType, GlobalTeamConfigs, Employee, AttendanceRecord, OvertimeRecord, MonthSummaryRemark, Supplier, PurchaseOrder, SitePhoto, SystemRules, StockAlertItem, Tool, Asset, Vehicle } from './types';
 import ProjectList from './components/ProjectList';
 import ProjectDetail from './components/ProjectDetail';
 import UserManagement from './components/UserManagement';
@@ -23,6 +24,10 @@ import GlobalProduction from './components/GlobalProduction';
 import GlobalOutsourcing from './components/GlobalOutsourcing';
 import GlobalPurchasingItems from './components/GlobalPurchasingItems';
 import StockAlert from './components/StockAlert';
+import EquipmentModule from './components/EquipmentModule';
+import ToolManagement from './components/ToolManagement';
+import AssetManagement from './components/AssetManagement';
+import VehicleManagement from './components/VehicleManagement';
 import { HomeIcon, UserIcon, LogOutIcon, ShieldIcon, MenuIcon, XIcon, ChevronRightIcon, WrenchIcon, UploadIcon, LoaderIcon, ClipboardListIcon, LayoutGridIcon, BoxIcon, DownloadIcon, FileTextIcon, CheckCircleIcon, AlertIcon, XCircleIcon, UsersIcon, TruckIcon, BriefcaseIcon, ArrowLeftIcon, CalendarIcon, ClockIcon, NavigationIcon, SaveIcon, ExternalLinkIcon, RefreshIcon, PenToolIcon } from './components/Icons';
 import { getDirectoryHandle, saveDbToLocal, loadDbFromLocal, getHandleFromIdb, clearHandleFromIdb, saveAppStateToIdb, loadAppStateFromIdb, saveHandleToIdb } from './utils/fileSystem';
 import { downloadBlob } from './utils/fileHelpers';
@@ -152,6 +157,11 @@ const App: React.FC = () => {
   const [subcontractors, setSubcontractors] = useState<Supplier[]>([]);
   const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>([]);
 
+  // --- 新增：設備與工具狀態 ---
+  const [tools, setTools] = useState<Tool[]>([]);
+  const [assets, setAssets] = useState<Asset[]>([]);
+  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+
   const [dirHandle, setDirHandle] = useState<FileSystemDirectoryHandle | null>(null);
   const [dirPermission, setDirPermission] = useState<'granted' | 'prompt' | 'denied'>('prompt');
   
@@ -193,6 +203,12 @@ const App: React.FC = () => {
           if (cachedState.subcontractors) setSubcontractors(cachedState.subcontractors);
           if (cachedState.purchaseOrders) setPurchaseOrders(cachedState.purchaseOrders);
           if (cachedState.stockAlertItems) setStockAlertItems(cachedState.stockAlertItems);
+          
+          // 加載設備相關
+          if (Array.isArray(cachedState.tools)) setTools(cachedState.tools);
+          if (Array.isArray(cachedState.assets)) setAssets(cachedState.assets);
+          if (Array.isArray(cachedState.vehicles)) setVehicles(cachedState.vehicles);
+
           if (cachedState.lastSaved) {
             setLastSyncTime(new Date(cachedState.lastSaved).toLocaleTimeString('zh-TW', { hour12: false }));
           }
@@ -280,32 +296,19 @@ const App: React.FC = () => {
     if (Array.isArray(data.subcontractors)) setSubcontractors(data.subcontractors);
     if (Array.isArray(data.purchaseOrders)) setPurchaseOrders(data.purchaseOrders);
     if (Array.isArray(data.stockAlertItems)) setStockAlertItems(data.stockAlertItems);
-    if (data.lastUpdateInfo) setLastUpdateInfo(data.lastUpdateInfo);
-  };
+    
+    // 設備還原
+    if (Array.isArray(data.tools)) setTools(data.tools);
+    if (Array.isArray(data.assets)) setAssets(data.assets);
+    if (Array.isArray(data.vehicles)) setVehicles(data.vehicles);
 
-  const handleImportDbJson = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (evt) => {
-      try {
-        const json = JSON.parse(evt.target?.result as string);
-        if (!json.projects || !Array.isArray(json.projects)) throw new Error('備份檔格式不正確');
-        if (confirm(`還原將覆寫現有資料，確定要匯入嗎？`)) {
-          restoreDataToState(json);
-          updateLastAction('匯入備份');
-          alert('資料匯入完成');
-        }
-      } catch (error) { alert('匯入失敗：' + (error as Error).message); }
-    };
-    reader.readAsText(file);
-    if (dbJsonInputRef.current) dbJsonInputRef.current.value = '';
+    if (data.lastUpdateInfo) setLastUpdateInfo(data.lastUpdateInfo);
   };
 
   const handleManualSaveAs = async () => {
     try {
       const appState = {
-        projects, users: allUsers, auditLogs, weeklySchedules, dailyDispatches, globalTeamConfigs, systemRules, employees, attendance, overtime, monthRemarks, suppliers, subcontractors, purchaseOrders, stockAlertItems, lastUpdateInfo, lastSaved: new Date().toISOString()
+        projects, users: allUsers, auditLogs, weeklySchedules, dailyDispatches, globalTeamConfigs, systemRules, employees, attendance, overtime, monthRemarks, suppliers, subcontractors, purchaseOrders, stockAlertItems, tools, assets, vehicles, lastUpdateInfo, lastSaved: new Date().toISOString()
       };
       const jsonStr = JSON.stringify(appState, null, 2);
       const blob = new Blob([jsonStr], { type: 'application/json' });
@@ -313,6 +316,32 @@ const App: React.FC = () => {
     } catch (e) {
       alert('存檔失敗');
     }
+  };
+
+  // Fix: Added handleImportDbJson function to handle database restore from a JSON file.
+  const handleImportDbJson = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const json = JSON.parse(evt.target?.result as string);
+        if (!json.projects || !Array.isArray(json.projects)) {
+          throw new Error('不正確的備份檔案格式');
+        }
+
+        if (window.confirm(`匯入將會完全覆蓋目前的系統資料，確定要繼續嗎？`)) {
+          restoreDataToState(json);
+          updateLastAction('匯入系統資料');
+          alert('資料已成功還原');
+        }
+      } catch (error: any) {
+        alert('解析備份檔案失敗: ' + (error.message || '未知錯誤'));
+      }
+    };
+    reader.readAsText(file);
+    if (dbJsonInputRef.current) dbJsonInputRef.current.value = '';
   };
 
   const handleImportExcel = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -544,9 +573,9 @@ const App: React.FC = () => {
     if (!isInitialized) return;
     const saveAll = async () => {
         try {
-            await saveAppStateToIdb({ projects, users: allUsers, auditLogs, weeklySchedules, dailyDispatches, globalTeamConfigs, systemRules, employees, attendance, overtime, monthRemarks, suppliers, subcontractors, purchaseOrders, stockAlertItems, lastUpdateInfo, lastSaved: new Date().toISOString() });
+            await saveAppStateToIdb({ projects, users: allUsers, auditLogs, weeklySchedules, dailyDispatches, globalTeamConfigs, systemRules, employees, attendance, overtime, monthRemarks, suppliers, subcontractors, purchaseOrders, stockAlertItems, tools, assets, vehicles, lastUpdateInfo, lastSaved: new Date().toISOString() });
             if (dirHandle && dirPermission === 'granted') {
-                syncToLocal(dirHandle, { projects, users: allUsers, auditLogs, weeklySchedules, dailyDispatches, globalTeamConfigs, systemRules, employees, attendance, overtime, monthRemarks, suppliers, subcontractors, purchaseOrders, stockAlertItems });
+                syncToLocal(dirHandle, { projects, users: allUsers, auditLogs, weeklySchedules, dailyDispatches, globalTeamConfigs, systemRules, employees, attendance, overtime, monthRemarks, suppliers, subcontractors, purchaseOrders, stockAlertItems, tools, assets, vehicles });
             }
         } catch (e) {
             console.error('自動儲存失敗', e);
@@ -554,12 +583,12 @@ const App: React.FC = () => {
     };
     const timer = setTimeout(saveAll, 500);
     return () => clearTimeout(timer);
-  }, [projects, allUsers, auditLogs, weeklySchedules, dailyDispatches, globalTeamConfigs, systemRules, employees, attendance, overtime, monthRemarks, suppliers, subcontractors, purchaseOrders, stockAlertItems, dirHandle, dirPermission, isInitialized, lastUpdateInfo]);
+  }, [projects, allUsers, auditLogs, weeklySchedules, dailyDispatches, globalTeamConfigs, systemRules, employees, attendance, overtime, monthRemarks, suppliers, subcontractors, purchaseOrders, stockAlertItems, tools, assets, vehicles, dirHandle, dirPermission, isInitialized, lastUpdateInfo]);
 
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [view, setView] = useState<'engineering' | 'engineering_hub' | 'driving_time' | 'weekly_schedule' | 'daily_dispatch' | 'engineering_groups' | 'outsourcing' | 'construction' | 'modular_house' | 'maintenance' | 'purchasing_hub' | 'purchasing_items' | 'stock_alert' | 'purchasing_suppliers' | 'purchasing_subcontractors' | 'purchasing_orders' | 'purchasing_inbounds' | 'production' | 'hr' | 'equipment' | 'report' | 'users'>('engineering');
+  const [view, setView] = useState<'engineering' | 'engineering_hub' | 'driving_time' | 'weekly_schedule' | 'daily_dispatch' | 'engineering_groups' | 'outsourcing' | 'construction' | 'modular_house' | 'maintenance' | 'purchasing_hub' | 'purchasing_items' | 'stock_alert' | 'purchasing_suppliers' | 'purchasing_subcontractors' | 'purchasing_orders' | 'purchasing_inbounds' | 'production' | 'hr' | 'equipment' | 'equipment_tools' | 'equipment_assets' | 'equipment_vehicles' | 'report' | 'users'>('engineering');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   const handleLogin = (user: User) => { setCurrentUser(user); setView('engineering'); };
@@ -653,7 +682,7 @@ const App: React.FC = () => {
           <button onClick={() => { setSelectedProject(null); setView('production'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'production' ? 'bg-blue-600 text-white shadow-md shadow-blue-900/20' : 'text-slate-400 hover:bg-slate-800'}`}>
             <PenToolIcon className="w-5 h-5" /> <span className="font-medium">生產／備料</span>
           </button>
-          <button onClick={() => { setSelectedProject(null); setView('equipment'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'equipment' ? 'bg-blue-600 text-white shadow-md shadow-blue-900/20' : 'text-slate-400 hover:bg-slate-800'}`}>
+          <button onClick={() => { setSelectedProject(null); setView('equipment'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view.startsWith('equipment') ? 'bg-blue-600 text-white shadow-md shadow-blue-900/20' : 'text-slate-400 hover:bg-slate-800'}`}>
             <WrenchIcon className="w-5 h-5" /> <span className="font-medium">設備／工具</span>
           </button>
           <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-2 mt-6 px-4">快速捷徑</div>
@@ -662,13 +691,13 @@ const App: React.FC = () => {
           <div className="pt-4 border-t border-slate-800 mt-4 space-y-2">
             <button onClick={() => handleDirectoryAction(false)} disabled={!isBrowserSupported} className={`flex items-center gap-3 px-4 py-3 rounded-xl w-full transition-all border ${!isBrowserSupported ? 'opacity-30 border-slate-700 bg-slate-800' : isConnected ? 'bg-green-600/10 border-green-500 text-green-400' : 'bg-red-600/10 border-red-500 text-red-400'}`}>
               {isWorkspaceLoading ? <LoaderIcon className="w-5 h-5 animate-spin" /> : isConnected ? <CheckCircleIcon className="w-5 h-5" /> : <AlertIcon className="w-5 h-5" />}
-              <div className="flex flex-col items-start text-left"><span className="text-sm font-bold">{!isBrowserSupported ? '不支援自動備份' : isConnected ? '電腦同步已開啟' : '未連結電腦目錄'}</span><span className="text-[10px] opacity-70">{isConnected && lastSyncTime ? `最後同步: ${lastSyncTime}` : 'db.json 即時同步'}</span></div>
+              <div className="flex items-start text-left flex-col"><span className="text-sm font-bold">{!isBrowserSupported ? '不支援自動備份' : isConnected ? '電腦同步已開啟' : '未連結電腦目錄'}</span><span className="text-[10px] opacity-70">{isConnected && lastSyncTime ? `最後同步: ${lastSyncTime}` : 'db.json 即時同步'}</span></div>
             </button>
-            <button onClick={() => window.open("http://192.168.1.2:8080/share.cgi?ssid=79f9da81f26d45bb8e896be3d7d95cbb", "_blank")} className="flex items-center gap-3 px-4 py-3 rounded-xl w-full transition-all bg-sky-600/10 border border-sky-500/30 text-sky-400 hover:bg-sky-600 hover:text-white group"><ExternalLinkIcon className="w-5 h-5" /><div className="flex flex-col items-start text-left"><span className="text-sm font-bold">開啟網路資料夾</span><span className="text-[10px] opacity-70">連至 QNAP 共享空間</span></div></button>
+            <button onClick={() => window.open("http://192.168.1.2:8080/share.cgi?ssid=79f9da81f26d45bb8e896be3d7d95cbb", "_blank")} className="flex items-center gap-3 px-4 py-3 rounded-xl w-full transition-all bg-sky-600/10 border border-sky-500/30 text-sky-400 hover:bg-sky-600 hover:text-white group"><ExternalLinkIcon className="w-5 h-5" /><div className="flex items-start text-left flex-col"><span className="text-sm font-bold">開啟網路資料夾</span><span className="text-[10px] opacity-70">連至 QNAP 共享空間</span></div></button>
             <div className="px-1 pt-1 border-t border-slate-800 mt-2 space-y-2">
               <input type="file" accept=".json" ref={dbJsonInputRef} className="hidden" onChange={handleImportDbJson} />
-              <button onClick={() => dbJsonInputRef.current?.click()} className="flex items-center gap-3 px-4 py-3 rounded-xl w-full transition-all bg-orange-600/10 border border-orange-500/30 text-orange-400 hover:bg-orange-600 hover:text-white group"><UploadIcon className="w-5 h-5" /><div className="flex flex-col items-start text-left"><span className="text-sm font-bold">匯入 db.json</span><span className="text-[10px] opacity-70">還原系統備份資料</span></div></button>
-              <button onClick={handleManualSaveAs} className="flex items-center gap-3 px-4 py-3 rounded-xl w-full transition-all bg-emerald-600/10 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-600 hover:text-white group"><SaveIcon className="w-5 h-5" /><div className="flex flex-col items-start text-left"><span className="text-sm font-bold">手動另存新檔</span><span className="text-[10px] opacity-70">下載 db.json 到本機</span></div></button>
+              <button onClick={() => dbJsonInputRef.current?.click()} className="flex items-center gap-3 px-4 py-3 rounded-xl w-full transition-all bg-orange-600/10 border border-orange-500/30 text-orange-400 hover:bg-orange-600 hover:text-white group"><UploadIcon className="w-5 h-5" /><div className="flex items-start text-left flex-col"><span className="text-sm font-bold">匯入 db.json</span><span className="text-[10px] opacity-70">還原系統備份資料</span></div></button>
+              <button onClick={handleManualSaveAs} className="flex items-center gap-3 px-4 py-3 rounded-xl w-full transition-all bg-emerald-600/10 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-600 hover:text-white group"><SaveIcon className="w-5 h-5" /><div className="flex items-start text-left flex-col"><span className="text-sm font-bold">手動另存新檔</span><span className="text-[10px] opacity-70">下載 db.json 到本機</span></div></button>
             </div>
           </div>
         </nav>
@@ -692,12 +721,15 @@ const App: React.FC = () => {
       case 'purchasing_items': return '採購項目總覽';
       case 'stock_alert': return '常備庫存爆量通知';
       case 'purchasing_suppliers': return '供應商清冊';
-      case 'purchasing_subcontractors': return '協力廠商清冊';
+      case 'purchasing_subcontractors': return '外包清冊';
       case 'purchasing_orders': return '採購單管理';
       case 'purchasing_inbounds': return '進料明細';
       case 'production': return '生產／備料總覽';
       case 'hr': return '人事管理模組';
-      case 'equipment': return '設備／工具模組';
+      case 'equipment': return '設備與工具模組';
+      case 'equipment_tools': return '工具管理';
+      case 'equipment_assets': return '大型設備管理';
+      case 'equipment_vehicles': return '車輛管理';
       case 'report': return '工作回報';
       case 'users': return '權限管理';
       default: return '合家興行政管理系統';
@@ -709,7 +741,7 @@ const App: React.FC = () => {
       { id: 'daily_dispatch', label: '明日工作排程', icon: <ClipboardListIcon className="w-6 h-6" />, color: 'bg-blue-50 text-blue-600', desc: '確認明日施工地點與人員' },
       { id: 'driving_time', label: '估計行車時間', icon: <NavigationIcon className="w-6 h-6" />, color: 'bg-amber-50 text-amber-600', desc: '預估早上 8:00 路徑耗時' },
       { id: 'weekly_schedule', label: '週間工作排程', icon: <CalendarIcon className="w-6 h-6" />, color: 'bg-indigo-50 text-indigo-600', desc: '規劃本週各小組派工任務' },
-      { id: 'outsourcing', label: '外包管理', icon: <BriefcaseIcon className="w-6 h-6" />, color: 'bg-blue-50 text-blue-600', desc: '協力廠商調度與進度控管' },
+      { id: 'outsourcing', label: '外包管理', icon: <BriefcaseIcon className="w-6 h-6" />, color: 'bg-blue-50 text-blue-600', desc: '外包廠商調度與進度控管' },
       { id: 'engineering_groups', label: '工程小組設定', icon: <UsersIcon className="w-6 h-6" />, color: 'bg-emerald-50 text-emerald-600', desc: '管理師傅、助手與車號預設' },
     ];
     return (
@@ -722,10 +754,6 @@ const App: React.FC = () => {
       </div>
     );
   };
-
-  const renderEquipmentView = () => (
-    <div className="p-6 max-w-5xl mx-auto h-full animate-fade-in flex flex-col items-center justify-center text-center"><div className="p-6 bg-slate-100 rounded-full mb-4"><WrenchIcon className="w-12 h-12 text-slate-400" /></div><h2 className="text-2xl font-bold text-slate-800 mb-2">設備與工具管理</h2><p className="text-slate-500 max-w-md">此模組用於追蹤公司各式機具、車輛維護紀錄與工具借用狀態。功能開發中，維護計畫擬定中。</p></div>
-  );
 
   return (
     <div className="flex h-screen bg-[#f8fafc] overflow-hidden">
@@ -760,7 +788,7 @@ const App: React.FC = () => {
            view === 'purchasing_subcontractors' ? (
             <div className="flex flex-col flex-1 min-h-0">
               <div className="px-6 pt-4"><button onClick={() => setView('purchasing_hub')} className="flex items-center gap-2 text-slate-500 hover:text-blue-600 font-bold text-xs"><ArrowLeftIcon className="w-3 h-3" /> 返回採購</button></div>
-              <div className="flex-1 overflow-hidden"><SupplierList title="協力廠商清冊" typeLabel="協力廠商" themeColor="indigo" suppliers={subcontractors} onUpdateSuppliers={setSubcontractors} /></div>
+              <div className="flex-1 overflow-hidden"><SupplierList title="外包廠商清冊" typeLabel="外包廠商" themeColor="indigo" suppliers={subcontractors} onUpdateSuppliers={setSubcontractors} /></div>
             </div>
          ) :
            view === 'purchasing_orders' ? (
@@ -802,7 +830,25 @@ const App: React.FC = () => {
               <div className="flex-1 overflow-auto"><EngineeringGroups globalTeamConfigs={globalTeamConfigs} onUpdateGlobalTeamConfigs={setGlobalTeamConfigs} /></div>
             </div>
            ) :
-           view === 'equipment' ? (<div className="flex-1 overflow-auto">{renderEquipmentView()}</div>) :
+           view === 'equipment' ? (<div className="flex-1 overflow-auto"><EquipmentModule onNavigate={setView} /></div>) :
+           view === 'equipment_tools' ? (
+              <div className="flex flex-col flex-1 min-h-0">
+                <div className="px-6 pt-4"><button onClick={() => setView('equipment')} className="flex items-center gap-2 text-slate-500 hover:text-blue-600 font-bold text-xs"><ArrowLeftIcon className="w-3 h-3" /> 返回設備選單</button></div>
+                <div className="flex-1 overflow-hidden"><ToolManagement tools={tools} onUpdateTools={setTools} employees={employees} /></div>
+              </div>
+           ) :
+           view === 'equipment_assets' ? (
+              <div className="flex flex-col flex-1 min-h-0">
+                <div className="px-6 pt-4"><button onClick={() => setView('equipment')} className="flex items-center gap-2 text-slate-500 hover:text-blue-600 font-bold text-xs"><ArrowLeftIcon className="w-3 h-3" /> 返回設備選單</button></div>
+                <div className="flex-1 overflow-hidden"><AssetManagement assets={assets} onUpdateAssets={setAssets} /></div>
+              </div>
+           ) :
+           view === 'equipment_vehicles' ? (
+              <div className="flex flex-col flex-1 min-h-0">
+                <div className="px-6 pt-4"><button onClick={() => setView('equipment')} className="flex items-center gap-2 text-slate-500 hover:text-blue-600 font-bold text-xs"><ArrowLeftIcon className="w-3 h-3" /> 返回設備選單</button></div>
+                <div className="flex-1 overflow-hidden"><VehicleManagement vehicles={vehicles} onUpdateVehicles={setVehicles} employees={employees} /></div>
+              </div>
+           ) :
            selectedProject ? (<div className="flex-1 overflow-hidden"><ProjectDetail project={selectedProject} currentUser={currentUser} onBack={() => setSelectedProject(null)} onUpdateProject={handleUpdateProject} onEditProject={setEditingProject} onAddToSchedule={handleAddToSchedule} globalTeamConfigs={globalTeamConfigs} systemRules={systemRules} /></div>) : 
            (<div className="flex-1 overflow-auto"><ProjectList title={getTitle()} projects={currentViewProjects} currentUser={currentUser} lastUpdateInfo={lastUpdateInfo} onSelectProject={setSelectedProject} onAddProject={() => setIsAddModalOpen(true)} onDeleteProject={handleDeleteProject} onDuplicateProject={()=>{}} onEditProject={setEditingProject} onOpenDrivingTime={() => setIsDrivingTimeModalOpen(true)} onImportExcel={() => excelInputRef.current?.click()} onExportExcel={handleExportExcel} onAddToSchedule={handleAddToSchedule} globalTeamConfigs={globalTeamConfigs} /></div>)}
         </main>
@@ -811,13 +857,22 @@ const App: React.FC = () => {
       <input type="file" accept=".xlsx, .xls" ref={excelInputRef} className="hidden" onChange={handleImportExcel} />
 
       {isDrivingTimeModalOpen && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 md:p-10 animate-fade-in">
-          <div className="bg-slate-50 w-full max-w-4xl h-full max-h-[90vh] rounded-[32px] shadow-2xl overflow-hidden flex flex-col relative">
-            <header className="px-8 py-4 bg-white border-b border-slate-200 flex justify-between items-center flex-shrink-0">
-              <div className="flex items-center gap-3"><div className="bg-indigo-600 p-2 rounded-xl text-white"><NavigationIcon className="w-5 h-5" /></div><h3 className="font-black text-slate-800">路徑規劃與估算</h3></div>
-              <button onClick={() => setIsDrivingTimeModalOpen(false)} className="p-2 bg-slate-100 hover:bg-red-50 hover:text-red-500 text-slate-400 rounded-full transition-all"><XIcon className="w-6 h-6" /></button>
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
+          <div className="bg-white w-full max-w-lg rounded-[32px] shadow-2xl overflow-hidden flex flex-col animate-scale-in">
+            <header className="px-8 py-5 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
+              <div className="flex items-center gap-3">
+                <div className="bg-indigo-600 p-2 rounded-xl text-white">
+                  <NavigationIcon className="w-5 h-5" />
+                </div>
+                <h3 className="font-black text-slate-800">路徑規劃與估算</h3>
+              </div>
+              <button onClick={() => setIsDrivingTimeModalOpen(false)} className="p-2 bg-white hover:bg-red-50 hover:text-red-500 text-slate-400 rounded-full transition-all shadow-sm">
+                <XIcon className="w-5 h-5" />
+              </button>
             </header>
-            <div className="flex-1 overflow-y-auto custom-scrollbar bg-[#f8fafc]"><DrivingTimeEstimator projects={projects} globalTeamConfigs={globalTeamConfigs} onAddToSchedule={handleAddToSchedule} /></div>
+            <div className="p-8 flex-1 overflow-y-auto max-h-[60vh] bg-white">
+              <DrivingTimeEstimator projects={projects} onAddToSchedule={handleAddToSchedule} globalTeamConfigs={globalTeamConfigs} />
+            </div>
           </div>
         </div>
       )}
