@@ -390,32 +390,139 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
         const workbook = new ExcelJS.Workbook();
         const worksheet = workbook.addWorksheet(date);
 
-        // 基本資訊
-        worksheet.addRow([`${mainTitle} - ${project.name}`]);
-        worksheet.addRow(['日期', date]);
+        // --- 常用樣式定義 ---
+        const centerStyle: any = { vertical: 'middle', horizontal: 'center' };
+        const leftStyle: any = { vertical: 'middle', horizontal: 'left', wrapText: true };
+        const borderThin: any = {
+            top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' }
+        };
+        const titleFont: any = { name: 'Microsoft JhengHei', size: 20, bold: true, underline: true };
+        const headerFont: any = { name: 'Microsoft JhengHei', size: 11, bold: true };
+        const contentFont: any = { name: 'Microsoft JhengHei', size: 10 };
+        const blueAccentColor = 'FF1E40AF'; // 深藍色
+
+        // 1. A1: 主標題 (置中底線大字)
+        worksheet.mergeCells('A1:E1');
+        const titleCell = worksheet.getCell('A1');
+        titleCell.value = `${mainTitle} - ${project.name}`;
+        titleCell.font = titleFont;
+        titleCell.alignment = centerStyle;
+        worksheet.getRow(1).height = 40;
+
+        // 2. 日期、人員、天氣資訊 (灰色盒狀區域 A2:E4)
+        const infoFill: any = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF2F2F2' } };
+        
+        // Row 2: 日期
+        worksheet.getCell('A2').value = '日期';
+        worksheet.getCell('A2').font = headerFont;
+        worksheet.getCell('B2').value = date;
+        worksheet.getCell('B2').font = contentFont;
+        worksheet.mergeCells('B2:E2');
+        
+        // Row 3: 人員
+        worksheet.getCell('A3').value = '人員';
+        worksheet.getCell('A3').font = headerFont;
+        worksheet.getCell('B3').value = `師傅: ${items[0]?.worker || '無'} / 助手: ${items[0]?.assistant || '無'}`;
+        worksheet.getCell('B3').font = contentFont;
+        worksheet.mergeCells('B3:E3');
+
+        // Row 4: 天氣
         const weatherText = report ? (report.weather === 'sunny' ? '晴天' : report.weather === 'cloudy' ? '陰天' : report.weather === 'rainy' ? '雨天' : '未紀錄') : '未紀錄';
-        worksheet.addRow(['人員', `師傅: ${items[0]?.worker || '無'} / 助手: ${items[0]?.assistant || '無'}`]);
-        worksheet.addRow(['天氣', weatherText]);
-        worksheet.addRow([]);
+        worksheet.getCell('A4').value = '天氣';
+        worksheet.getCell('A4').font = headerFont;
+        worksheet.getCell('B4').value = weatherText;
+        worksheet.getCell('B4').font = contentFont;
+        worksheet.mergeCells('B4:E4');
 
-        // 項目表頭
-        const headerRow = worksheet.addRow(['#', '項目', '數量', '單位', isMaintenance ? '作業' : '位置']);
-        headerRow.font = { bold: true };
-        headerRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD9E1F2' } };
+        // 套用資訊盒區域樣式
+        for(let r=2; r<=4; r++) {
+            for(let c=1; c<=5; c++) {
+                const cell = worksheet.getRow(r).getCell(c);
+                cell.fill = infoFill;
+                cell.alignment = leftStyle;
+                cell.border = borderThin;
+            }
+        }
 
-        // 填寫項目
-        items.forEach((item, idx) => {
-            worksheet.addRow([idx + 1, item.name, item.quantity, item.unit, item.location || '']);
+        // 3. 施工項目 章節標頭 (Row 6)
+        worksheet.getRow(5).height = 15; // Spacer
+        
+        const section1Cell = worksheet.getCell('B6');
+        section1Cell.value = '施工項目';
+        section1Cell.font = headerFont;
+        section1Cell.alignment = leftStyle;
+        // 左側藍色側條
+        const accent1 = worksheet.getCell('A6');
+        accent1.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: blueAccentColor } };
+        
+        // 4. 表格表頭 (Row 7)
+        const tableHeaderRow = worksheet.getRow(7);
+        const headers = ['#', '項目', '數量', '單位', isMaintenance ? '作業' : '位置'];
+        headers.forEach((h, i) => {
+            const cell = tableHeaderRow.getCell(i + 1);
+            cell.value = h;
+            cell.font = { ...headerFont, color: { argb: 'FFFFFFFF' } };
+            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF444444' } };
+            cell.alignment = centerStyle;
+            cell.border = borderThin;
         });
 
-        worksheet.addRow([]);
-        worksheet.addRow(['施工內容與備註']);
-        const noteRow = worksheet.addRow([report ? report.content : '無內容']);
-        worksheet.mergeCells(`A${noteRow.number}:E${noteRow.number}`);
-        noteRow.height = 60;
-        noteRow.alignment = { wrapText: true, vertical: 'top' };
+        // 5. 填寫項目數據 (從 Row 8 開始)
+        let currentRow = 8;
+        items.forEach((item, idx) => {
+            const row = worksheet.getRow(currentRow);
+            row.getCell(1).value = idx + 1;
+            row.getCell(2).value = item.name;
+            row.getCell(3).value = item.quantity;
+            row.getCell(4).value = item.unit;
+            row.getCell(5).value = item.location || '';
+            
+            // 數據列樣式
+            for(let i=1; i<=5; i++) {
+                const cell = row.getCell(i);
+                cell.font = contentFont;
+                cell.alignment = i === 1 || i === 3 || i === 4 ? centerStyle : leftStyle;
+                cell.border = borderThin;
+            }
+            currentRow++;
+        });
 
-        // 插入簽名圖片
+        // 6. 施工內容與備註 章節標頭
+        currentRow += 1;
+        const section2Cell = worksheet.getCell(`B${currentRow}`);
+        section2Cell.value = '施工內容與備註';
+        section2Cell.font = headerFont;
+        section2Cell.alignment = leftStyle;
+        const accent2 = worksheet.getCell(`A${currentRow}`);
+        accent2.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: blueAccentColor } };
+
+        // 7. 備註內容區塊
+        currentRow += 1;
+        const noteStartRow = currentRow;
+        const noteCell = worksheet.getCell(`A${currentRow}`);
+        noteCell.value = report ? report.content : '無內容';
+        noteCell.font = contentFont;
+        noteCell.alignment = { vertical: 'top', horizontal: 'left', wrapText: true };
+        worksheet.mergeCells(`A${currentRow}:E${currentRow + 3}`);
+        // 畫框
+        for(let r=currentRow; r<=currentRow+3; r++) {
+            for(let c=1; c<=5; c++) {
+                worksheet.getRow(r).getCell(c).border = borderThin;
+            }
+        }
+        currentRow += 4;
+
+        // 8. 現場照片 章節標頭
+        currentRow += 1;
+        const section3Cell = worksheet.getCell(`B${currentRow}`);
+        section3Cell.value = '現場照片';
+        section3Cell.font = headerFont;
+        section3Cell.alignment = leftStyle;
+        const accent3 = worksheet.getCell(`A${currentRow}`);
+        accent3.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: blueAccentColor } };
+        currentRow += 1;
+
+        // 9. 插入簽名圖片 (放置於備註下方或最底端)
         if (signature) {
             const splitData = signature.url.split(',');
             if (splitData.length > 1) {
@@ -423,28 +530,33 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
                     base64: splitData[1],
                     extension: 'jpeg',
                 });
-                worksheet.addRow([]);
-                const sigLabelRow = worksheet.addRow(['', '', '', '', '現場人員簽名']);
-                sigLabelRow.getCell(5).font = { bold: true };
+                
+                const sigLabelRow = currentRow + 1;
+                const sigLabelCell = worksheet.getCell(`D${sigLabelRow}`);
+                sigLabelCell.value = '現場人員簽名：';
+                sigLabelCell.font = headerFont;
+                sigLabelCell.alignment = { vertical: 'middle', horizontal: 'right' };
                 
                 worksheet.addImage(imageId, {
-                    tl: { col: 3, row: sigLabelRow.number },
-                    ext: { width: 200, height: 100 }
+                    tl: { col: 3.5, row: sigLabelRow + 0.5 },
+                    ext: { width: 180, height: 80 }
                 });
+                currentRow += 6;
             }
         }
 
         // 設定欄寬
-        worksheet.getColumn(1).width = 5;
-        worksheet.getColumn(2).width = 30;
-        worksheet.getColumn(3).width = 10;
+        worksheet.getColumn(1).width = 6;
+        worksheet.getColumn(2).width = 32;
+        worksheet.getColumn(3).width = 12;
         worksheet.getColumn(4).width = 10;
-        worksheet.getColumn(5).width = 25;
+        worksheet.getColumn(5).width = 28;
 
         const buffer = await workbook.xlsx.writeBuffer();
         const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
         downloadBlob(blob, `${project.name}_${mainTitle}_${date}.xlsx`);
     } catch (error) {
+        console.error("Excel 匯出錯誤:", error);
         alert("Excel 匯出失敗");
     } finally {
         setIsGeneratingExcel(false);
