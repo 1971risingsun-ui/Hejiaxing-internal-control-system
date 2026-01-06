@@ -1,17 +1,18 @@
 import React, { useMemo, useState } from 'react';
-import { Project, CompletionItem, SystemRules } from '../types';
+import { Project, CompletionItem, SystemRules, Supplier } from '../types';
 import { BriefcaseIcon, BoxIcon, CalendarIcon, ChevronRightIcon } from './Icons';
 
 interface GlobalOutsourcingProps {
   projects: Project[];
   onUpdateProject: (updatedProject: Project) => void;
   systemRules: SystemRules;
+  subcontractors: Supplier[];
 }
 
-type SortKey = 'projectName' | 'date' | 'name';
+type SortKey = 'projectName' | 'date' | 'name' | 'vendor';
 type SortDirection = 'asc' | 'desc' | null;
 
-const GlobalOutsourcing: React.FC<GlobalOutsourcingProps> = ({ projects, onUpdateProject, systemRules }) => {
+const GlobalOutsourcing: React.FC<GlobalOutsourcingProps> = ({ projects, onUpdateProject, systemRules, subcontractors }) => {
   const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: SortDirection }>({
     key: 'date',
     direction: 'asc',
@@ -74,6 +75,12 @@ const GlobalOutsourcing: React.FC<GlobalOutsourcingProps> = ({ projects, onUpdat
             valA = a.item.name;
             valB = b.item.name;
             break;
+          case 'vendor':
+            const vendorA = subcontractors.find(s => s.id === a.item.supplierId)?.name || a.item.supplierId || '';
+            const vendorB = subcontractors.find(s => s.id === b.item.supplierId)?.name || b.item.supplierId || '';
+            valA = vendorA;
+            valB = vendorB;
+            break;
         }
 
         if (sortConfig.direction === 'asc') {
@@ -91,7 +98,7 @@ const GlobalOutsourcing: React.FC<GlobalOutsourcingProps> = ({ projects, onUpdat
     }
     
     return list;
-  }, [projects, sortConfig, systemRules]);
+  }, [projects, sortConfig, systemRules, subcontractors]);
 
   const handleUpdateItemDate = (projId: string, reportIdx: number, itemIdx: number, newDate: string) => {
     const project = projects.find(p => p.id === projId);
@@ -100,6 +107,18 @@ const GlobalOutsourcing: React.FC<GlobalOutsourcingProps> = ({ projects, onUpdat
     const updatedReports = [...project.planningReports];
     const updatedItems = [...updatedReports[reportIdx].items];
     updatedItems[itemIdx] = { ...updatedItems[itemIdx], productionDate: newDate };
+    updatedReports[reportIdx] = { ...updatedReports[reportIdx], items: updatedItems };
+    
+    onUpdateProject({ ...project, planningReports: updatedReports });
+  };
+
+  const handleUpdateItemVendor = (projId: string, reportIdx: number, itemIdx: number, vendorId: string) => {
+    const project = projects.find(p => p.id === projId);
+    if (!project) return;
+    
+    const updatedReports = [...project.planningReports];
+    const updatedItems = [...updatedReports[reportIdx].items];
+    updatedItems[itemIdx] = { ...updatedItems[itemIdx], supplierId: vendorId };
     updatedReports[reportIdx] = { ...updatedReports[reportIdx], items: updatedItems };
     
     onUpdateProject({ ...project, planningReports: updatedReports });
@@ -143,9 +162,15 @@ const GlobalOutsourcing: React.FC<GlobalOutsourcingProps> = ({ projects, onUpdat
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex-1 flex flex-col min-h-0">
         <div className="overflow-x-auto custom-scrollbar flex-1">
-          <table className="w-full text-left border-collapse min-w-[1100px]">
+          <table className="w-full text-left border-collapse min-w-[1200px]">
             <thead className="bg-slate-50 text-slate-500 text-[10px] uppercase font-black tracking-widest border-b border-slate-200 sticky top-0 z-10">
               <tr>
+                <th className="px-6 py-4 w-10 text-center">狀態</th>
+                <th className="px-4 py-4 w-48">
+                  <button onClick={() => handleSort('vendor')} className="flex items-center hover:text-blue-600 transition-colors uppercase tracking-widest">
+                    外包廠商 {renderSortIcon('vendor')}
+                  </button>
+                </th>
                 <th className="px-6 py-4 w-44">
                   <button onClick={() => handleSort('projectName')} className="flex items-center hover:text-blue-600 transition-colors uppercase tracking-widest">
                     案件名稱 {renderSortIcon('projectName')}
@@ -172,17 +197,31 @@ const GlobalOutsourcing: React.FC<GlobalOutsourcingProps> = ({ projects, onUpdat
                 return (
                   <tr key={`${project.id}-${reportId}-${itemIdx}-${idx}`} className={`hover:bg-slate-50/50 transition-colors group ${item.isProduced ? 'opacity-60' : ''}`}>
                     <td className="px-6 py-4 align-top">
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center justify-center">
                         <input 
                           type="checkbox" 
                           checked={!!item.isProduced}
                           onChange={() => handleToggleProduced(project.id, reportIdx, itemIdx)}
                           className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer transition-all"
                         />
+                      </div>
+                    </td>
+                    <td className="px-4 py-4 align-top">
+                      <select 
+                        value={item.supplierId || ''} 
+                        onChange={(e) => handleUpdateItemVendor(project.id, reportIdx, itemIdx, e.target.value)}
+                        className="w-full px-2 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-700 outline-none focus:bg-white focus:ring-1 focus:ring-blue-500 transition-all appearance-none cursor-pointer"
+                      >
+                        <option value="">選取廠商...</option>
+                        {subcontractors.map(s => (
+                          <option key={s.id} value={s.id}>{s.name}</option>
+                        ))}
+                      </select>
+                    </td>
+                    <td className="px-6 py-4 align-top">
                         <div className={`font-black text-sm truncate max-w-[140px] transition-all ${item.isProduced ? 'text-slate-400 line-through' : 'text-blue-700'}`} title={project.name}>
                           {project.name}
                         </div>
-                      </div>
                     </td>
                     <td className="px-6 py-4 align-top">
                       <div className="relative group/date">
@@ -218,7 +257,7 @@ const GlobalOutsourcing: React.FC<GlobalOutsourcingProps> = ({ projects, onUpdat
                 );
               }) : (
                 <tr>
-                  <td colSpan={7} className="py-32 text-center text-slate-400">
+                  <td colSpan={9} className="py-32 text-center text-slate-400">
                     <BoxIcon className="w-16 h-16 mx-auto mb-4 opacity-10" />
                     <p className="textbase font-bold">目前沒有任何外包協力項目</p>
                   </td>

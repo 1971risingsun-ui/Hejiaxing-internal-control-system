@@ -640,11 +640,8 @@ const App: React.FC = () => {
           <button onClick={() => { setSelectedProject(null); setView('engineering'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'engineering' && !selectedProject ? 'bg-blue-600 text-white shadow-md shadow-blue-900/20' : 'text-slate-400 hover:bg-slate-800'}`}>
             <LayoutGridIcon className="w-5 h-5" /> <span className="font-medium">工務總覽</span>
           </button>
-          <button onClick={() => { setSelectedProject(null); setView('engineering_hub'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'engineering_hub' || view === 'weekly_schedule' || view === 'daily_dispatch' || view === 'engineering_groups' || view === 'driving_time' ? 'bg-blue-600 text-white shadow-md shadow-blue-900/20' : 'text-slate-400 hover:bg-slate-800'}`}>
+          <button onClick={() => { setSelectedProject(null); setView('engineering_hub'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'engineering_hub' || view === 'weekly_schedule' || view === 'daily_dispatch' || view === 'engineering_groups' || view === 'driving_time' || view === 'outsourcing' ? 'bg-blue-600 text-white shadow-md shadow-blue-900/20' : 'text-slate-400 hover:bg-slate-800'}`}>
             <BriefcaseIcon className="w-5 h-5" /> <span className="font-medium">工作排程</span>
-          </button>
-          <button onClick={() => { setSelectedProject(null); setView('outsourcing'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'outsourcing' ? 'bg-blue-600 text-white shadow-md shadow-blue-900/20' : 'text-slate-400 hover:bg-slate-800'}`}>
-            <BriefcaseIcon className="w-5 h-5" /> <span className="font-medium">外包管理</span>
           </button>
           <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-2 mt-6 px-4">行政管理 (Administration)</div>
           <button onClick={() => { setSelectedProject(null); setView('purchasing_hub'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view.startsWith('purchasing') || view === 'stock_alert' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
@@ -712,6 +709,7 @@ const App: React.FC = () => {
       { id: 'daily_dispatch', label: '明日工作排程', icon: <ClipboardListIcon className="w-6 h-6" />, color: 'bg-blue-50 text-blue-600', desc: '確認明日施工地點與人員' },
       { id: 'driving_time', label: '估計行車時間', icon: <NavigationIcon className="w-6 h-6" />, color: 'bg-amber-50 text-amber-600', desc: '預估早上 8:00 路徑耗時' },
       { id: 'weekly_schedule', label: '週間工作排程', icon: <CalendarIcon className="w-6 h-6" />, color: 'bg-indigo-50 text-indigo-600', desc: '規劃本週各小組派工任務' },
+      { id: 'outsourcing', label: '外包管理', icon: <BriefcaseIcon className="w-6 h-6" />, color: 'bg-blue-50 text-blue-600', desc: '協力廠商調度與進度控管' },
       { id: 'engineering_groups', label: '工程小組設定', icon: <UsersIcon className="w-6 h-6" />, color: 'bg-emerald-50 text-emerald-600', desc: '管理師傅、助手與車號預設' },
     ];
     return (
@@ -779,7 +777,7 @@ const App: React.FC = () => {
            ) :
            view === 'hr' ? (<div className="flex-1 overflow-hidden"><HRManagement employees={employees} attendance={attendance} overtime={overtime} monthRemarks={monthRemarks} dailyDispatches={dailyDispatches} onUpdateEmployees={setEmployees} onUpdateAttendance={setAttendance} onUpdateOvertime={setOvertime} onUpdateMonthRemarks={setMonthRemarks} /></div>) :
            view === 'production' ? (<div className="flex-1 overflow-hidden"><GlobalProduction projects={projects} onUpdateProject={handleUpdateProject} systemRules={systemRules} /></div>) :
-           view === 'outsourcing' ? (<div className="flex-1 overflow-hidden"><GlobalOutsourcing projects={projects} onUpdateProject={handleUpdateProject} systemRules={systemRules} /></div>) :
+           view === 'outsourcing' ? (<div className="flex-1 overflow-hidden"><GlobalOutsourcing projects={projects} onUpdateProject={handleUpdateProject} systemRules={systemRules} subcontractors={subcontractors} /></div>) :
            view === 'driving_time' ? (
             <div className="flex flex-col flex-1 min-h-0">
               <div className="px-6 pt-4"><button onClick={() => setView('engineering_hub')} className="flex items-center gap-2 text-slate-500 hover:text-blue-600 font-bold text-xs"><ArrowLeftIcon className="w-3 h-3" /> 返回工作排程</button></div>
