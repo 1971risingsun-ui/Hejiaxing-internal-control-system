@@ -111,7 +111,20 @@ const DEFAULT_SYSTEM_RULES: SystemRules = {
         { id: 'fi-12', name: '安走板', formula: 'Math.ceil(baseQty / 0.75)', unit: '片' },
       ]
     }
-  ]
+  ],
+  importConfig: {
+    projectKeywords: { maintenance: '維修', modular: '組合屋' },
+    recordKeywords: { recordTitle: '施工紀錄', reportTitle: '施工報告' },
+    completionKeywords: { dismantle: '拆' },
+    planningKeywords: {
+      headerRow: 8,
+      subCatFence: '安全圍籬及休息區',
+      subCatModularStruct: '主結構租賃',
+      subCatModularReno: '裝修工程',
+      subCatModularOther: '其他工程',
+      subCatModularDismantle: '拆除工程'
+    }
+  }
 };
 
 const bufferToBase64 = (buffer: ArrayBuffer, mimeType: string): Promise<string> => {
@@ -166,7 +179,7 @@ const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
   const [allUsers, setAllUsers] = useState<User[]>([
-    { id: 'u-1', name: 'Admin User', email: 'admin@hejiaxing.ai', role: UserRole.ADMIN, avatar: '' },
+    { id: 'u-1', name: 'Admin User', email: 'admin@hejiaxing.ai', role: UserRole.ADMIN, avatar: './logo.png' },
   ]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [weeklySchedules, setWeeklySchedules] = useState<WeeklyScheduleType[]>([]);
@@ -223,7 +236,12 @@ const App: React.FC = () => {
           if (Array.isArray(cachedState.weeklySchedules)) setWeeklySchedules(cachedState.weeklySchedules);
           if (Array.isArray(cachedState.dailyDispatches)) setDailyDispatches(cachedState.dailyDispatches);
           if (cachedState.globalTeamConfigs) setGlobalTeamConfigs(cachedState.globalTeamConfigs);
-          if (cachedState.systemRules) setSystemRules(cachedState.systemRules);
+          if (cachedState.systemRules) {
+              // 合併預設匯入規則，防止舊資料遺失欄位
+              const mergedRules = { ...DEFAULT_SYSTEM_RULES, ...cachedState.systemRules };
+              if (!mergedRules.importConfig) mergedRules.importConfig = DEFAULT_SYSTEM_RULES.importConfig;
+              setSystemRules(mergedRules);
+          }
           if (cachedState.employees) setEmployees(cachedState.employees);
           if (cachedState.attendance) setAttendance(cachedState.attendance);
           if (cachedState.overtime) setOvertime(cachedState.overtime);
@@ -390,14 +408,17 @@ const App: React.FC = () => {
         imagesByRow[rowIdx].push(imgMeta);
       });
       const rows = worksheet.getRows(2, worksheet.rowCount - 1) || [];
+      
+      const config = systemRules.importConfig?.projectKeywords || DEFAULT_SYSTEM_RULES.importConfig!.projectKeywords;
+
       for (const row of rows) {
         const rowNumber = row.number;
         const rawName = row.getCell(headers['客戶']).value?.toString().trim() || '';
         if (!rawName) continue;
         const categoryStr = row.getCell(headers['類別']).value?.toString() || '';
         let projectType = ProjectType.CONSTRUCTION;
-        if (categoryStr.includes('維修')) projectType = ProjectType.MAINTENANCE;
-        else if (categoryStr.includes('組合屋')) projectType = ProjectType.MODULAR_HOUSE;
+        if (categoryStr.includes(config.maintenance)) projectType = ProjectType.MAINTENANCE;
+        else if (categoryStr.includes(config.modular)) projectType = ProjectType.MODULAR_HOUSE;
         const clientName = rawName.includes('-') ? rawName.split('-')[0].trim() : rawName;
         const existingIdx = currentProjects.findIndex(p => p.name === rawName);
         const rowImages = imagesByRow[rowNumber] || [];
@@ -472,10 +493,6 @@ const App: React.FC = () => {
     }
   };
 
-  /**
-   * 輔助函式：根據助手字串連動更新出勤狀態
-   * 按照助手暱稱將師父暱稱覆蓋「出勤紀錄」該助手該日期欄位，有勾選「半天」則覆蓋調整成「師父暱稱(半天)」。
-   */
   const updateAttendanceForAssistants = (date: string, worker: string, assistantsStr: string) => {
     if (!date || !worker || !assistantsStr) return;
     
@@ -487,14 +504,10 @@ const App: React.FC = () => {
             const isHalfDay = aStr.includes('(半天)') || aStr.includes('半天');
             const cleanAssistantName = aStr.replace('(半天)', '').replace('半天', '').trim();
             
-            // 在員工名單中尋找匹配的人員
             const emp = employees.find(e => (e.nickname || e.name) === cleanAssistantName);
             
             if (emp) {
-                // 狀態字串定義：以師傅名稱為基礎
                 const status = isHalfDay ? `${worker}(半天)` : worker;
-                
-                // 尋找是否已有該員工在該日期的紀錄
                 const existingIdx = newAttendance.findIndex(rec => rec.date === date && rec.employeeId === emp.id);
                 if (existingIdx !== -1) {
                     newAttendance[existingIdx] = { ...newAttendance[existingIdx], status };
@@ -518,15 +531,15 @@ const App: React.FC = () => {
       const worksheet = workbook.getWorksheet(1);
       if (!worksheet) throw new Error('找不到工作表');
 
-      // 修正匯入規則：從 Row 1 解析「施工紀錄 - 專案名稱」
+      const config = systemRules.importConfig?.recordKeywords || DEFAULT_SYSTEM_RULES.importConfig!.recordKeywords;
+
       const titleStr = worksheet.getRow(1).getCell(1).value?.toString() || '';
       const pName = titleStr.includes(' - ') ? titleStr.split(' - ')[1].trim() : '';
-      if (!pName) throw new Error('無法從首列辨識專案名稱（格式需為：施工紀錄 - 專案名稱）');
+      if (!pName) throw new Error(`無法從首列辨識專案名稱（格式需為：${config.recordTitle} - 專案名稱）`);
 
       const date = parseExcelDate(worksheet.getRow(2).getCell(2).value);
       if (!date) throw new Error('無法辨識日期（需在第二列第二欄）');
 
-      // 人員：師傅: XXX / 助手: YYY
       const personnelStr = worksheet.getRow(3).getCell(2).value?.toString() || '';
       const worker = personnelStr.match(/師傅:\s*(.*?)\s*\//)?.[1] || personnelStr.match(/師傅:\s*(.*?)$/)?.[1] || '';
       const assistant = personnelStr.match(/助手:\s*(.*)$/)?.[1] || '';
@@ -535,7 +548,6 @@ const App: React.FC = () => {
       if (pIdx === -1) throw new Error(`系統中找不到名為「${pName}」的專案`);
 
       const newItems: ConstructionItem[] = [];
-      // 項目從第 7 列開始 (Row 6 是表頭)
       worksheet.eachRow((row, rowNumber) => {
         if (rowNumber <= 6) return;
         const itemName = row.getCell(2).value?.toString() || '';
@@ -554,7 +566,6 @@ const App: React.FC = () => {
       });
 
       const updatedProjects = [...projects];
-      // 排除該日期舊有紀錄並加入新紀錄 (避免重複匯入)
       const otherItems = (updatedProjects[pIdx].constructionItems || []).filter(item => !(item.date === date));
       updatedProjects[pIdx].constructionItems = [...otherItems, ...newItems];
       
@@ -582,20 +593,19 @@ const App: React.FC = () => {
       const worksheet = workbook.getWorksheet(1);
       if (!worksheet) throw new Error('找不到工作表');
 
-      // 解析專案名稱：從 Row 1 解析「施工報告 - 專案名稱」
+      const config = systemRules.importConfig?.recordKeywords || DEFAULT_SYSTEM_RULES.importConfig!.recordKeywords;
+
       const titleStr = worksheet.getRow(1).getCell(1).value?.toString() || '';
       const pName = titleStr.includes(' - ') ? titleStr.split(' - ')[1].trim() : '';
-      if (!pName) throw new Error('無法從首列辨識專案名稱（格式需為：施工報告 - 專案名稱）');
+      if (!pName) throw new Error(`無法從首列辨識專案名稱（格式需為：${config.reportTitle} - 專案名稱）`);
 
       const date = parseExcelDate(worksheet.getRow(2).getCell(2).value);
       if (!date) throw new Error('無法辨識日期（需在第二列第二欄）');
 
-      // 解析人員：師傅: XXX / 助手: YYY
       const personnelStr = worksheet.getRow(3).getCell(2).value?.toString() || '';
       const worker = personnelStr.match(/師傅:\s*(.*?)\s*\//)?.[1] || personnelStr.match(/師傅:\s*(.*?)$/)?.[1] || '';
       const assistant = personnelStr.match(/助手:\s*(.*)$/)?.[1] || '';
       
-      // 解析天氣：讀取 B4 (第 4 列、第 2 欄)
       const weatherVal = worksheet.getRow(4).getCell(2).value?.toString() || '晴天';
       const weatherMap: any = { '晴天': 'sunny', '陰天': 'cloudy', '雨天': 'rainy' };
       const weather = weatherMap[weatherVal] || 'sunny';
@@ -603,7 +613,6 @@ const App: React.FC = () => {
       const pIdx = projects.findIndex(p => p.name === pName);
       if (pIdx === -1) throw new Error(`系統中找不到名為「${pName}」的專案`);
 
-      // 解析施工項目明細：從第 7 列開始，B 欄品名、C 欄數量、D 欄單位、E 欄作業。B 為空則結束。
       const newItems: ConstructionItem[] = [];
       let rNum = 7;
       while (rNum <= worksheet.rowCount) {
@@ -615,7 +624,7 @@ const App: React.FC = () => {
               name: itemName,
               quantity: row.getCell(3).value?.toString() || '',
               unit: row.getCell(4).value?.toString() || '',
-              location: row.getCell(5).value?.toString() || '', // 施工報告的「作業」對應系統中的 location 欄位
+              location: row.getCell(5).value?.toString() || '',
               worker: worker,
               assistant: assistant,
               date: date
@@ -623,7 +632,6 @@ const App: React.FC = () => {
           rNum++;
       }
 
-      // 尋找備註內容列 (搜尋 A 欄包含「施工內容與備註」文字)
       let contentRowIdx = -1;
       worksheet.eachRow((row, rowNumber) => {
           if (row.getCell(1).value?.toString()?.trim() === '施工內容與備註') {
@@ -639,14 +647,13 @@ const App: React.FC = () => {
         content: content,
         reporter: currentUser?.name || '系統匯入',
         timestamp: Date.now(),
+        photos: [],
         worker: worker,
         assistant: assistant
       };
 
       const updatedProjects = [...projects];
-      // 更新案件的日誌報告
       updatedProjects[pIdx].reports = [...(updatedProjects[pIdx].reports || []).filter(r => r.date !== date), newReport];
-      // 同步更新案件的施工項目紀錄，並排除該日期舊有紀錄以防重複
       const otherItems = (updatedProjects[pIdx].constructionItems || []).filter(i => i.date !== date);
       updatedProjects[pIdx].constructionItems = [...otherItems, ...newItems];
       
@@ -673,6 +680,9 @@ const App: React.FC = () => {
       await workbook.xlsx.load(arrayBuffer);
       const worksheet = workbook.getWorksheet(1);
       if (!worksheet) throw new Error('找不到工作表');
+
+      const config = systemRules.importConfig?.completionKeywords || DEFAULT_SYSTEM_RULES.importConfig!.completionKeywords;
+
       const headers: Record<string, number> = {};
       worksheet.getRow(1).eachCell((cell, col) => {
         const text = cell.value?.toString().trim();
@@ -692,7 +702,7 @@ const App: React.FC = () => {
         if (!groupMap[key]) groupMap[key] = { items: [], worker: row.getCell(headers['師傅'] || 0).value?.toString() || '' };
         groupMap[key].items.push({
           name: row.getCell(headers['項目']).value?.toString() || '',
-          action: (row.getCell(headers['動作'] || 0).value?.toString().includes('拆') ? 'dismantle' : 'install') as any,
+          action: (row.getCell(headers['動作'] || 0).value?.toString().includes(config.dismantle) ? 'dismantle' : 'install') as any,
           quantity: row.getCell(headers['數量']).value?.toString() || '',
           unit: row.getCell(headers['單位'] || 0).value?.toString() || '',
           category: 'OTHER'
@@ -898,7 +908,6 @@ const App: React.FC = () => {
     return employees.map(e => e.nickname || e.name).filter(Boolean);
   }, [employees]);
 
-  // 權限檢查輔助函式
   const isViewAllowed = (viewId: string) => {
     if (!currentUser) return false;
     const perms = systemRules.rolePermissions?.[currentUser.role];
@@ -924,11 +933,14 @@ const App: React.FC = () => {
 
     return (
       <>
-        <div className="flex flex-col items-center justify-center w-full px-2 py-6 mb-2">
-           <h1 className="text-xl font-bold text-white tracking-wider border-b-2 border-yellow-500 pb-1">
-             合家興<span className="text-yellow-500 text-base ml-1">行政管理系統</span>
+        <div className="flex flex-col items-center justify-center w-full px-2 py-8 mb-2">
+           <div className="w-20 h-20 mb-4 rounded-full bg-white p-0.5 shadow-lg border border-slate-700">
+              <img src="./logo.png" alt="Logo" className="w-full h-full object-contain rounded-full" />
+           </div>
+           <h1 className="text-base font-black text-white tracking-[0.15em] border-b-2 border-yellow-500 pb-1">
+             合家興實業
            </h1>
-           <div className="mt-2 text-[10px] font-black bg-blue-600 px-3 py-0.5 rounded-full text-white uppercase tracking-widest">{roleName}</div>
+           <div className="mt-2 text-[9px] font-black bg-blue-600 px-3 py-0.5 rounded-full text-white uppercase tracking-widest">{roleName}</div>
         </div>
         <nav className="flex-1 px-4 space-y-2 overflow-y-auto no-scrollbar pb-10">
           <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-2 mt-4 px-4">工務工程 (Engineering)</div>
@@ -1032,7 +1044,9 @@ const App: React.FC = () => {
           <div className="text-sm font-bold text-slate-700">{selectedProject ? selectedProject.name : getTitle()}</div>
           <div className="flex items-center gap-3">
             <div className="text-sm font-bold text-slate-700 hidden sm:block">{currentUser.name}</div>
-            <div className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center"><UserIcon className="w-5 h-5 text-slate-400" /></div>
+            <div className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center overflow-hidden border border-slate-200 shadow-sm">
+                <img src="./logo.png" alt="User" className="w-full h-full object-cover" />
+            </div>
           </div>
         </header>
         <main className="flex-1 flex flex-col min-h-0 bg-[#f8fafc] pb-safe">

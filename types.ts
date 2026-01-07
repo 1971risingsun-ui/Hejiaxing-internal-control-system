@@ -189,6 +189,29 @@ export interface MaterialFormulaConfig {
   items: MaterialFormulaItem[];
 }
 
+// Added ImportConfig interface to fix SystemRules missing property errors in App.tsx
+export interface ImportConfig {
+  projectKeywords: {
+    maintenance: string;
+    modular: string;
+  };
+  recordKeywords: {
+    recordTitle: string;
+    reportTitle: string;
+  };
+  completionKeywords: {
+    dismantle: string;
+  };
+  planningKeywords: {
+    headerRow: number;
+    subCatFence: string;
+    subCatModularStruct: string;
+    subCatModularReno: string;
+    subCatModularOther: string;
+    subCatModularDismantle: string;
+  };
+}
+
 export interface SystemRules {
   productionKeywords: string[];
   subcontractorKeywords: string[];
@@ -196,6 +219,8 @@ export interface SystemRules {
   modularSubcontractorKeywords: string[];
   materialFormulas: MaterialFormulaConfig[];
   rolePermissions?: Record<UserRole, RolePermission>;
+  // Added importConfig property to fix "Property 'importConfig' does not exist on type 'SystemRules'" errors in App.tsx
+  importConfig?: ImportConfig;
 }
 
 export interface StockAlertItem {

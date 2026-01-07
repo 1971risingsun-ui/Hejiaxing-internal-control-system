@@ -30,7 +30,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
           name: displayName,
           email: email,
           role: role,
-          avatar: `https://ui-avatars.com/api/?name=${role}&background=random`
+          avatar: `./logo.png`
         };
         
         onLogin(mockUser);
@@ -45,12 +45,15 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
 
   return (
     <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4">
-      <div className="bg-white w-full max-w-md rounded-2xl shadow-xl overflow-hidden">
+      <div className="bg-white w-full max-w-md rounded-[40px] shadow-2xl overflow-hidden">
         <div className="bg-slate-900 p-10 text-center flex flex-col items-center">
-          <h1 className="text-3xl font-bold text-white tracking-wider">
-            合家興<span className="text-yellow-500 ml-1">行政管理系統</span>
+          <div className="w-32 h-32 mb-6 rounded-full bg-white p-1 shadow-xl">
+             <img src="./logo.png" alt="合家興 Logo" className="w-full h-full object-contain rounded-full" />
+          </div>
+          <h1 className="text-2xl font-black text-white tracking-[0.2em]">
+            合家興實業
           </h1>
-          <div className="w-16 h-1 bg-yellow-500 mt-4 rounded-full opacity-80"></div>
+          <div className="text-[10px] font-bold text-yellow-500 mt-2 uppercase tracking-widest opacity-80">行政管理系統</div>
         </div>
         
         <div className="p-8">
@@ -105,24 +108,17 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
                   現場人員
                 </button>
               </div>
-              <p className="text-[10px] text-slate-500 mt-2">
-                {role === UserRole.ADMIN && "擁有所有權限，可管理所有設定。"}
-                {role === UserRole.MANAGER && "可管理專案、編輯工期與材料、採購項目。"}
-                {role === UserRole.ENGINEERING && "負責工務總覽、排程與路徑估算。"}
-                {role === UserRole.FACTORY && "負責生產備料、設備與工具管理。"}
-                {role === UserRole.WORKER && "僅供檢視內容、工作回報與排程檢視。"}
-              </p>
             </div>
 
             <button 
               type="submit" 
               disabled={loading}
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg font-bold shadow-md hover:shadow-lg transition-all flex justify-center items-center"
+              className="w-full bg-slate-900 hover:bg-black text-white py-3 rounded-xl font-bold shadow-lg transition-all flex justify-center items-center"
             >
               {loading ? (
-                <span className="flex items-center gap-2">
+                <span className="flex items-center gap-2 text-sm">
                   <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                  登入中...
+                  認證中...
                 </span>
               ) : "登入系統"}
             </button>
