@@ -30,7 +30,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
           name: displayName,
           email: email,
           role: role,
-          avatar: `/logo.png`
+          avatar: `logo.png`
         };
         
         onLogin(mockUser);
@@ -48,7 +48,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
       <div className="bg-white w-full max-w-md rounded-[40px] shadow-2xl overflow-hidden">
         <div className="bg-slate-900 p-10 text-center flex flex-col items-center">
           <div className="w-32 h-32 mb-6 rounded-full bg-white p-1 shadow-xl">
-             <img src="/logo.png" alt="合家興 Logo" className="w-full h-full object-contain rounded-full" />
+             <img src="logo.png" alt="合家興 Logo" className="w-full h-full object-contain rounded-full" />
           </div>
           <h1 className="text-2xl font-black text-white tracking-[0.2em]">
             合家興實業
