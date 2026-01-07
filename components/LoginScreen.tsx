@@ -12,7 +12,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
   const [email, setEmail] = useState('demo@hejiaxing.ai');
   const [loading, setLoading] = useState(false);
 
-  const LOGO_URL = 'assets/logo-DgAuV1F6.png';
+  const LOGO_URL = './logo.png';
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
