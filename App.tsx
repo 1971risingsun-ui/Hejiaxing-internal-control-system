@@ -43,6 +43,8 @@ export const generateId = () => {
   return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
 };
 
+const LOGO_URL = 'assets/logo-DgAuV1F6.png';
+
 const DEFAULT_SYSTEM_RULES: SystemRules = {
   productionKeywords: ['防溢座', '施工大門', '小門', '巨'],
   subcontractorKeywords: ['怪手', '告示牌', '安衛貼紙', '美化帆布', '噪音管制看板', '監測告示牌', '寫字'],
@@ -179,7 +181,7 @@ const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
   const [allUsers, setAllUsers] = useState<User[]>([
-    { id: 'u-1', name: 'Admin User', email: 'admin@hejiaxing.ai', role: UserRole.ADMIN, avatar: 'logo.png' },
+    { id: 'u-1', name: 'Admin User', email: 'admin@hejiaxing.ai', role: UserRole.ADMIN, avatar: LOGO_URL },
   ]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [weeklySchedules, setWeeklySchedules] = useState<WeeklyScheduleType[]>([]);
@@ -935,7 +937,7 @@ const App: React.FC = () => {
       <>
         <div className="flex flex-col items-center justify-center w-full px-2 py-8 mb-2">
            <div className="w-20 h-20 mb-4 rounded-full bg-white p-0.5 shadow-lg border border-slate-700">
-              <img src="logo.png" alt="Logo" className="w-full h-full object-contain rounded-full" />
+              <img src={LOGO_URL} alt="Logo" className="w-full h-full object-contain rounded-full" />
            </div>
            <h1 className="text-base font-black text-white tracking-[0.15em] border-b-2 border-yellow-500 pb-1">
              合家興實業
@@ -1045,7 +1047,7 @@ const App: React.FC = () => {
           <div className="flex items-center gap-3">
             <div className="text-sm font-bold text-slate-700 hidden sm:block">{currentUser.name}</div>
             <div className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center overflow-hidden border border-slate-200 shadow-sm">
-                <img src="logo.png" alt="User" className="w-full h-full object-cover" />
+                <img src={LOGO_URL} alt="User" className="w-full h-full object-cover" />
             </div>
           </div>
         </header>

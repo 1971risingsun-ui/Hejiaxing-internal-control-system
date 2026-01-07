@@ -7,12 +7,14 @@ import process from 'node:process';
 export default defineConfig(({ mode }) => {
   // Fix: Cast process to any to access cwd() when type definitions for Node's process are not fully available.
   const env = loadEnv(mode, (process as any).cwd(), '');
+  const LOGO_PATH = 'assets/logo-DgAuV1F6.png';
+  
   return {
     plugins: [
       react(),
       VitePWA({
         registerType: 'autoUpdate',
-        includeAssets: ['logo.png', 'favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
+        includeAssets: [LOGO_PATH, 'favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
         manifest: {
           name: '合家興行政管理系統',
           short_name: '合家興行政',
@@ -25,17 +27,17 @@ export default defineConfig(({ mode }) => {
           start_url: './',
           icons: [
             {
-              src: 'logo.png',
+              src: LOGO_PATH,
               sizes: '192x192',
               type: 'image/png'
             },
             {
-              src: 'logo.png',
+              src: LOGO_PATH,
               sizes: '512x512',
               type: 'image/png'
             },
             {
-              src: 'logo.png',
+              src: LOGO_PATH,
               sizes: '512x512',
               type: 'image/png',
               purpose: 'any maskable'
