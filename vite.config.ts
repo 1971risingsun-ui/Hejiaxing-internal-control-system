@@ -7,7 +7,7 @@ import process from 'node:process';
 export default defineConfig(({ mode }) => {
   // Fix: Cast process to any to access cwd() when type definitions for Node's process are not fully available.
   const env = loadEnv(mode, (process as any).cwd(), '');
-  const LOGO_PATH = 'assets/logo-DgAuV1F6.png';
+  const LOGO_PATH = './logo.png';
   
   return {
     plugins: [
