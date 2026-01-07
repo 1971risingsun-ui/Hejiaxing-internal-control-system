@@ -4,15 +4,16 @@ import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 import process from 'node:process';
 
+const LOGO_URL = 'https://1971risingsun-ui.github.io/Hejiaxing-internal-control-system/logo.png';
+
 export default defineConfig(({ mode }) => {
-  // Fix: Cast process to any to access cwd() when type definitions for Node's process are not fully available.
   const env = loadEnv(mode, (process as any).cwd(), '');
   return {
     plugins: [
       react(),
       VitePWA({
         registerType: 'autoUpdate',
-        includeAssets: ['logo.png', 'favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
+        includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
         manifest: {
           name: '合家興行政管理系統',
           short_name: '合家興行政',
@@ -25,17 +26,17 @@ export default defineConfig(({ mode }) => {
           start_url: './',
           icons: [
             {
-              src: './logo.png',
+              src: LOGO_URL,
               sizes: '192x192',
               type: 'image/png'
             },
             {
-              src: './logo.png',
+              src: LOGO_URL,
               sizes: '512x512',
               type: 'image/png'
             },
             {
-              src: './logo.png',
+              src: LOGO_URL,
               sizes: '512x512',
               type: 'image/png',
               purpose: 'any maskable'
