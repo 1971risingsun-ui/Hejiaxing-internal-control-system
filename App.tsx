@@ -43,7 +43,7 @@ export const generateId = () => {
   return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
 };
 
-const LOGO_URL = 'assets/logo-DgAuV1F6.png';
+const LOGO_URL = './logo.png';
 
 const DEFAULT_SYSTEM_RULES: SystemRules = {
   productionKeywords: ['防溢座', '施工大門', '小門', '巨'],
