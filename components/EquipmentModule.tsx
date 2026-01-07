@@ -1,11 +1,13 @@
+
 import React from 'react';
 import { WrenchIcon, TruckIcon, BoxIcon, BriefcaseIcon, ShieldIcon } from './Icons';
 
 interface EquipmentModuleProps {
   onNavigate: (view: any) => void;
+  allowedViews: string[];
 }
 
-const EquipmentModule: React.FC<EquipmentModuleProps> = ({ onNavigate }) => {
+const EquipmentModule: React.FC<EquipmentModuleProps> = ({ onNavigate, allowedViews }) => {
   const categories = [
     { 
       id: 'equipment_tools', 
@@ -30,6 +32,8 @@ const EquipmentModule: React.FC<EquipmentModuleProps> = ({ onNavigate }) => {
     },
   ];
 
+  const visibleCategories = categories.filter(cat => allowedViews.includes(cat.id));
+
   return (
     <div className="p-6 max-w-5xl mx-auto h-full animate-fade-in">
       <div className="mb-8">
@@ -38,7 +42,7 @@ const EquipmentModule: React.FC<EquipmentModuleProps> = ({ onNavigate }) => {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-        {categories.map(cat => (
+        {visibleCategories.map(cat => (
           <button
             key={cat.id}
             onClick={() => onNavigate(cat.id)}

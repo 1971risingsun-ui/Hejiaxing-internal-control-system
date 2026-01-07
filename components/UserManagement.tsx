@@ -1,6 +1,7 @@
-import React, { useState, useRef } from 'react';
-import { User, UserRole, AuditLog, Project, SystemRules, MaterialFormulaConfig, MaterialFormulaItem } from '../types';
-import { PlusIcon, TrashIcon, ShieldIcon, UserIcon, HistoryIcon, DownloadIcon, UploadIcon, BoxIcon, SettingsIcon, CheckCircleIcon, LoaderIcon, AlertIcon, PenToolIcon, ChevronRightIcon, WrenchIcon, EditIcon } from './Icons';
+
+import React, { useState, useRef, useMemo } from 'react';
+import { User, UserRole, AuditLog, Project, SystemRules, MaterialFormulaConfig, MaterialFormulaItem, RolePermission } from '../types';
+import { PlusIcon, TrashIcon, ShieldIcon, UserIcon, HistoryIcon, DownloadIcon, UploadIcon, BoxIcon, SettingsIcon, CheckCircleIcon, LoaderIcon, AlertIcon, PenToolIcon, ChevronRightIcon, WrenchIcon, EditIcon, XIcon, LayoutGridIcon, BriefcaseIcon, UsersIcon, FileTextIcon, TruckIcon, ClipboardListIcon } from './Icons';
 import { downloadBlob } from '../utils/fileHelpers';
 
 interface UserManagementProps {
@@ -17,12 +18,41 @@ interface UserManagementProps {
   onUpdateSystemRules: (rules: SystemRules) => void;
 }
 
+const PERMISSION_STRUCTURE = [
+  { id: 'engineering', label: '工務總覽', type: 'main' },
+  { id: 'engineering_hub', label: '工作排程', type: 'main', children: [
+    { id: 'daily_dispatch', label: '明日工作排程' },
+    { id: 'driving_time', label: '估計行車時間' },
+    { id: 'weekly_schedule', label: '週間工作排程' },
+    { id: 'outsourcing', label: '外包廠商管理' },
+    { id: 'engineering_groups', label: '工程小組設定' },
+  ]},
+  { id: 'purchasing_hub', label: '採購管理', type: 'main', children: [
+    { id: 'purchasing_items', label: '採購項目' },
+    { id: 'stock_alert', label: '常備庫存爆量通知' },
+    { id: 'purchasing_suppliers', label: '供應商清冊' },
+    { id: 'purchasing_subcontractors', label: '外包廠商' },
+    { id: 'purchasing_orders', label: '採購單管理' },
+    { id: 'purchasing_inbounds', label: '進料明細' },
+  ]},
+  { id: 'hr', label: '人事管理', type: 'main' },
+  { id: 'production', label: '生產／備料', type: 'main' },
+  { id: 'equipment', label: '設備與工具', type: 'main', children: [
+    { id: 'equipment_tools', label: '工具管理' },
+    { id: 'equipment_assets', label: '大型設備管理' },
+    { id: 'equipment_vehicles', label: '車輛管理' },
+  ]},
+  { id: 'report', label: '工作回報', type: 'main' },
+  { id: 'users', label: '系統權限設定', type: 'main' },
+];
+
 const UserManagement: React.FC<UserManagementProps> = ({ 
   users, onUpdateUsers, auditLogs, onLogAction, projects = [], onRestoreData,
   onConnectDirectory, dirPermission, isWorkspaceLoading,
   systemRules, onUpdateSystemRules
 }) => {
   const [activeTab, setActiveTab] = useState<'users' | 'logs' | 'data' | 'rules' | 'settings'>('users');
+  const [activeRoleTab, setActiveRoleTab] = useState<UserRole>(UserRole.ADMIN);
   const [isAdding, setIsAdding] = useState(false);
   const [newUser, setNewUser] = useState({ name: '', email: '', role: UserRole.WORKER });
   const importFileRef = useRef<HTMLInputElement>(null);
@@ -59,6 +89,51 @@ const UserManagement: React.FC<UserManagementProps> = ({
   const handleRoleChange = (id: string, name: string, newRole: UserRole) => {
     onUpdateUsers(users.map(u => u.id === id ? { ...u, role: newRole } : u));
     onLogAction('UPDATE_ROLE', `Changed role for ${name} to ${newRole}`);
+  };
+
+  const handleUpdateRolePermission = (role: UserRole, updates: Partial<RolePermission>) => {
+    const currentPermissions = systemRules.rolePermissions || {
+      [UserRole.ADMIN]: { displayName: '管理員', allowedViews: [] },
+      [UserRole.MANAGER]: { displayName: '專案經理', allowedViews: [] },
+      [UserRole.ENGINEERING]: { displayName: '工務人員', allowedViews: [] },
+      [UserRole.FACTORY]: { displayName: '廠務人員', allowedViews: [] },
+      [UserRole.WORKER]: { displayName: '現場人員', allowedViews: [] }
+    };
+
+    const newPermissions = {
+      ...currentPermissions,
+      [role]: { ...currentPermissions[role], ...updates }
+    };
+
+    onUpdateSystemRules({ ...systemRules, rolePermissions: newPermissions });
+    onLogAction('UPDATE_ROLE_PERM', `Updated permissions for role: ${role}`);
+  };
+
+  const togglePermission = (role: UserRole, viewId: string) => {
+    const current = systemRules.rolePermissions?.[role]?.allowedViews || [];
+    let next;
+    if (current.includes(viewId)) {
+      next = current.filter(id => id !== viewId);
+      // 如果關閉的是父項目，同步關閉所有子項目
+      const item = PERMISSION_STRUCTURE.find(p => p.id === viewId);
+      if (item?.children) {
+        const childIds = item.children.map(c => c.id);
+        next = next.filter(id => !childIds.includes(id));
+      }
+    } else {
+      next = [...current, viewId];
+      // 如果開啟的是子項目，自動開啟父項目
+      PERMISSION_STRUCTURE.forEach(p => {
+        if (p.children?.some(c => c.id === viewId) && !next.includes(p.id)) {
+          next.push(p.id);
+        }
+      });
+    }
+    handleUpdateUpdateRolePermission(role, { allowedViews: next });
+  };
+
+  const handleUpdateUpdateRolePermission = (role: UserRole, updates: Partial<RolePermission>) => {
+      handleUpdateRolePermission(role, updates);
   };
 
   const handleExportData = () => {
@@ -199,6 +274,10 @@ const UserManagement: React.FC<UserManagementProps> = ({
     });
   };
 
+  const currentRolePerm = useMemo(() => {
+    return systemRules.rolePermissions?.[activeRoleTab] || { displayName: '', allowedViews: [] };
+  }, [systemRules.rolePermissions, activeRoleTab]);
+
   return (
     <div className="p-4 md:p-6 max-w-7xl mx-auto h-full flex flex-col overflow-hidden">
       <div className="flex justify-between items-center mb-6">
@@ -209,7 +288,7 @@ const UserManagement: React.FC<UserManagementProps> = ({
 
       <div className="flex gap-4 mb-6 border-b border-slate-200 overflow-x-auto no-scrollbar flex-shrink-0">
         <button className={`pb-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${activeTab === 'users' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`} onClick={() => setActiveTab('users')}>
-          <ShieldIcon className="w-4 h-4" /> 使用者
+          <ShieldIcon className="w-4 h-4" /> 使用者與權限
         </button>
         <button className={`pb-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${activeTab === 'rules' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`} onClick={() => setActiveTab('rules')}>
           <PenToolIcon className="w-4 h-4" /> 規則設定
@@ -227,84 +306,171 @@ const UserManagement: React.FC<UserManagementProps> = ({
 
       <div className="flex-1 overflow-auto custom-scrollbar pr-1">
         {activeTab === 'users' && (
-          <>
-            <div className="flex justify-end mb-4">
-              <button
-                onClick={() => setIsAdding(true)}
-                className="bg-blue-600 hover:bg-blue-700 text-white w-10 h-10 rounded-full shadow-sm flex items-center justify-center transition-all"
-                title="新增使用者"
-              >
-                <PlusIcon className="w-6 h-6" />
-              </button>
-            </div>
+          <div className="space-y-10 pb-10">
+            {/* 使用者名單部分 */}
+            <div>
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="font-bold text-slate-800 flex items-center gap-2"><UsersIcon className="w-5 h-5 text-indigo-500" /> 使用者名單</h3>
+                <button
+                  onClick={() => setIsAdding(true)}
+                  className="bg-blue-600 hover:bg-blue-700 text-white w-10 h-10 rounded-full shadow-sm flex items-center justify-center transition-all"
+                  title="新增使用者"
+                >
+                  <PlusIcon className="w-6 h-6" />
+                </button>
+              </div>
 
-            {isAdding && (
-              <div className="mb-6 bg-white p-4 rounded-xl border border-blue-200 shadow-sm animate-fade-in">
-                <h3 className="font-bold mb-3 text-slate-800">新增帳號</h3>
-                <div className="grid grid-cols-1 gap-3">
-                  <input type="text" placeholder="姓名" className="px-3 py-2 border rounded-lg" value={newUser.name} onChange={e => setNewUser({ ...newUser, name: e.target.value })} />
-                  <input type="email" placeholder="Email" className="px-3 py-2 border rounded-lg" value={newUser.email} onChange={e => setNewUser({ ...newUser, email: e.target.value })} />
-                  <select className="px-3 py-2 border rounded-lg bg-white" value={newUser.role} onChange={e => setNewUser({ ...newUser, role: e.target.value as UserRole })}>
-                    <option value={UserRole.ADMIN}>管理員</option>
-                    <option value={UserRole.MANAGER}>專案經理</option>
-                    <option value={UserRole.WORKER}>現場人員</option>
-                  </select>
-                  <div className="flex gap-2 mt-2">
-                    <button onClick={() => setIsAdding(false)} className="flex-1 bg-slate-100 text-slate-600 rounded-lg py-2">取消</button>
-                    <button onClick={handleAddUser} className="flex-1 bg-blue-600 text-white rounded-lg py-2">建立</button>
+              {isAdding && (
+                <div className="mb-6 bg-white p-4 rounded-xl border border-blue-200 shadow-sm animate-fade-in">
+                  <h3 className="font-bold mb-3 text-slate-800">新增帳號</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                    <input type="text" placeholder="姓名" className="px-3 py-2 border rounded-lg" value={newUser.name} onChange={e => setNewUser({ ...newUser, name: e.target.value })} />
+                    <input type="email" placeholder="Email" className="px-3 py-2 border rounded-lg" value={newUser.email} onChange={e => setNewUser({ ...newUser, email: e.target.value })} />
+                    <select className="px-3 py-2 border rounded-lg bg-white" value={newUser.role} onChange={e => setNewUser({ ...newUser, role: e.target.value as UserRole })}>
+                      <option value={UserRole.ADMIN}>管理員</option>
+                      <option value={UserRole.MANAGER}>專案經理</option>
+                      <option value={UserRole.ENGINEERING}>工務人員</option>
+                      <option value={UserRole.FACTORY}>廠務人員</option>
+                      <option value={UserRole.WORKER}>現場人員</option>
+                    </select>
+                    <div className="flex gap-2">
+                      <button onClick={() => setIsAdding(false)} className="flex-1 bg-slate-100 text-slate-600 rounded-lg py-2">取消</button>
+                      <button onClick={handleAddUser} className="flex-1 bg-blue-600 text-white rounded-lg py-2 font-bold">建立</button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
+              )}
 
-            <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-              <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse">
-                  <thead className="bg-slate-50 text-slate-500 text-xs uppercase font-semibold">
-                      <tr>
-                      <th className="px-4 py-3 whitespace-nowrap">使用者</th>
-                      <th className="px-4 py-3 whitespace-nowrap">Email</th>
-                      <th className="px-4 py-3 whitespace-nowrap">權限</th>
-                      <th className="px-4 py-3 text-right whitespace-nowrap">刪除</th>
-                      </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                      {users.map((user) => (
-                      <tr key={user.id} className="hover:bg-slate-50 transition-colors">
-                          <td className="px-4 py-3 flex items-center gap-2 whitespace-nowrap">
-                          <div className="w-8 h-8 rounded-full bg-slate-200 overflow-hidden flex items-center justify-center flex-shrink-0">
-                              {user.avatar ? <img src={user.avatar} alt={user.name} /> : <UserIcon className="w-4 h-4 text-slate-500" />}
-                          </div>
-                          <span className="font-medium text-slate-800">{user.name}</span>
-                          </td>
-                          <td className="px-4 py-3 text-slate-600 whitespace-nowrap">{user.email}</td>
-                          <td className="px-4 py-3 whitespace-nowrap">
-                          <select
-                              value={user.role}
-                              onChange={(e) => handleRoleChange(user.id, user.name, e.target.value as UserRole)}
-                              className={`text-xs font-semibold px-2 py-1 rounded-lg border-none focus:ring-2 focus:ring-blue-500 cursor-pointer ${
-                              user.role === UserRole.ADMIN ? 'bg-purple-100 text-purple-800' :
-                              user.role === UserRole.MANAGER ? 'bg-blue-100 text-blue-800' :
-                              'bg-slate-100 text-slate-700'
-                              }`}
-                          >
-                              <option value={UserRole.ADMIN}>管理員</option>
-                              <option value={UserRole.MANAGER}>經理</option>
-                              <option value={UserRole.WORKER}>現場</option>
-                          </select>
-                          </td>
-                          <td className="px-4 py-3 text-right whitespace-nowrap">
-                          <button onClick={() => handleDeleteUser(user.id, user.name)} className="text-slate-400 hover:text-red-500 p-2">
-                              <TrashIcon className="w-4 h-4" />
-                          </button>
-                          </td>
-                      </tr>
-                      ))}
-                  </tbody>
-                  </table>
+              <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                    <thead className="bg-slate-50 text-slate-500 text-[10px] uppercase font-black tracking-widest border-b border-slate-200">
+                        <tr>
+                        <th className="px-4 py-3 whitespace-nowrap">使用者</th>
+                        <th className="px-4 py-3 whitespace-nowrap">Email</th>
+                        <th className="px-4 py-3 whitespace-nowrap">權限類別</th>
+                        <th className="px-4 py-3 text-right whitespace-nowrap">刪除</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                        {users.map((user) => (
+                        <tr key={user.id} className="hover:bg-slate-50 transition-colors">
+                            <td className="px-4 py-3 flex items-center gap-2 whitespace-nowrap">
+                            <div className="w-8 h-8 rounded-full bg-slate-200 overflow-hidden flex items-center justify-center flex-shrink-0">
+                                {user.avatar ? <img src={user.avatar} alt={user.name} /> : <UserIcon className="w-4 h-4 text-slate-500" />}
+                            </div>
+                            <span className="font-bold text-slate-800 text-sm">{user.name}</span>
+                            </td>
+                            <td className="px-4 py-3 text-slate-600 text-xs whitespace-nowrap">{user.email}</td>
+                            <td className="px-4 py-3 whitespace-nowrap">
+                            <select
+                                value={user.role}
+                                onChange={(e) => handleRoleChange(user.id, user.name, e.target.value as UserRole)}
+                                className={`text-xs font-black px-3 py-1.5 rounded-lg border-none shadow-sm cursor-pointer ${
+                                user.role === UserRole.ADMIN ? 'bg-purple-600 text-white' :
+                                user.role === UserRole.MANAGER ? 'bg-blue-600 text-white' :
+                                user.role === UserRole.ENGINEERING ? 'bg-indigo-600 text-white' :
+                                user.role === UserRole.FACTORY ? 'bg-emerald-600 text-white' :
+                                'bg-slate-600 text-white'
+                                }`}
+                            >
+                                <option value={UserRole.ADMIN}>{systemRules.rolePermissions?.[UserRole.ADMIN]?.displayName || '管理員'}</option>
+                                <option value={UserRole.MANAGER}>{systemRules.rolePermissions?.[UserRole.MANAGER]?.displayName || '專案經理'}</option>
+                                <option value={UserRole.ENGINEERING}>{systemRules.rolePermissions?.[UserRole.ENGINEERING]?.displayName || '工務人員'}</option>
+                                <option value={UserRole.FACTORY}>{systemRules.rolePermissions?.[UserRole.FACTORY]?.displayName || '廠務人員'}</option>
+                                <option value={UserRole.WORKER}>{systemRules.rolePermissions?.[UserRole.WORKER]?.displayName || '現場人員'}</option>
+                            </select>
+                            </td>
+                            <td className="px-4 py-3 text-right whitespace-nowrap">
+                            <button onClick={() => handleDeleteUser(user.id, user.name)} className="text-slate-300 hover:text-red-500 p-2 transition-colors">
+                                <TrashIcon className="w-4 h-4" />
+                            </button>
+                            </td>
+                        </tr>
+                        ))}
+                    </tbody>
+                    </table>
+                </div>
               </div>
             </div>
-          </>
+
+            {/* 權限角色設定部分 */}
+            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="font-bold text-slate-800 flex items-center gap-2"><ShieldIcon className="w-5 h-5 text-blue-600" /> 權限角色細節設定</h3>
+              </div>
+
+              {/* 角色頁籤 */}
+              <div className="flex flex-wrap gap-2 mb-6 p-1 bg-slate-100 rounded-xl w-fit">
+                {[UserRole.ADMIN, UserRole.MANAGER, UserRole.ENGINEERING, UserRole.FACTORY, UserRole.WORKER].map(role => (
+                  <button 
+                    key={role}
+                    onClick={() => setActiveRoleTab(role)}
+                    className={`px-6 py-2 rounded-lg text-xs font-black transition-all ${activeRoleTab === role ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                  >
+                    {systemRules.rolePermissions?.[role]?.displayName || role}
+                  </button>
+                ))}
+              </div>
+
+              <div className="space-y-6 animate-fade-in">
+                <div>
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">權限類別自訂名稱</label>
+                  <input 
+                    type="text"
+                    value={currentRolePerm.displayName}
+                    onChange={(e) => handleUpdateRolePermission(activeRoleTab, { displayName: e.target.value })}
+                    placeholder="例如: 超級管理員"
+                    className="w-full max-w-md px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 focus:ring-2 focus:ring-blue-500 outline-none"
+                  />
+                </div>
+
+                <div className="pt-4 border-t border-slate-100">
+                   <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">側邊欄與子項目可見權限</label>
+                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                      {PERMISSION_STRUCTURE.map(group => {
+                        const isMainChecked = currentRolePerm.allowedViews.includes(group.id);
+                        return (
+                          <div key={group.id} className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-3">
+                             <div className="flex items-center gap-3">
+                                <input 
+                                  type="checkbox"
+                                  id={`perm-${activeRoleTab}-${group.id}`}
+                                  checked={isMainChecked}
+                                  onChange={() => togglePermission(activeRoleTab, group.id)}
+                                  className="w-5 h-5 rounded text-blue-600 focus:ring-blue-500 cursor-pointer"
+                                />
+                                <label htmlFor={`perm-${activeRoleTab}-${group.id}`} className="font-black text-slate-700 text-sm cursor-pointer">{group.label}</label>
+                             </div>
+                             
+                             {group.children && (
+                               <div className="pl-8 space-y-2 border-l-2 border-blue-100 ml-2.5 py-1">
+                                  {group.children.map(child => {
+                                    const isChildChecked = currentRolePerm.allowedViews.includes(child.id);
+                                    return (
+                                      <div key={child.id} className="flex items-center gap-2">
+                                        <input 
+                                          type="checkbox"
+                                          disabled={!isMainChecked}
+                                          id={`perm-${activeRoleTab}-${child.id}`}
+                                          checked={isChildChecked}
+                                          onChange={() => togglePermission(activeRoleTab, child.id)}
+                                          className="w-4 h-4 rounded text-blue-400 focus:ring-blue-400 cursor-pointer disabled:opacity-30"
+                                        />
+                                        <label htmlFor={`perm-${activeRoleTab}-${child.id}`} className={`text-xs font-bold ${isMainChecked ? 'text-slate-500 cursor-pointer' : 'text-slate-300'}`}>{child.label}</label>
+                                      </div>
+                                    );
+                                  })}
+                               </div>
+                             )}
+                          </div>
+                        );
+                      })}
+                   </div>
+                </div>
+              </div>
+            </div>
+          </div>
         )}
 
         {activeTab === 'rules' && (

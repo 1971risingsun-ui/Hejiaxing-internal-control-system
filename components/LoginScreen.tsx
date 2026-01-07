@@ -19,9 +19,15 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
     // Simulate API call
     setTimeout(() => {
       try {
+        let displayName = 'Site Worker';
+        if (role === UserRole.ADMIN) displayName = 'Admin User';
+        else if (role === UserRole.MANAGER) displayName = 'Project Manager';
+        else if (role === UserRole.ENGINEERING) displayName = 'Engineering Staff';
+        else if (role === UserRole.FACTORY) displayName = 'Factory Staff';
+
         const mockUser: User = {
           id: generateId(),
-          name: role === UserRole.ADMIN ? 'Admin User' : role === UserRole.MANAGER ? 'Project Manager' : 'Site Worker',
+          name: displayName,
           email: email,
           role: role,
           avatar: `https://ui-avatars.com/api/?name=${role}&background=random`
@@ -62,33 +68,49 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
 
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">選擇身份 (演示用)</label>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                 <button
                   type="button"
                   onClick={() => setRole(UserRole.ADMIN)}
-                  className={`py-2 px-1 text-sm rounded-lg border transition-all ${role === UserRole.ADMIN ? 'bg-blue-50 border-blue-500 text-blue-700 font-bold ring-2 ring-blue-500 ring-opacity-20' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+                  className={`py-2 px-1 text-xs rounded-lg border transition-all ${role === UserRole.ADMIN ? 'bg-blue-50 border-blue-500 text-blue-700 font-bold ring-2 ring-blue-500 ring-opacity-20' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`}
                 >
                   管理員
                 </button>
                 <button
                   type="button"
                   onClick={() => setRole(UserRole.MANAGER)}
-                  className={`py-2 px-1 text-sm rounded-lg border transition-all ${role === UserRole.MANAGER ? 'bg-blue-50 border-blue-500 text-blue-700 font-bold ring-2 ring-blue-500 ring-opacity-20' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+                  className={`py-2 px-1 text-xs rounded-lg border transition-all ${role === UserRole.MANAGER ? 'bg-blue-50 border-blue-500 text-blue-700 font-bold ring-2 ring-blue-500 ring-opacity-20' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`}
                 >
                   專案經理
                 </button>
                 <button
                   type="button"
+                  onClick={() => setRole(UserRole.ENGINEERING)}
+                  className={`py-2 px-1 text-xs rounded-lg border transition-all ${role === UserRole.ENGINEERING ? 'bg-blue-50 border-blue-500 text-blue-700 font-bold ring-2 ring-blue-500 ring-opacity-20' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+                >
+                  工務人員
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRole(UserRole.FACTORY)}
+                  className={`py-2 px-1 text-xs rounded-lg border transition-all ${role === UserRole.FACTORY ? 'bg-blue-50 border-blue-500 text-blue-700 font-bold ring-2 ring-blue-500 ring-opacity-20' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+                >
+                  廠務人員
+                </button>
+                <button
+                  type="button"
                   onClick={() => setRole(UserRole.WORKER)}
-                  className={`py-2 px-1 text-sm rounded-lg border transition-all ${role === UserRole.WORKER ? 'bg-blue-50 border-blue-500 text-blue-700 font-bold ring-2 ring-blue-500 ring-opacity-20' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+                  className={`py-2 px-1 text-xs rounded-lg border transition-all ${role === UserRole.WORKER ? 'bg-blue-50 border-blue-500 text-blue-700 font-bold ring-2 ring-blue-500 ring-opacity-20' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`}
                 >
                   現場人員
                 </button>
               </div>
-              <p className="text-xs text-slate-500 mt-2">
-                {role === UserRole.ADMIN && "擁有所有權限，可新增、刪除專案及管理所有設定。"}
-                {role === UserRole.MANAGER && "可新增專案、編輯工期與材料，但無法刪除專案。"}
-                {role === UserRole.WORKER && "僅供檢視內容、打勾工期進度及上傳施工照片。"}
+              <p className="text-[10px] text-slate-500 mt-2">
+                {role === UserRole.ADMIN && "擁有所有權限，可管理所有設定。"}
+                {role === UserRole.MANAGER && "可管理專案、編輯工期與材料、採購項目。"}
+                {role === UserRole.ENGINEERING && "負責工務總覽、排程與路徑估算。"}
+                {role === UserRole.FACTORY && "負責生產備料、設備與工具管理。"}
+                {role === UserRole.WORKER && "僅供檢視內容、工作回報與排程檢視。"}
               </p>
             </div>
 

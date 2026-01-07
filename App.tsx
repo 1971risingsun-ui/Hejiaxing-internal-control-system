@@ -48,6 +48,28 @@ const DEFAULT_SYSTEM_RULES: SystemRules = {
   subcontractorKeywords: ['怪手', '告示牌', '安衛貼紙', '美化帆布', '噪音管制看板', '監測告示牌', '寫字'],
   modularProductionKeywords: [],
   modularSubcontractorKeywords: [],
+  rolePermissions: {
+    [UserRole.ADMIN]: { 
+      displayName: '管理員', 
+      allowedViews: ['engineering', 'engineering_hub', 'daily_dispatch', 'driving_time', 'weekly_schedule', 'outsourcing', 'engineering_groups', 'purchasing_hub', 'purchasing_items', 'stock_alert', 'purchasing_suppliers', 'purchasing_subcontractors', 'purchasing_orders', 'purchasing_inbounds', 'hr', 'production', 'equipment', 'equipment_tools', 'equipment_assets', 'equipment_vehicles', 'report', 'users'] 
+    },
+    [UserRole.MANAGER]: { 
+      displayName: '專案經理', 
+      allowedViews: ['engineering', 'engineering_hub', 'daily_dispatch', 'driving_time', 'weekly_schedule', 'outsourcing', 'purchasing_hub', 'purchasing_items', 'stock_alert', 'purchasing_suppliers', 'purchasing_subcontractors', 'purchasing_orders', 'purchasing_inbounds', 'hr', 'production', 'equipment', 'report'] 
+    },
+    [UserRole.ENGINEERING]: { 
+      displayName: '工務人員', 
+      allowedViews: ['engineering', 'engineering_hub', 'daily_dispatch', 'driving_time', 'weekly_schedule', 'report'] 
+    },
+    [UserRole.FACTORY]: { 
+      displayName: '廠務人員', 
+      allowedViews: ['engineering', 'production', 'equipment', 'equipment_tools', 'report'] 
+    },
+    [UserRole.WORKER]: { 
+      displayName: '現場人員', 
+      allowedViews: ['engineering', 'engineering_hub', 'daily_dispatch', 'report'] 
+    }
+  },
   materialFormulas: [
     {
       id: 'f-1',
@@ -876,6 +898,14 @@ const App: React.FC = () => {
     return employees.map(e => e.nickname || e.name).filter(Boolean);
   }, [employees]);
 
+  // 權限檢查輔助函式
+  const isViewAllowed = (viewId: string) => {
+    if (!currentUser) return false;
+    const perms = systemRules.rolePermissions?.[currentUser.role];
+    if (!perms) return currentUser.role === UserRole.ADMIN;
+    return perms.allowedViews.includes(viewId);
+  };
+
   if (!currentUser) return <LoginScreen onLogin={handleLogin} />;
   
   const currentViewProjects = projects.filter(p => {
@@ -889,37 +919,57 @@ const App: React.FC = () => {
   const renderSidebarContent = () => {
     const isConnected = dirHandle && dirPermission === 'granted';
     const isBrowserSupported = 'showDirectoryPicker' in window;
+    const perms = systemRules.rolePermissions?.[currentUser.role];
+    const roleName = perms?.displayName || (currentUser.role === UserRole.ADMIN ? '管理員' : currentUser.role === UserRole.MANAGER ? '專案經理' : '現場人員');
+
     return (
       <>
-        <div className="flex items-center justify-center w-full px-2 py-6 mb-2">
+        <div className="flex flex-col items-center justify-center w-full px-2 py-6 mb-2">
            <h1 className="text-xl font-bold text-white tracking-wider border-b-2 border-yellow-500 pb-1">
              合家興<span className="text-yellow-500 text-base ml-1">行政管理系統</span>
            </h1>
+           <div className="mt-2 text-[10px] font-black bg-blue-600 px-3 py-0.5 rounded-full text-white uppercase tracking-widest">{roleName}</div>
         </div>
         <nav className="flex-1 px-4 space-y-2 overflow-y-auto no-scrollbar pb-10">
           <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-2 mt-4 px-4">工務工程 (Engineering)</div>
-          <button onClick={() => { setSelectedProject(null); setView('engineering'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'engineering' && !selectedProject ? 'bg-blue-600 text-white shadow-md shadow-blue-900/20' : 'text-slate-400 hover:bg-slate-800'}`}>
-            <LayoutGridIcon className="w-5 h-5" /> <span className="font-medium">工務總覽</span>
-          </button>
-          <button onClick={() => { setSelectedProject(null); setView('engineering_hub'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'engineering_hub' || view === 'weekly_schedule' || view === 'daily_dispatch' || view === 'engineering_groups' || view === 'driving_time' || view === 'outsourcing' ? 'bg-blue-600 text-white shadow-md shadow-blue-900/20' : 'text-slate-400 hover:bg-slate-800'}`}>
-            <BriefcaseIcon className="w-5 h-5" /> <span className="font-medium">工作排程</span>
-          </button>
+          {isViewAllowed('engineering') && (
+            <button onClick={() => { setSelectedProject(null); setView('engineering'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'engineering' && !selectedProject ? 'bg-blue-600 text-white shadow-md shadow-blue-900/20' : 'text-slate-400 hover:bg-slate-800'}`}>
+              <LayoutGridIcon className="w-5 h-5" /> <span className="font-medium">工務總覽</span>
+            </button>
+          )}
+          {isViewAllowed('engineering_hub') && (
+            <button onClick={() => { setSelectedProject(null); setView('engineering_hub'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'engineering_hub' || view === 'weekly_schedule' || view === 'daily_dispatch' || view === 'engineering_groups' || view === 'driving_time' || view === 'outsourcing' ? 'bg-blue-600 text-white shadow-md shadow-blue-900/20' : 'text-slate-400 hover:bg-slate-800'}`}>
+              <BriefcaseIcon className="w-5 h-5" /> <span className="font-medium">工作排程</span>
+            </button>
+          )}
+          
           <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-2 mt-6 px-4">行政管理 (Administration)</div>
-          <button onClick={() => { setSelectedProject(null); setView('purchasing_hub'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view.startsWith('purchasing') || view === 'stock_alert' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
-            <BoxIcon className="w-5 h-5" /> <span className="font-medium">採購</span>
-          </button>
-          <button onClick={() => { setSelectedProject(null); setView('hr'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'hr' ? 'bg-blue-600 text-white shadow-md shadow-blue-900/20' : 'text-slate-400 hover:bg-slate-800'}`}>
-            <UsersIcon className="w-5 h-5" /> <span className="font-medium">人事</span>
-          </button>
-          <button onClick={() => { setSelectedProject(null); setView('production'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'production' ? 'bg-blue-600 text-white shadow-md shadow-blue-900/20' : 'text-slate-400 hover:bg-slate-800'}`}>
-            <PenToolIcon className="w-5 h-5" /> <span className="font-medium">生產／備料</span>
-          </button>
-          <button onClick={() => { setSelectedProject(null); setView('equipment'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view.startsWith('equipment') ? 'bg-blue-600 text-white shadow-md shadow-blue-900/20' : 'text-slate-400 hover:bg-slate-800'}`}>
-            <WrenchIcon className="w-5 h-5" /> <span className="font-medium">設備／工具</span>
-          </button>
+          {isViewAllowed('purchasing_hub') && (
+            <button onClick={() => { setSelectedProject(null); setView('purchasing_hub'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view.startsWith('purchasing') || view === 'stock_alert' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}>
+              <BoxIcon className="w-5 h-5" /> <span className="font-medium">採購</span>
+            </button>
+          )}
+          {isViewAllowed('hr') && (
+            <button onClick={() => { setSelectedProject(null); setView('hr'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'hr' ? 'bg-blue-600 text-white shadow-md shadow-blue-900/20' : 'text-slate-400 hover:bg-slate-800'}`}>
+              <UsersIcon className="w-5 h-5" /> <span className="font-medium">人事</span>
+            </button>
+          )}
+          {isViewAllowed('production') && (
+            <button onClick={() => { setSelectedProject(null); setView('production'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'production' ? 'bg-blue-600 text-white shadow-md shadow-blue-900/20' : 'text-slate-400 hover:bg-slate-800'}`}>
+              <PenToolIcon className="w-5 h-5" /> <span className="font-medium">生產／備料</span>
+            </button>
+          )}
+          {isViewAllowed('equipment') && (
+            <button onClick={() => { setSelectedProject(null); setView('equipment'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view.startsWith('equipment') ? 'bg-blue-600 text-white shadow-md shadow-blue-900/20' : 'text-slate-400 hover:bg-slate-800'}`}>
+              <WrenchIcon className="w-5 h-5" /> <span className="font-medium">設備／工具</span>
+            </button>
+          )}
+          
           <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-2 mt-6 px-4">快速捷徑</div>
-          <button onClick={() => { setSelectedProject(null); setView('report'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'report' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}><ClipboardListIcon className="w-5 h-5" /> <span className="font-medium">工作回報</span></button>
-          {currentUser.role === UserRole.ADMIN && (<button onClick={() => { setView('users'); setSelectedProject(null); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'users' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}><ShieldIcon className="w-4 h-4" /> <span className="font-medium">系統權限</span></button>)}
+          {isViewAllowed('report') && (
+            <button onClick={() => { setSelectedProject(null); setView('report'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'report' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}><ClipboardListIcon className="w-5 h-5" /> <span className="font-medium">工作回報</span></button>
+          )}
+          {isViewAllowed('users') && (<button onClick={() => { setView('users'); setSelectedProject(null); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'users' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}><ShieldIcon className="w-4 h-4" /> <span className="font-medium">系統權限</span></button>)}
           <div className="pt-4 border-t border-slate-800 mt-4 space-y-2">
             <button onClick={() => handleDirectoryAction(false)} disabled={!isBrowserSupported} className={`flex items-center gap-3 px-4 py-3 rounded-xl w-full transition-all border ${!isBrowserSupported ? 'opacity-30 border-slate-700 bg-slate-800' : isConnected ? 'bg-green-600/10 border-green-500 text-green-400' : 'bg-red-600/10 border-red-500 text-red-400'}`}>
               {isWorkspaceLoading ? <LoaderIcon className="w-5 h-5 animate-spin" /> : isConnected ? <CheckCircleIcon className="w-5 h-5" /> : <AlertIcon className="w-5 h-5" />}
@@ -968,25 +1018,6 @@ const App: React.FC = () => {
     }
   };
 
-  const renderEngineeringHub = () => {
-    const categories = [
-      { id: 'daily_dispatch', label: '明日工作排程', icon: <ClipboardListIcon className="w-6 h-6" />, color: 'bg-blue-50 text-blue-600', desc: '確認明日施工地點與人員' },
-      { id: 'driving_time', label: '估計行車時間', icon: <NavigationIcon className="w-6 h-6" />, color: 'bg-amber-50 text-amber-600', desc: '預估早上 8:00 路徑耗時' },
-      { id: 'weekly_schedule', label: '週間工作排程', icon: <CalendarIcon className="w-6 h-6" />, color: 'bg-indigo-50 text-indigo-600', desc: '規劃本週各小組派工任務' },
-      { id: 'outsourcing', label: '外包廠商管理', icon: <BriefcaseIcon className="w-6 h-6" />, color: 'bg-blue-50 text-blue-600', desc: '外包廠商調度與進度控管' },
-      { id: 'engineering_groups', label: '工程小組設定', icon: <UsersIcon className="w-6 h-6" />, color: 'bg-emerald-50 text-emerald-600', desc: '管理師傅、助手與車號預設' },
-    ];
-    return (
-      <div className="p-6 max-w-5xl mx-auto h-full animate-fade-in">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-6">
-          {categories.map(cat => (
-            <button key={cat.id} onClick={() => setView(cat.id as any)} className="bg-white p-8 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md hover:border-blue-500 transition-all group flex flex-col items-center text-center gap-4"><div className={`p-4 rounded-xl ${cat.color} group-hover:scale-110 transition-transform`}>{cat.icon}</div><div className="font-bold text-slate-800 text-lg">{cat.label}</div><p className="text-xs text-slate-400 font-medium">{cat.desc}</p><p className="text-[10px] text-slate-300 font-bold uppercase tracking-widest mt-2">Work Schedule Hub</p></button>
-          ))}
-        </div>
-      </div>
-    );
-  };
-
   return (
     <div className="flex h-screen bg-[#f8fafc] overflow-hidden">
       <datalist id="employee-nicknames-list">{employeeNicknames.map((name, i) => <option key={i} value={name} />)}</datalist>
@@ -1007,8 +1038,16 @@ const App: React.FC = () => {
         <main className="flex-1 flex flex-col min-h-0 bg-[#f8fafc] pb-safe">
           {view === 'users' ? (<UserManagement users={allUsers} onUpdateUsers={setAllUsers} auditLogs={auditLogs} onLogAction={(action, details) => setAuditLogs(prev => [{ id: generateId(), userId: currentUser.id, userName: currentUser.name, action, details, timestamp: Date.now() }, ...prev])} projects={projects} onRestoreData={restoreDataToState} onConnectDirectory={() => handleDirectoryAction(true)} dirPermission={dirPermission} isWorkspaceLoading={isWorkspaceLoading} systemRules={systemRules} onUpdateSystemRules={setSystemRules} />) : 
            view === 'report' ? (<div className="flex-1 overflow-auto"><GlobalWorkReport projects={projects} currentUser={currentUser} onUpdateProject={handleUpdateProject} /></div>) : 
-           view === 'engineering_hub' ? (<div className="flex-1 overflow-auto">{renderEngineeringHub()}</div>) :
-           view === 'purchasing_hub' ? (<div className="flex-1 overflow-auto"><PurchasingModule onNavigate={setView} /></div>) :
+           view === 'engineering_hub' ? (<div className="flex-1 overflow-auto"><div className="p-6 max-w-5xl mx-auto h-full animate-fade-in"><div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-6">{[
+             { id: 'daily_dispatch', label: '明日工作排程', icon: <ClipboardListIcon className="w-6 h-6" />, color: 'bg-blue-50 text-blue-600', desc: '確認明日施工地點與人員' },
+             { id: 'driving_time', label: '估計行車時間', icon: <NavigationIcon className="w-6 h-6" />, color: 'bg-amber-50 text-amber-600', desc: '預估早上 8:00 路徑耗時' },
+             { id: 'weekly_schedule', label: '週間工作排程', icon: <CalendarIcon className="w-6 h-6" />, color: 'bg-indigo-50 text-indigo-600', desc: '規劃本週各小組派工任務' },
+             { id: 'outsourcing', label: '外包廠商管理', icon: <BriefcaseIcon className="w-6 h-6" />, color: 'bg-blue-50 text-blue-600', desc: '外包廠商調度與進度控管' },
+             { id: 'engineering_groups', label: '工程小組設定', icon: <UsersIcon className="w-6 h-6" />, color: 'bg-emerald-50 text-emerald-600', desc: '管理師傅、助手與車號預設' },
+           ].filter(cat => isViewAllowed(cat.id)).map(cat => (
+            <button key={cat.id} onClick={() => setView(cat.id as any)} className="bg-white p-8 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md hover:border-blue-500 transition-all group flex flex-col items-center text-center gap-4"><div className={`p-4 rounded-xl ${cat.color} group-hover:scale-110 transition-transform`}>{cat.icon}</div><div className="font-bold text-slate-800 text-lg">{cat.label}</div><p className="text-xs text-slate-400 font-medium">{cat.desc}</p><p className="text-[10px] text-slate-300 font-bold uppercase tracking-widest mt-2">Work Schedule Hub</p></button>
+          ))}</div></div></div>) :
+           view === 'purchasing_hub' ? (<div className="flex-1 overflow-auto"><PurchasingModule onNavigate={setView} allowedViews={systemRules.rolePermissions?.[currentUser.role]?.allowedViews || []} /></div>) :
            view === 'purchasing_items' ? (<div className="flex-1 overflow-hidden"><GlobalPurchasingItems projects={projects} onUpdateProject={handleUpdateProject} systemRules={systemRules} onBack={() => setView('purchasing_hub')} suppliers={suppliers} subcontractors={subcontractors} onUpdateSuppliers={setSuppliers} onUpdateSubcontractors={setSubcontractors} purchaseOrders={purchaseOrders} onUpdatePurchaseOrders={setPurchaseOrders} /></div>) :
            view === 'stock_alert' ? (<div className="flex-1 overflow-hidden"><StockAlert items={stockAlertItems} onUpdateItems={setStockAlertItems} onBack={() => setView('purchasing_hub')} /></div>) :
            view === 'purchasing_suppliers' ? (
@@ -1062,7 +1101,7 @@ const App: React.FC = () => {
               <div className="flex-1 overflow-auto"><EngineeringGroups globalTeamConfigs={globalTeamConfigs} onUpdateGlobalTeamConfigs={setGlobalTeamConfigs} /></div>
             </div>
            ) :
-           view === 'equipment' ? (<div className="flex-1 overflow-auto"><EquipmentModule onNavigate={setView} /></div>) :
+           view === 'equipment' ? (<div className="flex-1 overflow-auto"><EquipmentModule onNavigate={setView} allowedViews={systemRules.rolePermissions?.[currentUser.role]?.allowedViews || []} /></div>) :
            view === 'equipment_tools' ? (
               <div className="flex flex-col flex-1 min-h-0">
                 <div className="px-6 pt-4"><button onClick={() => setView('equipment')} className="flex items-center gap-2 text-slate-500 hover:text-blue-600 font-bold text-xs"><ArrowLeftIcon className="w-3 h-3" /> 返回設備選單</button></div>

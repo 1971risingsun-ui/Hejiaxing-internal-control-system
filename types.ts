@@ -15,7 +15,9 @@ export enum ProjectType {
 export enum UserRole {
   ADMIN = 'admin',
   MANAGER = 'manager',
-  WORKER = 'worker'
+  WORKER = 'worker',
+  ENGINEERING = 'engineering',
+  FACTORY = 'factory'
 }
 
 export interface User {
@@ -24,6 +26,11 @@ export interface User {
   email: string;
   role: UserRole;
   avatar?: string;
+}
+
+export interface RolePermission {
+  displayName: string;
+  allowedViews: string[]; // 存放允許訪問的 View ID 或 Sub-view ID
 }
 
 export interface Milestone {
@@ -188,6 +195,7 @@ export interface SystemRules {
   modularProductionKeywords: string[];
   modularSubcontractorKeywords: string[];
   materialFormulas: MaterialFormulaConfig[];
+  rolePermissions?: Record<UserRole, RolePermission>;
 }
 
 export interface StockAlertItem {
@@ -221,6 +229,7 @@ export interface Project {
   materialRequisitioner?: string;
   materialDeliveryDate?: string;
   materialDeliveryLocation?: '廠內' | '現場';
+  materialRequisitionId?: string;
   materialReceiver?: string;
   reports: DailyReport[];
   attachments: Attachment[];
@@ -317,8 +326,6 @@ export interface PurchaseOrder {
   remarks?: string;
   isOrdered?: boolean; 
 }
-
-// --- 新增：設備與工具相關介面 ---
 
 export interface Tool {
   id: string;
