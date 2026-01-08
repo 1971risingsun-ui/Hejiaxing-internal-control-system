@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { Project, WeeklySchedule, DailyDispatch as DailyDispatchType, GlobalTeamConfigs } from '../types';
-import { CalendarIcon, UserIcon, PlusIcon, XIcon, BriefcaseIcon, FileTextIcon, HomeIcon, LayoutGridIcon, TruckIcon, HistoryIcon, CheckCircleIcon, TrashIcon, NavigationIcon, ClipboardListIcon, SparklesIcon, LoaderIcon, XCircleIcon } from './Icons';
+import { CalendarIcon, UserIcon, PlusIcon, XIcon, BriefcaseIcon, FileTextIcon, HomeIcon, LayoutGridIcon, TruckIcon, HistoryIcon, CheckCircleIcon, TrashIcon, NavigationIcon, ClipboardListIcon, SparklesIcon, LoaderIcon, XCircleIcon, RefreshIcon } from './Icons';
 import { GoogleGenAI } from "@google/genai";
 
 interface DailyDispatchProps {
@@ -153,6 +153,23 @@ ${JSON.stringify(projectData, null, 2)}
     onUpdateDailyDispatches([...dailyDispatches.filter(d => d.date !== selectedDate), newDispatch]);
   };
 
+  const handleSyncFromWeek = () => {
+    if (confirm('確定要從週排程同步資料嗎？這將會覆蓋掉您目前對此日期的手動修改。')) {
+        const newDispatch: DailyDispatchType = { date: selectedDate, teams: {} };
+        teams.forEach(t => {
+            const weekCfg = weekSchedule?.teamConfigs?.[t] || globalTeamConfigs[t] || { master: '', assistant: '', carNumber: '' };
+            const weekTasks = weekSchedule?.days[selectedDate]?.teams[t]?.tasks || [];
+            newDispatch.teams[t] = {
+                master: weekCfg.master,
+                assistants: weekCfg.assistant ? [weekCfg.assistant] : [],
+                carNumber: weekCfg.carNumber,
+                tasks: weekTasks.map(name => ({ name, description: projects.find(p => p.name === name)?.description || '' }))
+            };
+        });
+        handleUpdateDispatch(newDispatch);
+    }
+  };
+
   const updateTeamField = (teamId: number, field: string, value: any) => {
     const newDispatch = JSON.parse(JSON.stringify(dispatchRecord));
     if (!newDispatch.teams[teamId]) {
@@ -215,23 +232,6 @@ ${JSON.stringify(projectData, null, 2)}
     updateTeamField(teamId, 'tasks', newTasks);
   };
 
-  const handleSyncFromWeek = () => {
-    if (confirm('確定要從週排程同步資料嗎？這將會覆蓋掉您目前對此日期的手動修改。')) {
-        const newDispatch: DailyDispatchType = { date: selectedDate, teams: {} };
-        teams.forEach(t => {
-            const weekCfg = weekSchedule?.teamConfigs?.[t] || globalTeamConfigs[t] || { master: '', assistant: '', carNumber: '' };
-            const weekTasks = weekSchedule?.days[selectedDate]?.teams[t]?.tasks || [];
-            newDispatch.teams[t] = {
-                master: weekCfg.master,
-                assistants: weekCfg.assistant ? [weekCfg.assistant] : [],
-                carNumber: weekCfg.carNumber,
-                tasks: weekTasks.map(name => ({ name, description: projects.find(p => p.name === name)?.description || '' }))
-            };
-        });
-        handleUpdateDispatch(newDispatch);
-    }
-  };
-
   const visibleTeams = filterTeam === null ? teams : [filterTeam];
 
   return (
@@ -242,6 +242,15 @@ ${JSON.stringify(projectData, null, 2)}
           <div><h1 className="text-lg font-bold text-slate-800">明日工作排程</h1><p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest leading-none">Daily Dispatch Planning</p></div>
         </div>
         <div className="flex items-center gap-3 w-full md:w-auto">
+          <button 
+            onClick={handleSyncFromWeek}
+            className="flex items-center gap-1.5 px-3 py-2 bg-amber-50 text-amber-700 text-xs font-bold rounded-xl border border-amber-200 hover:bg-amber-100 transition-colors shadow-sm"
+            title="從週排程同步資料"
+          >
+            <RefreshIcon className="w-4 h-4" />
+            同步週排程
+          </button>
+
           <button 
             onClick={handleAskAI}
             disabled={isAiLoading}
