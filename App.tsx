@@ -740,7 +740,7 @@ const App: React.FC = () => {
   const handleExportExcel = async () => {
     try {
       const workbook = new ExcelJS.Workbook();
-      const worksheet = workbook.addWorksheet('案件排程表');
+      
       const columns = [
         { header: '客戶', key: 'name', width: 25 },
         { header: '類別', key: 'typeLabel', width: 12 },
@@ -752,81 +752,100 @@ const App: React.FC = () => {
         { header: '工程', key: 'description', width: 40 },
         { header: '備註', key: 'remarks', width: 30 },
       ];
-      worksheet.columns = columns;
-      const headerRow = worksheet.getRow(1);
-      headerRow.font = { bold: true };
-      headerRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE0E0E0' } };
-      const minRowHeightPoints = 100; 
-      const photoHeightPoints = 100; 
-      const pointsToPixels = 1.333; 
-      const countLines = (text: string, colWidth: number) => {
-        if (!text) return 1;
-        return text.split('\n').reduce((acc, line) => {
-          const estimatedCharsPerLine = colWidth * 0.55; 
-          return acc + Math.max(1, Math.ceil(line.length / estimatedCharsPerLine));
-        }, 0);
-      };
-      let currentRowIdx = 2;
-      for (const p of projects) {
-        let typeLabel = '圍籬';
-        if (p.type === ProjectType.MAINTENANCE) typeLabel = '維修';
-        else if (p.type === ProjectType.MODULAR_HOUSE) typeLabel = '組合屋';
-        const row = worksheet.addRow({
-          name: p.name,
-          typeLabel,
-          clientContact: p.clientContact,
-          clientPhone: p.clientPhone,
-          address: p.address,
-          appointmentDate: p.appointmentDate,
-          reportDate: p.reportDate,
-          description: p.description,
-          remarks: p.remarks,
-        });
-        const descLines = countLines(p.description || '', 40);
-        const remarksLines = countLines(p.remarks || '', 30);
-        const nameLines = countLines(p.name || '', 25);
-        const addressLines = countLines(p.address || '', 40);
-        const estimatedTextHeight = Math.max(descLines, remarksLines, nameLines, addressLines) * 18 + 15;
-        row.height = Math.max(minRowHeightPoints, estimatedTextHeight);
-        const imageAttachments = (p.attachments || []).filter(att => att.type.startsWith('image/'));
-        for (const [imgIdx, att] of imageAttachments.entries()) {
-          try {
-            const splitData = att.url.split(',');
-            if (splitData.length < 2) continue;
-            const base64Data = splitData[1];
-            const extension = att.type.split('/')[1] || 'png';
-            const dims = await getImageDimensions(att.url);
-            const aspectRatio = dims.width / dims.height;
-            const targetWidthPx = (photoHeightPoints * pointsToPixels) * aspectRatio;
-            const targetHeightPx = photoHeightPoints * pointsToPixels;
-            const imageId = workbook.addImage({
-              base64: base64Data,
-              extension: (extension === 'jpeg' ? 'jpg' : extension) as any,
-            });
-            const colIdx = 10 + imgIdx;
-            const excelColWidth = targetWidthPx / 7.5;
-            if (!worksheet.getColumn(colIdx).width || worksheet.getColumn(colIdx).width < excelColWidth) {
-                worksheet.getColumn(colIdx).width = excelColWidth;
+
+      const addProjectsToSheet = async (sheetName: string, projectList: Project[]) => {
+        if (projectList.length === 0) return;
+        const worksheet = workbook.addWorksheet(sheetName);
+        worksheet.columns = columns;
+        const headerRow = worksheet.getRow(1);
+        headerRow.font = { bold: true };
+        headerRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE0E0E0' } };
+        
+        const minRowHeightPoints = 100; 
+        const photoHeightPoints = 100; 
+        const pointsToPixels = 1.333; 
+        
+        const countLines = (text: string, colWidth: number) => {
+          if (!text) return 1;
+          return text.split('\n').reduce((acc, line) => {
+            const estimatedCharsPerLine = colWidth * 0.55; 
+            return acc + Math.max(1, Math.ceil(line.length / estimatedCharsPerLine));
+          }, 0);
+        };
+
+        let currentRowIdx = 2;
+        for (const p of projectList) {
+          let typeLabel = '圍籬';
+          if (p.type === ProjectType.MAINTENANCE) typeLabel = '維修';
+          else if (p.type === ProjectType.MODULAR_HOUSE) typeLabel = '組合屋';
+          
+          const row = worksheet.addRow({
+            name: p.name,
+            typeLabel,
+            clientContact: p.clientContact,
+            clientPhone: p.clientPhone,
+            address: p.address,
+            appointmentDate: p.appointmentDate,
+            reportDate: p.reportDate,
+            description: p.description,
+            remarks: p.remarks,
+          });
+          
+          const descLines = countLines(p.description || '', 40);
+          const remarksLines = countLines(p.remarks || '', 30);
+          const nameLines = countLines(p.name || '', 25);
+          const addressLines = countLines(p.address || '', 40);
+          const estimatedTextHeight = Math.max(descLines, remarksLines, nameLines, addressLines) * 18 + 15;
+          row.height = Math.max(minRowHeightPoints, estimatedTextHeight);
+          
+          const imageAttachments = (p.attachments || []).filter(att => att.type.startsWith('image/'));
+          for (const [imgIdx, att] of imageAttachments.entries()) {
+            try {
+              const splitData = att.url.split(',');
+              if (splitData.length < 2) continue;
+              const base64Data = splitData[1];
+              const extension = att.type.split('/')[1] || 'png';
+              const dims = await getImageDimensions(att.url);
+              const aspectRatio = dims.width / dims.height;
+              const targetWidthPx = (photoHeightPoints * pointsToPixels) * aspectRatio;
+              const targetHeightPx = photoHeightPoints * pointsToPixels;
+              const imageId = workbook.addImage({
+                base64: base64Data,
+                extension: (extension === 'jpeg' ? 'jpg' : extension) as any,
+              });
+              const colIdx = 10 + imgIdx;
+              const excelColWidth = targetWidthPx / 7.5;
+              if (!worksheet.getColumn(colIdx).width || worksheet.getColumn(colIdx).width < excelColWidth) {
+                  worksheet.getColumn(colIdx).width = excelColWidth;
+              }
+              worksheet.addImage(imageId, {
+                tl: { col: colIdx - 1, row: currentRowIdx - 1 },
+                ext: { width: targetWidthPx, height: targetHeightPx }
+              });
+              row.getCell(colIdx).value = ""; 
+            } catch (e) {
+              console.warn('圖片匯出失敗', e);
             }
-            worksheet.addImage(imageId, {
-              tl: { col: colIdx - 1, row: currentRowIdx - 1 },
-              ext: { width: targetWidthPx, height: targetHeightPx }
-            });
-            row.getCell(colIdx).value = ""; 
-          } catch (e) {
-            console.warn('圖片匯出失敗', e);
           }
+          currentRowIdx++;
         }
-        currentRowIdx++;
-      }
-      worksheet.eachRow((row, rowNumber) => {
-        row.eachCell({ includeEmpty: true }, (cell) => {
-          cell.alignment = { vertical: 'middle', horizontal: 'left', wrapText: true };
-          if (rowNumber > 1) {
-            cell.border = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } };
-          }
+        
+        worksheet.eachRow((row, rowNumber) => {
+          row.eachCell({ includeEmpty: true }, (cell) => {
+            cell.alignment = { vertical: 'middle', horizontal: 'left', wrapText: true };
+            if (rowNumber > 1) {
+              cell.border = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } };
+            }
+          });
         });
-      });
+      };
+
+      const ongoing = projects.filter(p => p.status !== ProjectStatus.COMPLETED);
+      const completed = projects.filter(p => p.status === ProjectStatus.COMPLETED);
+
+      await addProjectsToSheet('案件排程表', ongoing);
+      await addProjectsToSheet('已完工案件', completed);
+
       const buffer = await workbook.xlsx.writeBuffer();
       const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
       await downloadBlob(blob, `合家興案件排程表_${new Date().toISOString().split('T')[0]}.xlsx`);
