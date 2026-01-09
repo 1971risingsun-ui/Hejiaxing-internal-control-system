@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { App as CapacitorApp } from '@capacitor/app';
 import { Project, ProjectStatus, User, UserRole, MaterialStatus, AuditLog, ProjectType, Attachment, WeeklySchedule as WeeklyScheduleType, DailyDispatch as DailyDispatchType, GlobalTeamConfigs, Employee, AttendanceRecord, OvertimeRecord, MonthSummaryRemark, Supplier, PurchaseOrder, SitePhoto, SystemRules, StockAlertItem, Tool, Asset, Vehicle, ConstructionItem, DailyReport, CompletionReport } from './types';
@@ -34,7 +33,11 @@ import { downloadBlob } from './utils/fileHelpers';
 import ExcelJS from 'exceljs';
 import { GoogleGenAI, Type } from "@google/genai";
 
+// 宣告 pdfjs 庫與工作執行緒路徑
 declare const pdfjsLib: any;
+if (typeof pdfjsLib !== 'undefined') {
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+}
 
 export const generateId = () => {
   try {
@@ -55,7 +58,7 @@ const DEFAULT_SYSTEM_RULES: SystemRules = {
   rolePermissions: {
     [UserRole.ADMIN]: { 
       displayName: '管理員', 
-      allowedViews: ['engineering', 'engineering_hub', 'daily_dispatch', 'driving_time', 'weekly_schedule', 'outsourcing', 'engineering_groups', 'purchasing_hub', 'purchasing_items', 'stock_alert', 'purchasing_suppliers', 'purchasing_subcontractors', 'purchasing_orders', 'purchasing_inbounds', 'hr', 'production', 'equipment', 'equipment_tools', 'equipment_assets', 'equipment_vehicles', 'report', 'users'] 
+      allowedViews: ['engineering', 'engineering_hub', 'daily_dispatch', 'driving_time', 'weekly_schedule', 'outsourcing', 'engineering_groups', 'purchasing_hub', 'purchasing_items', 'stock_alert', 'purchasing_suppliers', 'purchasing_subcontractors', 'purchasing_orders', 'purchasing_inbounds', 'hr', 'production', 'equipment', 'report', 'users'] 
     },
     [UserRole.MANAGER]: { 
       displayName: '專案經理', 
@@ -241,7 +244,6 @@ const App: React.FC = () => {
           if (Array.isArray(cachedState.dailyDispatches)) setDailyDispatches(cachedState.dailyDispatches);
           if (cachedState.globalTeamConfigs) setGlobalTeamConfigs(cachedState.globalTeamConfigs);
           if (cachedState.systemRules) {
-              // 合併預設匯入規則，防止舊資料遺失欄位
               const mergedRules = { ...DEFAULT_SYSTEM_RULES, ...cachedState.systemRules };
               if (!mergedRules.importConfig) mergedRules.importConfig = DEFAULT_SYSTEM_RULES.importConfig;
               setSystemRules(mergedRules);
@@ -279,11 +281,6 @@ const App: React.FC = () => {
       }
     };
     restoreAndLoad();
-    
-    // 初始化 PDF.js Worker
-    if (typeof pdfjsLib !== 'undefined') {
-        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-    }
   }, []);
 
   const updateLastAction = (name: string) => {
@@ -529,136 +526,97 @@ const App: React.FC = () => {
     });
   };
 
-  /**
-   * 輔助函式：從 PDF 讀取嵌入的 JSON 元數據
-   */
-  const extractEmbeddedJsonFromPdf = async (file: File): Promise<any> => {
-    const arrayBuffer = await file.arrayBuffer();
-    const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
-    const pdf = await loadingTask.promise;
-    const metadata = await pdf.getMetadata();
-    
-    if (metadata?.info?.Keywords) {
-        try {
-            return JSON.parse(metadata.info.Keywords);
-        } catch (e) {
-            throw new Error(`無法解析 PDF (${file.name}) 中的數據，請確認該檔案是由本系統匯出的 PDF。`);
-        }
+  // 批量匯入 PDF 數據的通用處理邏輯
+  const handleImportConstructionPDF = async (files: File[], mode: 'record' | 'report') => {
+    if (typeof pdfjsLib === 'undefined') {
+      alert('PDF 解析函式庫尚未載入。');
+      return;
     }
-    throw new Error(`PDF 檔案 (${file.name}) 缺少必要的系統元數據。`);
-  };
 
-  const handleImportConstructionRecords = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
     setIsWorkspaceLoading(true);
     let successCount = 0;
     let failCount = 0;
-
     const updatedProjects = [...projects];
-    const newAttendanceUpdates: {date: string, worker: string, assistant: string}[] = [];
 
-    try {
-      // Fix: Cast Array.from(files) to File[] to ensure 'file' is recognized as a File object during iteration.
-      for (const file of Array.from(files) as File[]) {
-        try {
-          const data = await extractEmbeddedJsonFromPdf(file);
-          const pIdx = updatedProjects.findIndex(p => p.name === data.projectName);
-          if (pIdx === -1) throw new Error(`系統中找不到名為「${data.projectName}」的專案`);
+    for (const file of files) {
+      try {
+        const arrayBuffer = await file.arrayBuffer();
+        const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
+        const pdf = await loadingTask.promise;
+        const metadata = await pdf.getMetadata();
+        
+        // 讀取嵌入的 JSON 字串 (儲存在 Subject 欄位)
+        const jsonStr = metadata.info?.Subject || metadata.info?.subject;
+        if (!jsonStr) throw new Error('找不到內嵌數據');
 
-          const date = data.date;
-          const newItems: ConstructionItem[] = data.items.map((item: any) => ({
-              ...item,
-              id: item.id || generateId()
-          }));
+        const data = JSON.parse(jsonStr);
+        if (!data.project || !data.record) throw new Error('數據格式不正確');
 
-          const otherItems = (updatedProjects[pIdx].constructionItems || []).filter(item => item.date !== date);
-          updatedProjects[pIdx].constructionItems = [...otherItems, ...newItems];
-          
-          newAttendanceUpdates.push({ date, worker: data.worker, assistant: data.assistant });
-          successCount++;
-        } catch (err: any) {
-          console.error(err);
-          failCount++;
-        }
-      }
+        const { id: projId, name: projName } = data.project;
+        const { date, worker, assistant, weather, content, items } = data.record;
 
-      setProjects(updatedProjects);
-      // 批次更新出勤
-      newAttendanceUpdates.forEach(u => updateAttendanceForAssistants(u.date, u.worker, u.assistant));
-      
-      updateLastAction(`批量匯入施工紀錄 (${successCount} 成功, ${failCount} 失敗)`);
-      alert(`匯入完成！\n成功：${successCount} 筆\n失敗：${failCount} 筆`);
-    } catch (err: any) {
-      alert('匯入過程發生錯誤: ' + err.message);
-    } finally {
-      setIsWorkspaceLoading(false);
-      if (importConstructionRecordsRef.current) importConstructionRecordsRef.current.value = '';
-    }
-  };
+        const pIdx = updatedProjects.findIndex(p => p.id === projId || p.name === projName);
+        if (pIdx === -1) throw new Error(`找不到專案：${projName}`);
 
-  const handleImportConstructionReports = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-    setIsWorkspaceLoading(true);
-    let successCount = 0;
-    let failCount = 0;
-
-    const updatedProjects = [...projects];
-    const newAttendanceUpdates: {date: string, worker: string, assistant: string}[] = [];
-
-    try {
-      // Fix: Cast Array.from(files) to File[] to ensure 'file' is recognized as a File object during iteration.
-      for (const file of Array.from(files) as File[]) {
-        try {
-          const data = await extractEmbeddedJsonFromPdf(file);
-          const pIdx = updatedProjects.findIndex(p => p.name === data.projectName);
-          if (pIdx === -1) throw new Error(`系統中找不到名為「${data.projectName}」的專案`);
-
-          const date = data.date;
-          const newItems: ConstructionItem[] = data.items.map((item: any) => ({
-              ...item,
-              id: item.id || generateId()
-          }));
-
-          // 處理報告
-          if (data.report) {
-            const newReport: DailyReport = {
-                id: generateId(),
-                date: date,
-                weather: data.report.weather,
-                content: data.report.content,
-                reporter: currentUser?.name || '系統匯入',
-                timestamp: Date.now(),
-                photos: [], // PDF 暫不支援回填 Base64 照片以防溢出
-                worker: data.worker,
-                assistant: data.assistant
-            };
-            updatedProjects[pIdx].reports = [...(updatedProjects[pIdx].reports || []).filter(r => r.date !== date), newReport];
-          }
-
+        if (mode === 'record') {
+          // 處理施工項目
           const otherItems = (updatedProjects[pIdx].constructionItems || []).filter(i => i.date !== date);
+          const newItems: ConstructionItem[] = items.map((i: any) => ({
+            id: generateId(),
+            name: i.name,
+            quantity: i.quantity,
+            unit: i.unit,
+            location: i.location,
+            worker: worker,
+            assistant: assistant,
+            date: date
+          }));
           updatedProjects[pIdx].constructionItems = [...otherItems, ...newItems];
+        } else {
+          // 處理施工報告
+          const weatherMap: any = { 'sunny': 'sunny', 'cloudy': 'cloudy', 'rainy': 'rainy' };
+          const newReport: DailyReport = {
+            id: generateId(),
+            date: date,
+            weather: (weatherMap[weather] || 'sunny') as any,
+            content: content,
+            reporter: currentUser?.name || '系統匯入',
+            timestamp: Date.now(),
+            photos: [], // 照片因體積過大通常不嵌入，需手動重傳
+            worker: worker,
+            assistant: assistant
+          };
+          updatedProjects[pIdx].reports = [...(updatedProjects[pIdx].reports || []).filter(r => r.date !== date), newReport];
           
-          newAttendanceUpdates.push({ date, worker: data.worker, assistant: data.assistant });
-          successCount++;
-        } catch (err: any) {
-          console.error(err);
-          failCount++;
+          // 同步施工細項 (如果有)
+          if (items && Array.isArray(items)) {
+              const otherItems = (updatedProjects[pIdx].constructionItems || []).filter(i => i.date !== date);
+              const newItems: ConstructionItem[] = items.map((i: any) => ({
+                id: generateId(),
+                name: i.name,
+                quantity: i.quantity,
+                unit: i.unit,
+                location: i.location,
+                worker: worker,
+                assistant: assistant,
+                date: date
+              }));
+              updatedProjects[pIdx].constructionItems = [...otherItems, ...newItems];
+          }
         }
-      }
 
-      setProjects(updatedProjects);
-      newAttendanceUpdates.forEach(u => updateAttendanceForAssistants(u.date, u.worker, u.assistant));
-      
-      updateLastAction(`批量匯入施工報告 (${successCount} 成功, ${failCount} 失敗)`);
-      alert(`匯入完成！\n成功：${successCount} 筆\n失敗：${failCount} 筆`);
-    } catch (err: any) {
-      alert('匯入過程發生錯誤: ' + err.message);
-    } finally {
-      setIsWorkspaceLoading(false);
-      if (importConstructionReportsRef.current) importConstructionReportsRef.current.value = '';
+        updateAttendanceForAssistants(date, worker, assistant);
+        successCount++;
+      } catch (err: any) {
+        console.warn(`檔案 ${file.name} 匯入失敗:`, err.message);
+        failCount++;
+      }
     }
+
+    setProjects(updatedProjects);
+    updateLastAction(`批量 PDF 匯入: ${mode === 'record' ? '施工紀錄' : '施工報告'}`);
+    setIsWorkspaceLoading(false);
+    alert(`匯入完成！\n成功：${successCount} 份\n失敗：${failCount} 份`);
   };
 
   const handleImportCompletionReports = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1072,6 +1030,7 @@ const App: React.FC = () => {
             <button key={cat.id} onClick={() => setView(cat.id as any)} className="bg-white p-8 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md hover:border-blue-500 transition-all group flex flex-col items-center text-center gap-4"><div className={`p-4 rounded-xl ${cat.color} group-hover:scale-110 transition-transform`}>{cat.icon}</div><div className="font-bold text-slate-800 text-lg">{cat.label}</div><p className="text-xs text-slate-400 font-medium">{cat.desc}</p><p className="text-[10px] text-slate-300 font-bold uppercase tracking-widest mt-2">Work Schedule Hub</p></button>
           ))}</div></div></div>) :
            view === 'purchasing_hub' ? (<div className="flex-1 overflow-auto"><PurchasingModule onNavigate={setView} allowedViews={systemRules.rolePermissions?.[currentUser.role]?.allowedViews || []} /></div>) :
+           // Fix: Use the correct state setter name 'setSubcontractors' instead of the non-existent 'setUpdateSubcontractors'
            view === 'purchasing_items' ? (<div className="flex-1 overflow-hidden"><GlobalPurchasingItems projects={projects} onUpdateProject={handleUpdateProject} systemRules={systemRules} onBack={() => setView('purchasing_hub')} suppliers={suppliers} subcontractors={subcontractors} onUpdateSuppliers={setSuppliers} onUpdateSubcontractors={setSubcontractors} purchaseOrders={purchaseOrders} onUpdatePurchaseOrders={setPurchaseOrders} /></div>) :
            view === 'stock_alert' ? (<div className="flex-1 overflow-hidden"><StockAlert items={stockAlertItems} onUpdateItems={setStockAlertItems} onBack={() => setView('purchasing_hub')} /></div>) :
            view === 'purchasing_suppliers' ? (
@@ -1083,7 +1042,8 @@ const App: React.FC = () => {
            view === 'purchasing_subcontractors' ? (
             <div className="flex flex-col flex-1 min-h-0">
               <div className="px-6 pt-4"><button onClick={() => setView('purchasing_hub')} className="flex items-center gap-2 text-slate-500 hover:text-blue-600 font-bold text-xs"><ArrowLeftIcon className="w-3 h-3" /> 返回採購</button></div>
-              <div className="flex-1 overflow-hidden"><SupplierList title="外包廠商清冊" typeLabel="外包廠商" themeColor="indigo" suppliers={subcontractors} onUpdateSuppliers={setSuppliers} /></div>
+              // Fix: Pass setSubcontractors instead of setSuppliers when managing the subcontractors list
+              <div className="flex-1 overflow-hidden"><SupplierList title="外包廠商清冊" typeLabel="外包廠商" themeColor="indigo" suppliers={subcontractors} onUpdateSuppliers={setSubcontractors} /></div>
             </div>
          ) :
            view === 'purchasing_orders' ? (
@@ -1150,8 +1110,8 @@ const App: React.FC = () => {
       </div>
 
       <input type="file" accept=".xlsx, .xls" ref={excelInputRef} className="hidden" onChange={handleImportExcel} />
-      <input type="file" accept=".pdf" multiple ref={importConstructionRecordsRef} className="hidden" onChange={handleImportConstructionRecords} />
-      <input type="file" accept=".pdf" multiple ref={importConstructionReportsRef} className="hidden" onChange={handleImportConstructionReports} />
+      <input type="file" multiple accept=".pdf" ref={importConstructionRecordsRef} className="hidden" onChange={(e) => e.target.files && handleImportConstructionPDF(Array.from(e.target.files), 'record')} />
+      <input type="file" multiple accept=".pdf" ref={importConstructionReportsRef} className="hidden" onChange={(e) => e.target.files && handleImportConstructionPDF(Array.from(e.target.files), 'report')} />
       <input type="file" accept=".xlsx, .xls" ref={importCompletionReportsRef} className="hidden" onChange={handleImportCompletionReports} />
 
       {isDrivingTimeModalOpen && (

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Project, ProjectStatus, User, UserRole, ProjectType, GlobalTeamConfigs } from '../types';
 import { CalendarIcon, MapPinIcon, SearchIcon, MoreVerticalIcon, EditIcon, CopyIcon, TrashIcon, LayoutGridIcon, ListIcon, PlusIcon, NavigationIcon, CheckCircleIcon, XIcon, UsersIcon, ClipboardListIcon, PaperclipIcon, BoxIcon, FileTextIcon, DownloadIcon, StampIcon, UploadIcon } from './Icons';
@@ -197,7 +196,7 @@ const ProjectList: React.FC<ProjectListProps> = ({
                         className="w-full text-left px-4 py-3 text-xs font-bold text-slate-700 hover:bg-slate-50 rounded-xl flex items-center gap-3 transition-colors"
                      >
                         <div className="w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center">
-                          <FileTextIcon className="w-4 h-4 text-slate-500" />
+                          <ClipboardListIcon className="w-4 h-4 text-slate-500" />
                         </div>
                         批量匯入施工紀錄 (PDF)
                      </button>
@@ -337,7 +336,7 @@ const ProjectList: React.FC<ProjectListProps> = ({
                 <span className="text-[10px] font-bold text-slate-400 uppercase py-1.5 flex items-center whitespace-nowrap tracking-widest">狀態篩選：</span>
                 {['ALL', ProjectStatus.IN_PROGRESS, ProjectStatus.PLANNING, ProjectStatus.COMPLETED].map((status) => (
                     <button 
-                        key={status}
+                        key={status} 
                         onClick={() => setStatusFilter(status as any)}
                         className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all whitespace-nowrap border ${statusFilter === status ? 'bg-slate-800 text-white border-slate-800 shadow-md' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}
                     >
