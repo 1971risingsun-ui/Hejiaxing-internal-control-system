@@ -34,6 +34,8 @@ import { downloadBlob } from './utils/fileHelpers';
 import ExcelJS from 'exceljs';
 import { GoogleGenAI, Type } from "@google/genai";
 
+declare const pdfjsLib: any;
+
 export const generateId = () => {
   try {
     if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -277,6 +279,11 @@ const App: React.FC = () => {
       }
     };
     restoreAndLoad();
+    
+    // 初始化 PDF.js Worker
+    if (typeof pdfjsLib !== 'undefined') {
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    }
   }, []);
 
   const updateLastAction = (name: string) => {
@@ -522,62 +529,68 @@ const App: React.FC = () => {
     });
   };
 
+  /**
+   * 輔助函式：從 PDF 讀取嵌入的 JSON 元數據
+   */
+  const extractEmbeddedJsonFromPdf = async (file: File): Promise<any> => {
+    const arrayBuffer = await file.arrayBuffer();
+    const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
+    const pdf = await loadingTask.promise;
+    const metadata = await pdf.getMetadata();
+    
+    if (metadata?.info?.Keywords) {
+        try {
+            return JSON.parse(metadata.info.Keywords);
+        } catch (e) {
+            throw new Error(`無法解析 PDF (${file.name}) 中的數據，請確認該檔案是由本系統匯出的 PDF。`);
+        }
+    }
+    throw new Error(`PDF 檔案 (${file.name}) 缺少必要的系統元數據。`);
+  };
+
   const handleImportConstructionRecords = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
     setIsWorkspaceLoading(true);
+    let successCount = 0;
+    let failCount = 0;
+
+    const updatedProjects = [...projects];
+    const newAttendanceUpdates: {date: string, worker: string, assistant: string}[] = [];
+
     try {
-      const arrayBuffer = await file.arrayBuffer();
-      const workbook = new ExcelJS.Workbook();
-      await workbook.xlsx.load(arrayBuffer);
-      const worksheet = workbook.getWorksheet(1);
-      if (!worksheet) throw new Error('找不到工作表');
+      // Fix: Cast Array.from(files) to File[] to ensure 'file' is recognized as a File object during iteration.
+      for (const file of Array.from(files) as File[]) {
+        try {
+          const data = await extractEmbeddedJsonFromPdf(file);
+          const pIdx = updatedProjects.findIndex(p => p.name === data.projectName);
+          if (pIdx === -1) throw new Error(`系統中找不到名為「${data.projectName}」的專案`);
 
-      const config = systemRules.importConfig?.recordKeywords || DEFAULT_SYSTEM_RULES.importConfig!.recordKeywords;
+          const date = data.date;
+          const newItems: ConstructionItem[] = data.items.map((item: any) => ({
+              ...item,
+              id: item.id || generateId()
+          }));
 
-      const titleStr = worksheet.getRow(1).getCell(1).value?.toString() || '';
-      const pName = titleStr.includes(' - ') ? titleStr.split(' - ')[1].trim() : '';
-      if (!pName) throw new Error(`無法從首列辨識專案名稱（格式需為：${config.recordTitle} - 專案名稱）`);
+          const otherItems = (updatedProjects[pIdx].constructionItems || []).filter(item => item.date !== date);
+          updatedProjects[pIdx].constructionItems = [...otherItems, ...newItems];
+          
+          newAttendanceUpdates.push({ date, worker: data.worker, assistant: data.assistant });
+          successCount++;
+        } catch (err: any) {
+          console.error(err);
+          failCount++;
+        }
+      }
 
-      const date = parseExcelDate(worksheet.getRow(2).getCell(2).value);
-      if (!date) throw new Error('無法辨識日期（需在第二列第二欄）');
-
-      const personnelStr = worksheet.getRow(3).getCell(2).value?.toString() || '';
-      const worker = personnelStr.match(/師傅:\s*(.*?)\s*\//)?.[1] || personnelStr.match(/師傅:\s*(.*?)$/)?.[1] || '';
-      const assistant = personnelStr.match(/助手:\s*(.*)$/)?.[1] || '';
-
-      const pIdx = projects.findIndex(p => p.name === pName);
-      if (pIdx === -1) throw new Error(`系統中找不到名為「${pName}」的專案`);
-
-      const newItems: ConstructionItem[] = [];
-      worksheet.eachRow((row, rowNumber) => {
-        if (rowNumber <= 6) return;
-        const itemName = row.getCell(2).value?.toString() || '';
-        if (!itemName) return;
-        
-        newItems.push({
-          id: generateId(),
-          name: itemName,
-          quantity: row.getCell(3).value?.toString() || '',
-          unit: row.getCell(4).value?.toString() || '',
-          location: row.getCell(5).value?.toString() || '',
-          worker: worker,
-          assistant: assistant,
-          date: date
-        });
-      });
-
-      const updatedProjects = [...projects];
-      const otherItems = (updatedProjects[pIdx].constructionItems || []).filter(item => !(item.date === date));
-      updatedProjects[pIdx].constructionItems = [...otherItems, ...newItems];
-      
       setProjects(updatedProjects);
-      updateAttendanceForAssistants(date, worker, assistant);
+      // 批次更新出勤
+      newAttendanceUpdates.forEach(u => updateAttendanceForAssistants(u.date, u.worker, u.assistant));
       
-      updateLastAction(`匯入施工紀錄: ${pName}`);
-      alert(`成功匯入 ${pName} 在 ${date} 的 ${newItems.length} 筆項目`);
+      updateLastAction(`批量匯入施工紀錄 (${successCount} 成功, ${failCount} 失敗)`);
+      alert(`匯入完成！\n成功：${successCount} 筆\n失敗：${failCount} 筆`);
     } catch (err: any) {
-      alert('匯入失敗: ' + err.message);
+      alert('匯入過程發生錯誤: ' + err.message);
     } finally {
       setIsWorkspaceLoading(false);
       if (importConstructionRecordsRef.current) importConstructionRecordsRef.current.value = '';
@@ -585,87 +598,63 @@ const App: React.FC = () => {
   };
 
   const handleImportConstructionReports = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
     setIsWorkspaceLoading(true);
+    let successCount = 0;
+    let failCount = 0;
+
+    const updatedProjects = [...projects];
+    const newAttendanceUpdates: {date: string, worker: string, assistant: string}[] = [];
+
     try {
-      const arrayBuffer = await file.arrayBuffer();
-      const workbook = new ExcelJS.Workbook();
-      await workbook.xlsx.load(arrayBuffer);
-      const worksheet = workbook.getWorksheet(1);
-      if (!worksheet) throw new Error('找不到工作表');
+      // Fix: Cast Array.from(files) to File[] to ensure 'file' is recognized as a File object during iteration.
+      for (const file of Array.from(files) as File[]) {
+        try {
+          const data = await extractEmbeddedJsonFromPdf(file);
+          const pIdx = updatedProjects.findIndex(p => p.name === data.projectName);
+          if (pIdx === -1) throw new Error(`系統中找不到名為「${data.projectName}」的專案`);
 
-      const config = systemRules.importConfig?.recordKeywords || DEFAULT_SYSTEM_RULES.importConfig!.recordKeywords;
+          const date = data.date;
+          const newItems: ConstructionItem[] = data.items.map((item: any) => ({
+              ...item,
+              id: item.id || generateId()
+          }));
 
-      const titleStr = worksheet.getRow(1).getCell(1).value?.toString() || '';
-      const pName = titleStr.includes(' - ') ? titleStr.split(' - ')[1].trim() : '';
-      if (!pName) throw new Error(`無法從首列辨識專案名稱（格式需為：${config.reportTitle} - 專案名稱）`);
+          // 處理報告
+          if (data.report) {
+            const newReport: DailyReport = {
+                id: generateId(),
+                date: date,
+                weather: data.report.weather,
+                content: data.report.content,
+                reporter: currentUser?.name || '系統匯入',
+                timestamp: Date.now(),
+                photos: [], // PDF 暫不支援回填 Base64 照片以防溢出
+                worker: data.worker,
+                assistant: data.assistant
+            };
+            updatedProjects[pIdx].reports = [...(updatedProjects[pIdx].reports || []).filter(r => r.date !== date), newReport];
+          }
 
-      const date = parseExcelDate(worksheet.getRow(2).getCell(2).value);
-      if (!date) throw new Error('無法辨識日期（需在第二列第二欄）');
-
-      const personnelStr = worksheet.getRow(3).getCell(2).value?.toString() || '';
-      const worker = personnelStr.match(/師傅:\s*(.*?)\s*\//)?.[1] || personnelStr.match(/師傅:\s*(.*?)$/)?.[1] || '';
-      const assistant = personnelStr.match(/助手:\s*(.*)$/)?.[1] || '';
-      
-      const weatherVal = worksheet.getRow(4).getCell(2).value?.toString() || '晴天';
-      const weatherMap: any = { '晴天': 'sunny', '陰天': 'cloudy', '雨天': 'rainy' };
-      const weather = weatherMap[weatherVal] || 'sunny';
-
-      const pIdx = projects.findIndex(p => p.name === pName);
-      if (pIdx === -1) throw new Error(`系統中找不到名為「${pName}」的專案`);
-
-      const newItems: ConstructionItem[] = [];
-      let rNum = 7;
-      while (rNum <= worksheet.rowCount) {
-          const row = worksheet.getRow(rNum);
-          const itemName = row.getCell(2).value?.toString()?.trim();
-          if (!itemName) break;
-          newItems.push({
-              id: generateId(),
-              name: itemName,
-              quantity: row.getCell(3).value?.toString() || '',
-              unit: row.getCell(4).value?.toString() || '',
-              location: row.getCell(5).value?.toString() || '',
-              worker: worker,
-              assistant: assistant,
-              date: date
-          });
-          rNum++;
+          const otherItems = (updatedProjects[pIdx].constructionItems || []).filter(i => i.date !== date);
+          updatedProjects[pIdx].constructionItems = [...otherItems, ...newItems];
+          
+          newAttendanceUpdates.push({ date, worker: data.worker, assistant: data.assistant });
+          successCount++;
+        } catch (err: any) {
+          console.error(err);
+          failCount++;
+        }
       }
 
-      let contentRowIdx = -1;
-      worksheet.eachRow((row, rowNumber) => {
-          if (row.getCell(1).value?.toString()?.trim() === '施工內容與備註') {
-              contentRowIdx = rowNumber + 1;
-          }
-      });
-      const content = contentRowIdx !== -1 ? worksheet.getRow(contentRowIdx).getCell(1).value?.toString() || '' : '';
-
-      const newReport: DailyReport = {
-        id: generateId(),
-        date: date,
-        weather: weather as any,
-        content: content,
-        reporter: currentUser?.name || '系統匯入',
-        timestamp: Date.now(),
-        photos: [],
-        worker: worker,
-        assistant: assistant
-      };
-
-      const updatedProjects = [...projects];
-      updatedProjects[pIdx].reports = [...(updatedProjects[pIdx].reports || []).filter(r => r.date !== date), newReport];
-      const otherItems = (updatedProjects[pIdx].constructionItems || []).filter(i => i.date !== date);
-      updatedProjects[pIdx].constructionItems = [...otherItems, ...newItems];
-      
       setProjects(updatedProjects);
-      updateAttendanceForAssistants(date, worker, assistant);
+      newAttendanceUpdates.forEach(u => updateAttendanceForAssistants(u.date, u.worker, u.assistant));
       
-      updateLastAction(`匯入施工報告: ${pName}`);
-      alert(`成功匯入 ${pName} 在 ${date} 的施工報告及 ${newItems.length} 筆施工細項`);
+      updateLastAction(`批量匯入施工報告 (${successCount} 成功, ${failCount} 失敗)`);
+      alert(`匯入完成！\n成功：${successCount} 筆\n失敗：${failCount} 筆`);
     } catch (err: any) {
-      alert('匯入失敗: ' + err.message);
+      alert('匯入過程發生錯誤: ' + err.message);
     } finally {
       setIsWorkspaceLoading(false);
       if (importConstructionReportsRef.current) importConstructionReportsRef.current.value = '';
@@ -1161,8 +1150,8 @@ const App: React.FC = () => {
       </div>
 
       <input type="file" accept=".xlsx, .xls" ref={excelInputRef} className="hidden" onChange={handleImportExcel} />
-      <input type="file" accept=".xlsx, .xls" ref={importConstructionRecordsRef} className="hidden" onChange={handleImportConstructionRecords} />
-      <input type="file" accept=".xlsx, .xls" ref={importConstructionReportsRef} className="hidden" onChange={handleImportConstructionReports} />
+      <input type="file" accept=".pdf" multiple ref={importConstructionRecordsRef} className="hidden" onChange={handleImportConstructionRecords} />
+      <input type="file" accept=".pdf" multiple ref={importConstructionReportsRef} className="hidden" onChange={handleImportConstructionReports} />
       <input type="file" accept=".xlsx, .xls" ref={importCompletionReportsRef} className="hidden" onChange={handleImportCompletionReports} />
 
       {isDrivingTimeModalOpen && (
