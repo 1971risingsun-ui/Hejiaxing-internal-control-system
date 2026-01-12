@@ -1,3 +1,4 @@
+
 export enum ProjectStatus {
   PLANNING = '規劃中',
   IN_PROGRESS = '進行中',
@@ -16,8 +17,7 @@ export enum UserRole {
   MANAGER = 'manager',
   WORKER = 'worker',
   ENGINEERING = 'engineering',
-  FACTORY = 'factory',
-  VIEWER = 'viewer'
+  FACTORY = 'factory'
 }
 
 export interface User {

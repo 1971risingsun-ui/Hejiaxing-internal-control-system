@@ -74,10 +74,6 @@ const DEFAULT_SYSTEM_RULES: SystemRules = {
     [UserRole.WORKER]: { 
       displayName: '現場人員', 
       allowedViews: ['engineering', 'engineering_hub', 'daily_dispatch', 'report'] 
-    },
-    [UserRole.VIEWER]: { 
-      displayName: '唯讀觀察員', 
-      allowedViews: ['engineering', 'engineering_hub', 'daily_dispatch', 'driving_time', 'weekly_schedule', 'outsourcing', 'purchasing_hub', 'purchasing_items', 'stock_alert', 'purchasing_suppliers', 'purchasing_subcontractors', 'purchasing_orders', 'purchasing_inbounds', 'hr', 'production', 'equipment', 'report'] 
     }
   },
   materialFormulas: [
@@ -341,9 +337,6 @@ const App: React.FC = () => {
     if (!isInitialized) return;
     const saveAll = async () => {
         try {
-            // 唯讀用戶不觸發自動儲存至實體檔案
-            if (currentUser?.role === UserRole.VIEWER) return;
-
             await saveAppStateToIdb({ projects, users: allUsers, auditLogs, weeklySchedules, dailyDispatches, globalTeamConfigs, systemRules, employees, attendance, overtime, monthRemarks, suppliers, subcontractors, purchaseOrders, stockAlertItems, tools, assets, vehicles, lastUpdateInfo, lastSaved: new Date().toISOString() });
             if (dirHandle && dirPermission === 'granted') {
                 syncToLocal(dirHandle, { projects, users: allUsers, auditLogs, weeklySchedules, dailyDispatches, globalTeamConfigs, systemRules, employees, attendance, overtime, monthRemarks, suppliers, subcontractors, purchaseOrders, stockAlertItems, tools, assets, vehicles });
@@ -354,7 +347,7 @@ const App: React.FC = () => {
     };
     const timer = setTimeout(saveAll, 500);
     return () => clearTimeout(timer);
-  }, [projects, allUsers, auditLogs, weeklySchedules, dailyDispatches, globalTeamConfigs, systemRules, employees, attendance, overtime, monthRemarks, suppliers, subcontractors, purchaseOrders, stockAlertItems, tools, assets, vehicles, dirHandle, dirPermission, isInitialized, lastUpdateInfo, currentUser]);
+  }, [projects, allUsers, auditLogs, weeklySchedules, dailyDispatches, globalTeamConfigs, systemRules, employees, attendance, overtime, monthRemarks, suppliers, subcontractors, purchaseOrders, stockAlertItems, tools, assets, vehicles, dirHandle, dirPermission, isInitialized, lastUpdateInfo]);
 
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
@@ -371,14 +364,12 @@ const App: React.FC = () => {
     }
   };
   const handleUpdateProject = (updatedProject: Project) => {
-    if (currentUser?.role === UserRole.VIEWER) return;
     setProjects(prev => sortProjects(prev.map(p => p.id === updatedProject.id ? updatedProject : p)));
     if (selectedProject?.id === updatedProject.id) setSelectedProject(updatedProject);
     updateLastAction(updatedProject.name);
   };
 
   const handleAddToSchedule = (date: string, teamId: number, taskName: string) => {
-    if (currentUser?.role === UserRole.VIEWER) return false;
     let wasAdded = false;
     setWeeklySchedules(prevSchedules => {
       const newWeeklySchedules = [...prevSchedules];
@@ -431,7 +422,6 @@ const App: React.FC = () => {
     const isBrowserSupported = 'showDirectoryPicker' in window;
     const perms = systemRules.rolePermissions?.[currentUser.role];
     const roleName = perms?.displayName || (currentUser.role === UserRole.ADMIN ? '管理員' : currentUser.role === UserRole.MANAGER ? '專案經理' : '現場人員');
-    const isReadOnly = currentUser.role === UserRole.VIEWER;
 
     return (
       <>
@@ -442,7 +432,7 @@ const App: React.FC = () => {
            <h1 className="text-base font-black text-white tracking-[0.15em] border-b-2 border-yellow-500 pb-1">
              合家興實業
            </h1>
-           <div className={`mt-2 text-[9px] font-black ${isReadOnly ? 'bg-slate-500' : 'bg-blue-600'} px-3 py-0.5 rounded-full text-white uppercase tracking-widest`}>{roleName}</div>
+           <div className="mt-2 text-[9px] font-black bg-blue-600 px-3 py-0.5 rounded-full text-white uppercase tracking-widest">{roleName}</div>
         </div>
         <nav className="flex-1 px-4 space-y-2 overflow-y-auto no-scrollbar pb-10">
           <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-2 mt-4 px-4">工務工程 (Engineering)</div>
@@ -485,23 +475,14 @@ const App: React.FC = () => {
           )}
           {isViewAllowed('users') && (<button onClick={() => { setView('users'); setSelectedProject(null); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'users' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}><ShieldIcon className="w-4 h-4" /> <span className="font-medium">系統權限</span></button>)}
           <div className="pt-4 border-t border-slate-800 mt-4 space-y-2">
-            <button 
-              onClick={() => isReadOnly ? alert('唯讀帳號無法修改同步設定') : handleDirectoryAction(false)} 
-              disabled={!isBrowserSupported} 
-              className={`flex items-center gap-3 px-4 py-3 rounded-xl w-full transition-all border ${!isBrowserSupported ? 'opacity-30 border-slate-700 bg-slate-800' : isConnected ? 'bg-green-600/10 border-green-500 text-green-400' : 'bg-red-600/10 border-red-500 text-red-400'} ${isReadOnly ? 'opacity-60 cursor-not-allowed' : ''}`}
-            >
+            <button onClick={() => handleDirectoryAction(false)} disabled={!isBrowserSupported} className={`flex items-center gap-3 px-4 py-3 rounded-xl w-full transition-all border ${!isBrowserSupported ? 'opacity-30 border-slate-700 bg-slate-800' : isConnected ? 'bg-green-600/10 border-green-500 text-green-400' : 'bg-red-600/10 border-red-500 text-red-400'}`}>
               {isWorkspaceLoading ? <LoaderIcon className="w-5 h-5 animate-spin" /> : isConnected ? <CheckCircleIcon className="w-5 h-5" /> : <AlertIcon className="w-5 h-5" />}
               <div className="flex items-start text-left flex-col"><span className="text-sm font-bold">{!isBrowserSupported ? '不支援自動備份' : isConnected ? '電腦同步已開啟' : '未連結電腦目錄'}</span><span className="text-[10px] opacity-70">{isConnected && lastSyncTime ? `最後同步: ${lastSyncTime}` : 'db.json 即時同步'}</span></div>
             </button>
             <button onClick={() => window.open("https://www.myqnapcloud.com/smartshare/718f171i34qr44su2301w465_01ee54950081233tq6u01ww8c822fgj0", "_blank")} className="flex items-center gap-3 px-4 py-3 rounded-xl w-full transition-all bg-sky-600/10 border border-sky-500/30 text-sky-400 hover:bg-sky-600 hover:text-white group"><ExternalLinkIcon className="w-5 h-5" /><div className="flex items-start text-left flex-col"><span className="text-sm font-bold">開啟網路資料夾</span><span className="text-[10px] opacity-70">連至 QNAP 共享空間</span></div></button>
             <div className="px-1 pt-1 border-t border-slate-800 mt-2 space-y-2">
               <input type="file" accept=".json" ref={dbJsonInputRef} className="hidden" onChange={handleImportDbJson} />
-              <button 
-                onClick={() => isReadOnly ? alert('唯讀帳號無法匯入資料') : dbJsonInputRef.current?.click()} 
-                className={`flex items-center gap-3 px-4 py-3 rounded-xl w-full transition-all bg-orange-600/10 border border-orange-500/30 text-orange-400 hover:bg-orange-600 hover:text-white group ${isReadOnly ? 'opacity-60 cursor-not-allowed grayscale' : ''}`}
-              >
-                <UploadIcon className="w-5 h-5" /><div className="flex items-start text-left flex-col"><span className="text-sm font-bold">匯入 db.json</span><span className="text-[10px] opacity-70">還原系統備份資料</span></div>
-              </button>
+              <button onClick={() => dbJsonInputRef.current?.click()} className="flex items-center gap-3 px-4 py-3 rounded-xl w-full transition-all bg-orange-600/10 border border-orange-500/30 text-orange-400 hover:bg-orange-600 hover:text-white group"><UploadIcon className="w-5 h-5" /><div className="flex items-start text-left flex-col"><span className="text-sm font-bold">匯入 db.json</span><span className="text-[10px] opacity-70">還原系統備份資料</span></div></button>
               <button onClick={handleManualSaveAs} className="flex items-center gap-3 px-4 py-3 rounded-xl w-full transition-all bg-emerald-600/10 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-600 hover:text-white group"><SaveIcon className="w-5 h-5" /><div className="flex items-start text-left flex-col"><span className="text-sm font-bold">手動另存新檔</span><span className="text-[10px] opacity-70">下載 db.json 到本機</span></div></button>
             </div>
           </div>
@@ -584,7 +565,7 @@ const App: React.FC = () => {
            view === 'purchasing_subcontractors' ? (
             <div className="flex flex-col flex-1 min-h-0">
               <div className="px-6 pt-4"><button onClick={() => setView('purchasing_hub')} className="flex items-center gap-2 text-slate-500 hover:text-blue-600 font-bold text-xs"><ArrowLeftIcon className="w-3 h-3" /> 返回採購</button></div>
-              <div className="flex-1 overflow-hidden"><SupplierList title="外包廠商清冊" typeLabel="外包廠商" themeColor="indigo" suppliers={subcontractors} onUpdateSuppliers={setSuppliers} /></div>
+              <div className="flex-1 overflow-hidden"><SupplierList title="外包廠商清冊" typeLabel="外包廠商" themeColor="indigo" suppliers={subcontractors} onUpdateSuppliers={setSubcontractors} /></div>
             </div>
          ) :
            view === 'purchasing_orders' ? (
@@ -599,7 +580,7 @@ const App: React.FC = () => {
                 <div className="flex-1 overflow-hidden"><InboundDetails projects={projects} suppliers={[...suppliers, ...subcontractors]} purchaseOrders={purchaseOrders} onUpdatePurchaseOrders={setPurchaseOrders} /></div>
               </div>
            ) :
-           view === 'hr' ? (<div className="flex-1 overflow-hidden"><HRManagement employees={employees} attendance={attendance} overtime={overtime} monthRemarks={monthRemarks} dailyDispatches={dailyDispatches} onUpdateEmployees={setEmployees} onUpdateAttendance={setAttendance} onUpdateOvertime={setOvertime} onUpdateMonthRemarks={setMonthRemarks} currentUserRole={currentUser.role} /></div>) :
+           view === 'hr' ? (<div className="flex-1 overflow-hidden"><HRManagement employees={employees} attendance={attendance} overtime={overtime} monthRemarks={monthRemarks} dailyDispatches={dailyDispatches} onUpdateEmployees={setEmployees} onUpdateAttendance={setAttendance} onUpdateOvertime={setOvertime} onUpdateMonthRemarks={setMonthRemarks} /></div>) :
            view === 'production' ? (<div className="flex-1 overflow-hidden"><GlobalProduction projects={projects} onUpdateProject={handleUpdateProject} systemRules={systemRules} /></div>) :
            view === 'outsourcing' ? (<div className="flex-1 overflow-hidden"><GlobalOutsourcing projects={projects} onUpdateProject={handleUpdateProject} systemRules={systemRules} subcontractors={subcontractors} /></div>) :
            view === 'driving_time' ? (

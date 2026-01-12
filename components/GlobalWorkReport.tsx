@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { Project, User, ProjectType, DailyReport, SitePhoto, UserRole } from '../types';
+import { Project, User, ProjectType, DailyReport, SitePhoto } from '../types';
 import { ClipboardListIcon, BoxIcon, CalendarIcon, XIcon, ChevronRightIcon, PlusIcon, TrashIcon, CheckCircleIcon, SunIcon, CloudIcon, RainIcon, CameraIcon, LoaderIcon, XCircleIcon } from './Icons';
 import { processFile } from '../utils/fileHelpers';
 
@@ -34,8 +34,6 @@ const GlobalWorkReport: React.FC<GlobalWorkReportProps> = ({ projects, currentUs
   const [isHalfDayChecked, setIsHalfDayChecked] = useState(false);
   const [isProcessingPhotos, setIsProcessingPhotos] = useState(false);
   const photoInputRef = useRef<HTMLInputElement | null>(null);
-
-  const canEdit = currentUser.role !== UserRole.VIEWER;
 
   const activeProjects = useMemo(() => {
     const todayAdded = manuallyAddedIds[selectedDate] || [];
@@ -83,7 +81,6 @@ const GlobalWorkReport: React.FC<GlobalWorkReportProps> = ({ projects, currentUs
   }, [projects]);
 
   const saveToProject = (project: Project, updates: Partial<typeof formBuffer>) => {
-    if (!canEdit) return;
     const newData = { ...formBuffer, ...updates };
     const existingReport = (project.reports || []).find(r => r.date === selectedDate);
     
@@ -114,7 +111,6 @@ const GlobalWorkReport: React.FC<GlobalWorkReportProps> = ({ projects, currentUs
   };
 
   const handleFieldChange = (field: keyof typeof formBuffer, value: any) => {
-    if (!canEdit) return;
     setFormBuffer(prev => ({ ...prev, [field]: value }));
     if (mainActiveProject) {
         saveToProject(mainActiveProject, { [field]: value });
@@ -122,7 +118,7 @@ const GlobalWorkReport: React.FC<GlobalWorkReportProps> = ({ projects, currentUs
   };
 
   const handleAddAssistant = () => {
-    if (!canEdit || !pendingAssistantName.trim()) return;
+    if (!pendingAssistantName.trim()) return;
     const finalName = isHalfDayChecked ? `${pendingAssistantName.trim()} (半天)` : pendingAssistantName.trim();
     const currentList = formBuffer.assistant.split(',').map(s => s.trim()).filter(s => !!s);
     if (currentList.includes(finalName)) return;
@@ -134,13 +130,11 @@ const GlobalWorkReport: React.FC<GlobalWorkReportProps> = ({ projects, currentUs
   };
 
   const removeAssistant = (name: string) => {
-    if (!canEdit) return;
     const newList = formBuffer.assistant.split(',').map(s => s.trim()).filter(s => !!s && s !== name).join(', ');
     handleFieldChange('assistant', newList);
   };
 
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!canEdit) return;
     if (e.target.files && e.target.files.length > 0) {
       setIsProcessingPhotos(true);
       const files = Array.from(e.target.files) as File[];
@@ -167,7 +161,7 @@ const GlobalWorkReport: React.FC<GlobalWorkReportProps> = ({ projects, currentUs
           ? 'bg-blue-600' 
           : type === ProjectType.MODULAR_HOUSE 
               ? 'bg-emerald-600' 
-              : 'bg-orange-50';
+              : 'bg-orange-500';
 
       return (
           <section className="mb-6">
@@ -185,7 +179,6 @@ const GlobalWorkReport: React.FC<GlobalWorkReportProps> = ({ projects, currentUs
                               <span className="font-bold text-slate-800 text-sm">{p.name}</span>
                               <div className="flex items-center gap-3">
                                   <select 
-                                    disabled={!canEdit}
                                     value={report?.content?.startsWith('[已完成]') ? '已完成' : '未完成'}
                                     onChange={(e) => {
                                         const status = e.target.value;
@@ -202,25 +195,22 @@ const GlobalWorkReport: React.FC<GlobalWorkReportProps> = ({ projects, currentUs
                                         };
                                         onUpdateProject({ ...p, reports: [...otherReports, updatedReport] });
                                     }}
-                                    className={`text-[11px] font-bold px-3 py-1.5 rounded-lg border-none shadow-sm ${report?.content?.startsWith('[已完成]') ? 'bg-green-600 text-white' : 'bg-slate-100 text-slate-600'} ${!canEdit ? 'opacity-60 cursor-not-allowed' : ''}`}
+                                    className={`text-[11px] font-bold px-3 py-1.5 rounded-lg border-none shadow-sm ${report?.content?.startsWith('[已完成]') ? 'bg-green-600 text-white' : 'bg-slate-100 text-slate-600'}`}
                                   >
                                       <option value="未完成">未完成</option>
                                       <option value="已完成">已完成</option>
                                   </select>
-                                  {canEdit && (
-                                    <button onClick={() => {
-                                        if(confirm("確定移除今日回報清單？")) {
-                                            setManuallyAddedIds(prev => ({ ...prev, [selectedDate]: (prev[selectedDate] || []).filter(id => id !== p.id) }));
-                                        }
-                                    }} className="text-slate-200 hover:text-red-500 p-1"><TrashIcon className="w-4 h-4" /></button>
-                                  )}
+                                  <button onClick={() => {
+                                      if(confirm("確定移除今日回報清單？")) {
+                                          setManuallyAddedIds(prev => ({ ...prev, [selectedDate]: (prev[selectedDate] || []).filter(id => id !== p.id) }));
+                                      }
+                                  }} className="text-slate-200 hover:text-red-500 p-1"><TrashIcon className="w-4 h-4" /></button>
                               </div>
                           </div>
                       );
                   })}
               </div>
-              {canEdit && (
-                <div className="mt-4">
+              <div className="mt-4">
                   <select 
                     onChange={(e) => {
                         const pid = e.target.value;
@@ -235,8 +225,7 @@ const GlobalWorkReport: React.FC<GlobalWorkReportProps> = ({ projects, currentUs
                           <option key={p.id} value={p.id}>{p.name} ({p.status})</option>
                       ))}
                   </select>
-                </div>
-              )}
+              </div>
           </section>
       );
   };
@@ -284,13 +273,12 @@ const GlobalWorkReport: React.FC<GlobalWorkReportProps> = ({ projects, currentUs
                 <div>
                     <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">師傅 (Thợ chính)</label>
                     <input 
-                      disabled={!canEdit}
                       type="text" 
                       list="employee-nicknames-list"
                       value={formBuffer.worker} 
                       onChange={(e) => handleFieldChange('worker', e.target.value)} 
-                      placeholder={canEdit ? "輸入姓名" : "唯讀模式"} 
-                      className={`w-full px-4 py-3 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none ${!canEdit ? 'bg-slate-50 cursor-not-allowed opacity-70' : ''}`} 
+                      placeholder="輸入姓名" 
+                      className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none" 
                     />
                 </div>
                 <div>
@@ -298,28 +286,26 @@ const GlobalWorkReport: React.FC<GlobalWorkReportProps> = ({ projects, currentUs
                     <div className="flex flex-wrap gap-1.5 mb-2">
                         {formBuffer.assistant.split(',').map(s => s.trim()).filter(s => !!s).map(name => (
                             <span key={name} className="inline-flex items-center gap-1 bg-blue-50 text-blue-700 px-3 py-1.5 rounded-full text-xs font-bold border border-blue-100">
-                                {name}{canEdit && <button onClick={() => removeAssistant(name)}><XCircleIcon className="w-3.5 h-3.5" /></button>}
+                                {name}<button onClick={() => removeAssistant(name)}><XCircleIcon className="w-3.5 h-3.5" /></button>
                             </span>
                         ))}
                     </div>
-                    {canEdit && (
-                      <div className="flex items-center gap-2">
-                          <input 
-                            type="text" 
-                            list="employee-nicknames-list"
-                            value={pendingAssistantName} 
-                            onChange={(e) => setPendingAssistantName(e.target.value)} 
-                            onKeyDown={(e) => e.key === 'Enter' && handleAddAssistant()} 
-                            placeholder="輸入姓名" 
-                            className="flex-1 px-4 py-3 border border-slate-200 rounded-xl text-sm outline-none" 
-                          />
-                          <div className="flex items-center gap-1.5 bg-slate-100 px-3 py-3 rounded-xl border border-slate-200">
-                              <input type="checkbox" id="half-day-global-fixed" checked={isHalfDayChecked} onChange={(e) => setIsHalfDayChecked(e.target.checked)} className="w-4 h-4 text-blue-600 rounded cursor-pointer" />
-                              <label htmlFor="half-day-global-fixed" className="text-xs font-bold text-slate-600 cursor-pointer whitespace-nowrap">半天</label>
-                          </div>
-                          <button onClick={handleAddAssistant} className="w-12 h-12 bg-slate-800 text-white rounded-xl flex items-center justify-center"><PlusIcon className="w-6 h-6" /></button>
-                      </div>
-                    )}
+                    <div className="flex items-center gap-2">
+                        <input 
+                          type="text" 
+                          list="employee-nicknames-list"
+                          value={pendingAssistantName} 
+                          onChange={(e) => setPendingAssistantName(e.target.value)} 
+                          onKeyDown={(e) => e.key === 'Enter' && handleAddAssistant()} 
+                          placeholder="輸入姓名" 
+                          className="flex-1 px-4 py-3 border border-slate-200 rounded-xl text-sm outline-none" 
+                        />
+                        <div className="flex items-center gap-1.5 bg-slate-100 px-3 py-3 rounded-xl border border-slate-200">
+                            <input type="checkbox" id="half-day-global-fixed" checked={isHalfDayChecked} onChange={(e) => setIsHalfDayChecked(e.target.checked)} className="w-4 h-4 text-blue-600 rounded cursor-pointer" />
+                            <label htmlFor="half-day-global-fixed" className="text-xs font-bold text-slate-600 cursor-pointer whitespace-nowrap">半天</label>
+                        </div>
+                        <button onClick={handleAddAssistant} className="w-12 h-12 bg-slate-800 text-white rounded-xl flex items-center justify-center"><PlusIcon className="w-6 h-6" /></button>
+                    </div>
                 </div>
             </div>
 
@@ -329,11 +315,7 @@ const GlobalWorkReport: React.FC<GlobalWorkReportProps> = ({ projects, currentUs
                         <label className="block text-[10px] font-bold text-slate-400 uppercase mb-2">當日天氣</label>
                         <div className="flex gap-2">
                             {['sunny', 'cloudy', 'rainy'].map((w) => (
-                                <button 
-                                    disabled={!canEdit}
-                                    key={w} onClick={() => handleFieldChange('weather', w)} 
-                                    className={`flex-1 py-3 rounded-xl border flex justify-center transition-all ${formBuffer.weather === w ? 'bg-blue-50 border-blue-500 text-blue-600' : 'bg-white border-slate-200 text-slate-400'} ${!canEdit ? 'cursor-not-allowed opacity-60' : ''}`}
-                                >
+                                <button key={w} onClick={() => handleFieldChange('weather', w)} className={`flex-1 py-3 rounded-xl border flex justify-center transition-all ${formBuffer.weather === w ? 'bg-blue-50 border-blue-500 text-blue-600' : 'bg-white border-slate-200 text-slate-400'}`}>
                                     {w === 'sunny' && <SunIcon className="w-6 h-6" />}{w === 'cloudy' && <CloudIcon className="w-6 h-6" />}{w === 'rainy' && <RainIcon className="w-6 h-6" />}
                                 </button>
                             ))}
@@ -341,13 +323,7 @@ const GlobalWorkReport: React.FC<GlobalWorkReportProps> = ({ projects, currentUs
                     </div>
                     <div className="md:col-span-2">
                         <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">施工備註 (Ghi chú)</label>
-                        <textarea 
-                          disabled={!canEdit}
-                          value={formBuffer.content} 
-                          onChange={(e) => handleFieldChange('content', e.target.value)} 
-                          className={`w-full px-4 py-3 border border-slate-200 rounded-xl text-sm h-24 resize-none outline-none shadow-inner ${!canEdit ? 'bg-slate-50 cursor-not-allowed opacity-70' : ''}`} 
-                          placeholder={canEdit ? "輸入今日重點..." : "唯讀模式"} 
-                        />
+                        <textarea value={formBuffer.content} onChange={(e) => handleFieldChange('content', e.target.value)} className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm h-24 resize-none outline-none shadow-inner" placeholder="輸入今日重點..." />
                     </div>
                 </div>
             </div>
@@ -355,18 +331,14 @@ const GlobalWorkReport: React.FC<GlobalWorkReportProps> = ({ projects, currentUs
             <div className="pt-6 border-t border-slate-100">
                 <label className="block text-[10px] font-bold text-slate-400 uppercase mb-2">現場照片 (不裁切顯示)</label>
                 <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-8 gap-3">
-                    {canEdit && (
-                      <button onClick={() => photoInputRef.current?.click()} disabled={isProcessingPhotos} className="aspect-square border-2 border-dashed border-slate-200 bg-slate-50 text-slate-400 rounded-2xl flex items-center justify-center transition-all group hover:bg-blue-50">
-                          {isProcessingPhotos ? <LoaderIcon className="w-6 h-6 animate-spin" /> : <CameraIcon className="w-8 h-8 group-active:scale-90" />}
-                      </button>
-                    )}
+                    <button onClick={() => photoInputRef.current?.click()} disabled={isProcessingPhotos} className="aspect-square border-2 border-dashed border-slate-200 bg-slate-50 text-slate-400 rounded-2xl flex items-center justify-center transition-all group hover:bg-blue-50">
+                        {isProcessingPhotos ? <LoaderIcon className="w-6 h-6 animate-spin" /> : <CameraIcon className="w-8 h-8 group-active:scale-90" />}
+                    </button>
                     <input type="file" multiple accept="image/*" ref={photoInputRef} className="hidden" onChange={handlePhotoUpload} />
                     {formBuffer.photos.map(ph => (
                         <div key={ph.id} className="relative aspect-square rounded-2xl overflow-hidden border border-slate-100 group shadow-sm bg-slate-50 flex items-center justify-center">
                             <img src={ph.url} className="max-w-full max-h-full object-contain" alt="site" />
-                            {canEdit && (
-                              <button onClick={() => handleFieldChange('photos', formBuffer.photos.filter(p => p.id !== ph.id))} className="absolute top-1.5 right-1.5 bg-black/50 text-white rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-opacity"><XIcon className="w-3.5 h-3.5" /></button>
-                            )}
+                            <button onClick={() => handleFieldChange('photos', formBuffer.photos.filter(p => p.id !== ph.id))} className="absolute top-1.5 right-1.5 bg-black/50 text-white rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-opacity"><XIcon className="w-3.5 h-3.5" /></button>
                         </div>
                     ))}
                 </div>

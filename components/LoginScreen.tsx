@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { User, UserRole } from '../types';
 import { generateId } from '../App';
@@ -25,7 +26,6 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
         else if (role === UserRole.MANAGER) displayName = 'Project Manager';
         else if (role === UserRole.ENGINEERING) displayName = 'Engineering Staff';
         else if (role === UserRole.FACTORY) displayName = 'Factory Staff';
-        else if (role === UserRole.VIEWER) displayName = 'Guest Viewer';
 
         const mockUser: User = {
           id: generateId(),
@@ -101,13 +101,6 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
                   className={`py-2 px-1 text-xs rounded-lg border transition-all ${role === UserRole.FACTORY ? 'bg-blue-50 border-blue-500 text-blue-700 font-bold ring-2 ring-blue-500 ring-opacity-20' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`}
                 >
                   廠務人員
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setRole(UserRole.VIEWER)}
-                  className={`py-2 px-1 text-xs rounded-lg border transition-all ${role === UserRole.VIEWER ? 'bg-slate-100 border-slate-500 text-slate-700 font-bold ring-2 ring-slate-500 ring-opacity-20' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`}
-                >
-                  觀察員(唯讀)
                 </button>
                 <button
                   type="button"
