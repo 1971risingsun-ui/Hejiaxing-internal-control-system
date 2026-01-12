@@ -17,7 +17,9 @@ export enum UserRole {
   MANAGER = 'manager',
   WORKER = 'worker',
   ENGINEERING = 'engineering',
-  FACTORY = 'factory'
+  FACTORY = 'factory',
+  // Fix: Added VIEWER role to fix missing property errors in App.tsx
+  VIEWER = 'viewer'
 }
 
 export interface User {

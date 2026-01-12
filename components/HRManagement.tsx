@@ -1,6 +1,7 @@
 
 import React, { useState } from 'react';
-import { Employee, AttendanceRecord, OvertimeRecord, MonthSummaryRemark, DailyDispatch as DailyDispatchType } from '../types';
+// Fix: Added UserRole to imports from types
+import { Employee, AttendanceRecord, OvertimeRecord, MonthSummaryRemark, DailyDispatch as DailyDispatchType, UserRole } from '../types';
 import { CalendarIcon, ClipboardListIcon, ClockIcon, BoxIcon, UsersIcon, ArrowLeftIcon, SparklesIcon } from './Icons';
 import AttendanceTable from './AttendanceTable';
 import OvertimeTable from './OvertimeTable';
@@ -17,11 +18,15 @@ interface HRManagementProps {
   onUpdateAttendance: (list: AttendanceRecord[]) => void;
   onUpdateOvertime: (list: OvertimeRecord[]) => void;
   onUpdateMonthRemarks: (list: MonthSummaryRemark[]) => void;
+  // Fix: Added currentUserRole property to resolve IntrinsicAttributes error in App.tsx
+  currentUserRole: UserRole;
 }
 
 const HRManagement: React.FC<HRManagementProps> = ({ 
   employees, attendance, overtime, monthRemarks, dailyDispatches,
-  onUpdateEmployees, onUpdateAttendance, onUpdateOvertime, onUpdateMonthRemarks 
+  onUpdateEmployees, onUpdateAttendance, onUpdateOvertime, onUpdateMonthRemarks,
+  // Fix: Destructure currentUserRole prop
+  currentUserRole
 }) => {
   const [activeTab, setActiveTab] = useState<'menu' | 'attendance' | 'overtime' | 'salary' | 'list'>('menu');
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
