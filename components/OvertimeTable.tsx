@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { Employee, OvertimeRecord, MonthSummaryRemark } from '../types';
+import { Employee, OvertimeRecord, MonthSummaryRemark, UserRole } from '../types';
 
 interface OvertimeTableProps {
   selectedMonth: string;
@@ -8,13 +8,16 @@ interface OvertimeTableProps {
   monthRemarks: MonthSummaryRemark[];
   onUpdateOvertime: (list: OvertimeRecord[]) => void;
   onUpdateMonthRemarks: (list: MonthSummaryRemark[]) => void;
+  currentUserRole?: UserRole;
 }
 
 const ROC_HOLIDAYS = ['01-01', '02-28', '04-04', '04-05', '05-01', '10-10'];
 
 const OvertimeTable: React.FC<OvertimeTableProps> = ({ 
-  selectedMonth, employees, overtime, monthRemarks, onUpdateOvertime, onUpdateMonthRemarks 
+  selectedMonth, employees, overtime, monthRemarks, onUpdateOvertime, onUpdateMonthRemarks, currentUserRole 
 }) => {
+  const isReadOnly = currentUserRole === UserRole.VIEWER;
+
   const monthDays = useMemo(() => {
     const [year, month] = selectedMonth.split('-').map(Number);
     const date = new Date(year, month, 0);
@@ -30,6 +33,7 @@ const OvertimeTable: React.FC<OvertimeTableProps> = ({
   }, [selectedMonth]);
 
   const updateOvertime = (date: string, employeeId: string, hours: string) => {
+    if (isReadOnly) return;
     const h = parseFloat(hours) || 0;
     const newList = [...overtime.filter(o => !(o.date === date && o.employeeId === employeeId))];
     if (h > 0) newList.push({ date, employeeId, hours: h });
@@ -37,6 +41,7 @@ const OvertimeTable: React.FC<OvertimeTableProps> = ({
   };
 
   const updateMonthRemark = (employeeId: string, remark: string) => {
+    if (isReadOnly) return;
     const newList = [...monthRemarks.filter(r => !(r.month === selectedMonth && r.employeeId === employeeId))];
     newList.push({ month: selectedMonth, employeeId, remark });
     onUpdateMonthRemarks(newList);
@@ -67,8 +72,9 @@ const OvertimeTable: React.FC<OvertimeTableProps> = ({
                   return (
                     <td key={day.day} className={`p-0 border-r ${day.isSunday || day.isHoliday ? 'bg-red-50/20' : ''}`}>
                       <input 
+                        disabled={isReadOnly}
                         type="number" step="0.5" min="0"
-                        className="w-full h-8 text-center bg-transparent outline-none focus:bg-white focus:ring-1 focus:ring-blue-500 font-bold text-orange-600"
+                        className={`w-full h-8 text-center bg-transparent outline-none focus:bg-white focus:ring-1 focus:ring-blue-500 font-bold text-orange-600 ${isReadOnly ? 'cursor-not-allowed opacity-70' : ''}`}
                         value={hours}
                         onChange={(e) => updateOvertime(day.dateStr, emp.id, e.target.value)}
                       />
@@ -77,10 +83,11 @@ const OvertimeTable: React.FC<OvertimeTableProps> = ({
                 })}
                 <td className="p-1">
                   <input 
+                    disabled={isReadOnly}
                     type="text" 
                     value={monthRemarks.find(r => r.month === selectedMonth && r.employeeId === emp.id)?.remark || ''}
                     onChange={(e) => updateMonthRemark(emp.id, e.target.value)}
-                    className="w-full px-2 py-1 text-[10px] outline-none bg-transparent border border-transparent focus:border-slate-200 rounded text-slate-600"
+                    className={`w-full px-2 py-1 text-[10px] outline-none bg-transparent border border-transparent focus:border-slate-200 rounded text-slate-600 ${isReadOnly ? 'cursor-not-allowed opacity-70' : ''}`}
                   />
                 </td>
               </tr>

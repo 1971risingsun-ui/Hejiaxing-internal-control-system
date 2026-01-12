@@ -1,6 +1,5 @@
-
 import React, { useState } from 'react';
-import { Employee, AttendanceRecord, OvertimeRecord, MonthSummaryRemark, DailyDispatch as DailyDispatchType } from '../types';
+import { Employee, AttendanceRecord, OvertimeRecord, MonthSummaryRemark, DailyDispatch as DailyDispatchType, UserRole } from '../types';
 import { CalendarIcon, ClipboardListIcon, ClockIcon, BoxIcon, UsersIcon, ArrowLeftIcon, SparklesIcon } from './Icons';
 import AttendanceTable from './AttendanceTable';
 import OvertimeTable from './OvertimeTable';
@@ -17,11 +16,13 @@ interface HRManagementProps {
   onUpdateAttendance: (list: AttendanceRecord[]) => void;
   onUpdateOvertime: (list: OvertimeRecord[]) => void;
   onUpdateMonthRemarks: (list: MonthSummaryRemark[]) => void;
+  currentUserRole?: UserRole;
 }
 
 const HRManagement: React.FC<HRManagementProps> = ({ 
   employees, attendance, overtime, monthRemarks, dailyDispatches,
-  onUpdateEmployees, onUpdateAttendance, onUpdateOvertime, onUpdateMonthRemarks 
+  onUpdateEmployees, onUpdateAttendance, onUpdateOvertime, onUpdateMonthRemarks,
+  currentUserRole
 }) => {
   const [activeTab, setActiveTab] = useState<'menu' | 'attendance' | 'overtime' | 'salary' | 'list'>('menu');
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
@@ -147,6 +148,7 @@ const HRManagement: React.FC<HRManagementProps> = ({
             dailyDispatches={dailyDispatches}
             onUpdateAttendance={onUpdateAttendance}
             onUpdateMonthRemarks={onUpdateMonthRemarks}
+            currentUserRole={currentUserRole}
           />
         )}
         {activeTab === 'overtime' && (
@@ -157,6 +159,7 @@ const HRManagement: React.FC<HRManagementProps> = ({
             monthRemarks={monthRemarks}
             onUpdateOvertime={onUpdateOvertime}
             onUpdateMonthRemarks={onUpdateMonthRemarks}
+            currentUserRole={currentUserRole}
           />
         )}
         {activeTab === 'salary' && (
@@ -173,6 +176,7 @@ const HRManagement: React.FC<HRManagementProps> = ({
           <EmployeeList 
             employees={employees}
             onUpdateEmployees={onUpdateEmployees}
+            currentUserRole={currentUserRole}
           />
         )}
       </div>

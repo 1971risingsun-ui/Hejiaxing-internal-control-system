@@ -1,6 +1,5 @@
-
 import React, { useMemo } from 'react';
-import { Employee, AttendanceRecord, MonthSummaryRemark, DailyDispatch as DailyDispatchType } from '../types';
+import { Employee, AttendanceRecord, MonthSummaryRemark, DailyDispatch as DailyDispatchType, UserRole } from '../types';
 
 interface AttendanceTableProps {
   selectedMonth: string;
@@ -10,14 +9,17 @@ interface AttendanceTableProps {
   dailyDispatches: DailyDispatchType[];
   onUpdateAttendance: (list: AttendanceRecord[]) => void;
   onUpdateMonthRemarks: (list: MonthSummaryRemark[]) => void;
+  currentUserRole?: UserRole;
 }
 
 const ROC_HOLIDAYS = ['01-01', '02-28', '04-04', '04-05', '05-01', '10-10'];
 const ATTENDANCE_OPTIONS = ['排休', '請假', '病假', '臨時請假', '廠內', '下午回廠', '點工'];
 
 const AttendanceTable: React.FC<AttendanceTableProps> = ({ 
-  selectedMonth, employees, attendance, monthRemarks, dailyDispatches, onUpdateAttendance, onUpdateMonthRemarks 
+  selectedMonth, employees, attendance, monthRemarks, dailyDispatches, onUpdateAttendance, onUpdateMonthRemarks, currentUserRole 
 }) => {
+  const isReadOnly = currentUserRole === UserRole.VIEWER;
+
   const yesterdayStr = useMemo(() => {
     const d = new Date();
     d.setDate(d.getDate() - 1);
@@ -40,6 +42,7 @@ const AttendanceTable: React.FC<AttendanceTableProps> = ({
   }, [selectedMonth, yesterdayStr]);
 
   const updateAttendance = (date: string, employeeId: string, status: string) => {
+    if (isReadOnly) return;
     let newList = attendance.filter(a => !(a.date === date && a.employeeId === employeeId));
     const dayOfWeek = new Date(date).getDay();
     const isSunday = dayOfWeek === 0;
@@ -53,6 +56,7 @@ const AttendanceTable: React.FC<AttendanceTableProps> = ({
   };
 
   const updateMonthRemark = (employeeId: string, remark: string) => {
+    if (isReadOnly) return;
     const newList = [...monthRemarks.filter(r => !(r.month === selectedMonth && r.employeeId === employeeId))];
     newList.push({ month: selectedMonth, employeeId, remark });
     onUpdateMonthRemarks(newList);
@@ -109,8 +113,9 @@ const AttendanceTable: React.FC<AttendanceTableProps> = ({
                   return (
                     <td key={day.day} className={`p-0 border-r relative ${day.isSunday || day.isHoliday ? 'bg-red-50/20' : ''} ${day.isYesterday ? 'ring-2 ring-inset ring-slate-900 z-10' : ''}`}>
                       <input 
+                        disabled={isReadOnly}
                         list="att-options"
-                        className={`w-full h-8 text-center bg-transparent outline-none focus:bg-white focus:ring-1 focus:ring-blue-500 font-medium ${displayStatus && displayStatus !== '排休' ? 'text-blue-700 font-bold' : ''}`}
+                        className={`w-full h-8 text-center bg-transparent outline-none focus:bg-white focus:ring-1 focus:ring-blue-500 font-medium ${displayStatus && displayStatus !== '排休' ? 'text-blue-700 font-bold' : ''} ${isReadOnly ? 'cursor-not-allowed opacity-70' : ''}`}
                         value={displayStatus}
                         onChange={(e) => updateAttendance(day.dateStr, emp.id, e.target.value)}
                       />
@@ -119,11 +124,12 @@ const AttendanceTable: React.FC<AttendanceTableProps> = ({
                 })}
                 <td className="p-1">
                   <input 
+                    disabled={isReadOnly}
                     type="text" 
-                    placeholder="輸入備註..."
+                    placeholder={isReadOnly ? "" : "輸入備註..."}
                     value={monthRemarks.find(r => r.month === selectedMonth && r.employeeId === emp.id)?.remark || ''}
                     onChange={(e) => updateMonthRemark(emp.id, e.target.value)}
-                    className="w-full px-2 py-1 text-[10px] outline-none bg-transparent border border-transparent focus:border-slate-200 rounded text-slate-600"
+                    className={`w-full px-2 py-1 text-[10px] outline-none bg-transparent border border-transparent focus:border-slate-200 rounded text-slate-600 ${isReadOnly ? 'cursor-not-allowed opacity-70' : ''}`}
                   />
                 </td>
               </tr>

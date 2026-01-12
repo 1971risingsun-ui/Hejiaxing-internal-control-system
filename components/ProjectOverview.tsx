@@ -211,7 +211,8 @@ const ProjectOverview: React.FC<ProjectOverviewProps> = ({ project, currentUser,
                       <div className="flex items-center gap-3">
                         <button 
                           onClick={() => toggleMilestone(m.id)}
-                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${m.completed ? 'bg-green-100 text-green-700 border border-green-200' : 'bg-slate-100 text-slate-600 border border-slate-200 hover:bg-slate-200'}`}
+                          disabled={!canEdit}
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${m.completed ? 'bg-green-100 text-green-700 border border-green-200' : 'bg-slate-100 text-slate-600 border border-slate-200 hover:bg-slate-200'} ${!canEdit ? 'opacity-60 cursor-not-allowed' : ''}`}
                         >
                           {m.completed ? <CheckCircleIcon className="w-3.5 h-3.5" /> : null}
                           {m.completed ? '已完成' : '標記完成'}
@@ -240,10 +241,11 @@ const ProjectOverview: React.FC<ProjectOverviewProps> = ({ project, currentUser,
           <h3 className="font-bold text-lg text-slate-800 mb-4">備註資訊</h3>
           <textarea 
               value={localRemarks}
+              disabled={!canEdit}
               onChange={(e) => setLocalRemarks(e.target.value)}
               onBlur={() => onUpdateProject({ ...project, remarks: localRemarks })}
-              placeholder="點擊輸入額外備註..."
-              className="w-full min-h-[100px] p-4 bg-slate-50 border border-slate-100 rounded-lg text-sm text-slate-700 focus:bg-white outline-none transition-all resize-none"
+              placeholder={canEdit ? "點擊輸入額外備註..." : "唯讀模式"}
+              className={`w-full min-h-[100px] p-4 bg-slate-50 border border-slate-100 rounded-lg text-sm text-slate-700 focus:bg-white outline-none transition-all resize-none ${!canEdit ? 'opacity-70 cursor-not-allowed' : ''}`}
           ></textarea>
       </div>
 

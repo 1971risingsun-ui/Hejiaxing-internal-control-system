@@ -92,12 +92,14 @@ const UserManagement: React.FC<UserManagementProps> = ({
   };
 
   const handleUpdateRolePermission = (role: UserRole, updates: Partial<RolePermission>) => {
+    // Fix: Added missing [UserRole.VIEWER] to the default permissions object to satisfy Record<UserRole, RolePermission> type requirement.
     const currentPermissions = systemRules.rolePermissions || {
       [UserRole.ADMIN]: { displayName: '管理員', allowedViews: [] },
       [UserRole.MANAGER]: { displayName: '專案經理', allowedViews: [] },
       [UserRole.ENGINEERING]: { displayName: '工務人員', allowedViews: [] },
       [UserRole.FACTORY]: { displayName: '廠務人員', allowedViews: [] },
-      [UserRole.WORKER]: { displayName: '現場人員', allowedViews: [] }
+      [UserRole.WORKER]: { displayName: '現場人員', allowedViews: [] },
+      [UserRole.VIEWER]: { displayName: '唯讀觀察員', allowedViews: [] }
     };
 
     const newPermissions = {
@@ -332,6 +334,8 @@ const UserManagement: React.FC<UserManagementProps> = ({
                       <option value={UserRole.ENGINEERING}>工務人員</option>
                       <option value={UserRole.FACTORY}>廠務人員</option>
                       <option value={UserRole.WORKER}>現場人員</option>
+                      {/* Fix: Added VIEWER option for UI consistency */}
+                      <option value={UserRole.VIEWER}>唯讀觀察員</option>
                     </select>
                     <div className="flex gap-2">
                       <button onClick={() => setIsAdding(false)} className="flex-1 bg-slate-100 text-slate-600 rounded-lg py-2">取消</button>
@@ -371,6 +375,7 @@ const UserManagement: React.FC<UserManagementProps> = ({
                                 user.role === UserRole.MANAGER ? 'bg-blue-600 text-white' :
                                 user.role === UserRole.ENGINEERING ? 'bg-indigo-600 text-white' :
                                 user.role === UserRole.FACTORY ? 'bg-emerald-600 text-white' :
+                                user.role === UserRole.VIEWER ? 'bg-slate-400 text-white' :
                                 'bg-slate-600 text-white'
                                 }`}
                             >
@@ -379,6 +384,8 @@ const UserManagement: React.FC<UserManagementProps> = ({
                                 <option value={UserRole.ENGINEERING}>{systemRules.rolePermissions?.[UserRole.ENGINEERING]?.displayName || '工務人員'}</option>
                                 <option value={UserRole.FACTORY}>{systemRules.rolePermissions?.[UserRole.FACTORY]?.displayName || '廠務人員'}</option>
                                 <option value={UserRole.WORKER}>{systemRules.rolePermissions?.[UserRole.WORKER]?.displayName || '現場人員'}</option>
+                                {/* Fix: Added VIEWER option for UI consistency */}
+                                <option value={UserRole.VIEWER}>{systemRules.rolePermissions?.[UserRole.VIEWER]?.displayName || '唯讀觀察員'}</option>
                             </select>
                             </td>
                             <td className="px-4 py-3 text-right whitespace-nowrap">
@@ -402,7 +409,8 @@ const UserManagement: React.FC<UserManagementProps> = ({
 
               {/* 角色頁籤 */}
               <div className="flex flex-wrap gap-2 mb-6 p-1 bg-slate-100 rounded-xl w-fit">
-                {[UserRole.ADMIN, UserRole.MANAGER, UserRole.ENGINEERING, UserRole.FACTORY, UserRole.WORKER].map(role => (
+                {/* Fix: Added UserRole.VIEWER to the list of roles that can be configured */}
+                {[UserRole.ADMIN, UserRole.MANAGER, UserRole.ENGINEERING, UserRole.FACTORY, UserRole.WORKER, UserRole.VIEWER].map(role => (
                   <button 
                     key={role}
                     onClick={() => setActiveRoleTab(role)}
@@ -639,7 +647,7 @@ const UserManagement: React.FC<UserManagementProps> = ({
                             </tbody>
                           </table>
                           <button 
-                            onClick={() => handleAddFormulaItem(f.id)}
+                            onClick={() => handleAddFormulaItem(formulaId)}
                             className="w-full mt-4 py-2 border-2 border-dashed border-slate-100 rounded-xl text-[10px] font-black text-slate-400 hover:text-indigo-500 hover:bg-indigo-50 hover:border-indigo-200 transition-all"
                           >
                             + 新增細項材料與公式
