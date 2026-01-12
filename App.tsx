@@ -178,6 +178,40 @@ const App: React.FC = () => {
     });
   };
 
+  /**
+   * 根據 ID 合併資料列表，實現「只新增更新的部分」
+   */
+  const mergeLists = <T extends { id: string | number }>(base: T[], incoming: T[]): T[] => {
+    const map = new Map<string | number, T>();
+    base.forEach(item => map.set(item.id, item));
+    incoming.forEach(item => {
+      // 若已有項目，此處可根據更細緻的時間戳判斷是否覆蓋，目前採後進先出邏輯
+      map.set(item.id, item);
+    });
+    return Array.from(map.values());
+  };
+
+  /**
+   * 整合 App 狀態合併邏輯
+   */
+  const mergeAppState = (base: any, incoming: any) => {
+    return {
+      ...base,
+      ...incoming, // 全域屬性覆蓋
+      projects: sortProjects(mergeLists(base.projects || [], incoming.projects || [])),
+      users: mergeLists(base.users || [], incoming.users || []),
+      auditLogs: mergeLists(base.auditLogs || [], incoming.auditLogs || []),
+      employees: mergeLists(base.employees || [], incoming.employees || []),
+      suppliers: mergeLists(base.suppliers || [], incoming.suppliers || []),
+      subcontractors: mergeLists(base.subcontractors || [], incoming.subcontractors || []),
+      purchaseOrders: mergeLists(base.purchaseOrders || [], incoming.purchaseOrders || []),
+      stockAlertItems: mergeLists(base.stockAlertItems || [], incoming.stockAlertItems || []),
+      tools: mergeLists(base.tools || [], incoming.tools || []),
+      assets: mergeLists(base.assets || [], incoming.assets || []),
+      vehicles: mergeLists(base.vehicles || [], incoming.vehicles || []),
+    };
+  };
+
   useEffect(() => {
     const restoreAndLoad = async () => {
       try {
@@ -215,12 +249,13 @@ const App: React.FC = () => {
                         `📂 資料夾版本：${new Date(fileTime).toLocaleString()}\n   最後項目：${fileInfo}\n\n` +
                         `🌐 內存版本：${new Date(cacheTime).toLocaleString()}\n   最後項目：${cacheInfo}\n\n` +
                         `目前最新版本為：${newerSource}\n\n` +
-                        `是否載入「指定資料夾」的資料？\n(按「取消」則載入瀏覽器內存)`;
+                        `是否載入「指定資料夾」並覆蓋內存？\n(按「取消」則採用內存合併策略)`;
 
             if (window.confirm(msg)) {
               finalDataToRestore = fileState;
             } else {
-              finalDataToRestore = cachedState;
+              // 採用合併策略：以 fileState 為基礎，新增/更新 cachedState 的內容
+              finalDataToRestore = mergeAppState(fileState, cachedState);
             }
           } else {
             finalDataToRestore = fileState; // 兩者相同，優先載入資料夾
