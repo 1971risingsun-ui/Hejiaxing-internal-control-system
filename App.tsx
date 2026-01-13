@@ -328,7 +328,7 @@ const App: React.FC = () => {
   };
 
   /**
-   * 智慧日誌系統：處理連續操作的整併與去重
+   * 智慧日誌系統：處理連續操作的整併與去重 (全實體支援)
    */
   const updateLastAction = (name: string, customDetails?: string) => {
     const now = Date.now();
@@ -349,26 +349,27 @@ const App: React.FC = () => {
           const isSameUser = lastLog.userId === currentUser.id;
           const isRecent = (now - lastLog.timestamp) < 15000; // 15秒內的連續動作視為同一批操作
           
-          // 解析案件名稱標籤
-          const getProjectTag = (d: string) => {
-              const match = d.match(/^\[(.*?)\]\s*修改了：/);
+          // 解析實體名稱標籤：支援 [名稱] 修改了：, [名稱] 更新了：, [名稱] 新增了：
+          const getEntityTag = (d: string) => {
+              const match = d.match(/^\[(.*?)\]\s*(修改了|更新了|新增了|刪除力)：/);
               return match ? match[1] : null;
           };
           
-          const lastProject = getProjectTag(lastLog.details);
-          const currentProject = getProjectTag(details);
+          const lastEntity = getEntityTag(lastLog.details);
+          const currentEntity = getEntityTag(details);
 
-          // 條件：同使用者、時間接近、同專案
-          if (isSameUser && isRecent && lastProject && currentProject && lastProject === currentProject) {
+          // 條件：同使用者、時間接近、同一個實體 (案件/員工/廠商等)
+          if (isSameUser && isRecent && lastEntity && currentEntity && lastEntity === currentEntity) {
+              // 取得「：」之後的內容
               const lastContent = lastLog.details.split('：')[1] || '';
               const currentContent = details.split('：')[1] || '';
               
               if (lastContent && currentContent) {
-                  const lastParts = lastContent.split('、');
-                  const currentParts = currentContent.split('、');
-                  // 移除重複並合併
+                  const lastParts = lastContent.split('、').map(s => s.trim());
+                  const currentParts = currentContent.split('、').map(s => s.trim());
+                  // 移除重複並合併區塊描述
                   const combinedParts = Array.from(new Set([...lastParts, ...currentParts])).filter(Boolean);
-                  const mergedDetails = `[${currentProject}] 修改了：${combinedParts.join('、')}`;
+                  const mergedDetails = `[${currentEntity}] 修改了：${combinedParts.join('、')}`;
                   
                   // 如果整併後的內容跟最後一筆完全一樣，就不變動
                   if (lastLog.details === mergedDetails) return prev;
@@ -399,6 +400,65 @@ const App: React.FC = () => {
     }
   };
 
+  /**
+   * 輔助函數：比對專案更動並生成詳細描述
+   */
+  const getProjectDiffMessage = (oldP: Project, newP: Project): string => {
+    const parts: string[] = [];
+    if (oldP.status !== newP.status) parts.push(`狀態 (${oldP.status} -> ${newP.status})`);
+    if (oldP.name !== newP.name) parts.push(`基本資料(名稱)`);
+    if (oldP.appointmentDate !== newP.appointmentDate || oldP.reportDate !== newP.reportDate) parts.push(`日期排程`);
+    
+    // 照片增減
+    const oldPh = oldP.photos || [];
+    const newPh = newP.photos || [];
+    if (oldPh.length !== newPh.length) {
+        const diff = newPh.length - oldPh.length;
+        parts.push(`施工照 (${diff > 0 ? `上傳了 ${diff} 張` : `移除了 ${Math.abs(diff)} 張`}照片)`);
+    }
+
+    if (JSON.stringify(oldP.milestones) !== JSON.stringify(newP.milestones)) parts.push(`工期節點`);
+    if (JSON.stringify(oldP.materials) !== JSON.stringify(newP.materials)) parts.push(`材料請購`);
+    if (JSON.stringify(oldP.reports) !== JSON.stringify(newP.reports)) parts.push(`施工日誌`);
+    if (JSON.stringify(oldP.constructionItems) !== JSON.stringify(newP.constructionItems)) parts.push(`施工紀錄細項`);
+    if (JSON.stringify(oldP.attachments) !== JSON.stringify(newP.attachments)) parts.push(`附件檔案`);
+    
+    return parts.length > 0 ? parts.join('、') : '內容更新';
+  };
+
+  /**
+   * 泛用型列表更新處理器 (附帶日誌紀錄)
+   */
+  const handleUpdateList = <T extends { id: string | number; name?: string; plateNumber?: string }>(
+    oldList: T[], 
+    newList: T[], 
+    setter: (list: T[]) => void, 
+    entityLabel: string,
+    blockName: string = '基本資料'
+  ) => {
+    if (newList.length !== oldList.length) {
+      const added = newList.length > oldList.length;
+      const target = added 
+        ? newList.find(n => !oldList.find(o => o.id === n.id)) 
+        : oldList.find(o => !newList.find(n => n.id === o.id));
+      
+      if (target) {
+        const name = target.name || target.plateNumber || String(target.id);
+        updateLastAction(name, `[${name}] ${added ? '新增了' : '刪除力'}${entityLabel}`);
+      }
+    } else {
+      const changed = newList.find(n => {
+        const old = oldList.find(o => o.id === n.id);
+        return old && JSON.stringify(old) !== JSON.stringify(n);
+      });
+      if (changed) {
+        const name = changed.name || changed.plateNumber || String(changed.id);
+        updateLastAction(name, `[${name}] 修改了：${blockName}`);
+      }
+    }
+    setter(newList);
+  };
+
   const syncToLocal = async (handle: FileSystemDirectoryHandle, data: any) => {
     try {
       const now = new Date();
@@ -422,7 +482,6 @@ const App: React.FC = () => {
       if (status === 'granted') {
         const fileState = await loadDbFromLocal(handle);
         const cachedState = await loadAppStateFromIdb();
-        // 此處改為觸發同步檢查流程
         triggerSyncProcess(fileState, cachedState);
       }
     } catch (e: any) { if (e.message !== '已取消選擇') alert(e.message); } finally { setIsWorkspaceLoading(false); }
@@ -521,65 +580,12 @@ const App: React.FC = () => {
   const handleLogout = () => { setCurrentUser(null); setIsSidebarOpen(false); };
   const handleDeleteProject = (id: string) => {
     if (window.confirm('確定要刪除此案件嗎？')) {
-        setProjects(sortProjects(projects.filter(p => p.id !== id)));
-        updateLastAction('刪除案件');
+        const target = projects.find(p => p.id === id);
+        if (target) {
+            updateLastAction(target.name, `[${target.name}] 刪除力案件`);
+            setProjects(sortProjects(projects.filter(p => p.id !== id)));
+        }
     }
-  };
-
-  /**
-   * 輔助函數：比對專案更動並生成詳細描述 (Summarized Summary 格式)
-   */
-  const getProjectDiffMessage = (oldP: Project, newP: Project): string => {
-    const parts: string[] = [];
-    
-    // 狀態
-    if (oldP.status !== newP.status) {
-        parts.push(`狀態 (${oldP.status} -> ${newP.status})`);
-    }
-
-    // 基本資料
-    if (oldP.name !== newP.name) parts.push(`專案名稱`);
-    
-    // 日期
-    if (oldP.appointmentDate !== newP.appointmentDate || oldP.reportDate !== newP.reportDate) {
-        parts.push(`日期排程`);
-    }
-
-    // 照片 (上傳/移除數量)
-    const oldPh = oldP.photos || [];
-    const newPh = newP.photos || [];
-    if (oldPh.length !== newPh.length) {
-        const diff = newPh.length - oldPh.length;
-        parts.push(`施工照 (${diff > 0 ? `上傳了 ${diff} 張` : `移除了 ${Math.abs(diff)} 張`}照片)`);
-    } else if (JSON.stringify(oldPh) !== JSON.stringify(newPh)) {
-        parts.push(`施工照 (更新了分析或描述)`);
-    }
-
-    // 里程碑
-    if (JSON.stringify(oldP.milestones) !== JSON.stringify(newP.milestones)) {
-        parts.push(`工期里程碑 (已更新)`);
-    }
-
-    // 材料
-    if (JSON.stringify(oldP.materials) !== JSON.stringify(newP.materials)) {
-        parts.push(`材料請購`);
-    }
-
-    // 施工紀錄與日誌
-    if (JSON.stringify(oldP.constructionItems) !== JSON.stringify(newP.constructionItems)) {
-        parts.push(`施工紀錄細項`);
-    }
-    
-    if (JSON.stringify(oldP.reports) !== JSON.stringify(newP.reports)) {
-        parts.push(`施工日誌`);
-    }
-
-    // 附件
-    if (JSON.stringify(oldP.attachments) !== JSON.stringify(newP.attachments)) {
-        parts.push(`附件檔案`);
-    }
-    
-    return parts.length > 0 ? parts.join('、') : '內容更新';
   };
 
   /**
@@ -811,7 +817,7 @@ const App: React.FC = () => {
                     </div>
                 </div>
               </div>
-          ) : view === 'users' ? (<UserManagement users={allUsers} onUpdateUsers={setAllUsers} auditLogs={auditLogs} onLogAction={(action, details) => setAuditLogs(prev => [{ id: generateId(), userId: currentUser.id, userName: currentUser.name, userEmail: currentUser.email, action, details, timestamp: Date.now() }, ...prev])} projects={projects} onRestoreData={restoreDataToState} onConnectDirectory={() => handleDirectoryAction(true)} dirPermission={dirPermission} isWorkspaceLoading={isWorkspaceLoading} systemRules={systemRules} onUpdateSystemRules={setSystemRules} />) : 
+          ) : view === 'users' ? (<UserManagement users={allUsers} onUpdateUsers={(newList) => handleUpdateList(allUsers, newList, setAllUsers, '系統帳號')} auditLogs={auditLogs} onLogAction={(action, details) => updateLastAction('', details)} projects={projects} onRestoreData={restoreDataToState} onConnectDirectory={() => handleDirectoryAction(true)} dirPermission={dirPermission} isWorkspaceLoading={isWorkspaceLoading} systemRules={systemRules} onUpdateSystemRules={setSystemRules} />) : 
            view === 'report' ? (<div className="flex-1 overflow-auto"><GlobalWorkReport projects={projects} currentUser={currentUser} onUpdateProject={handleUpdateProject} /></div>) : 
            view === 'engineering_hub' ? (<div className="flex-1 overflow-auto"><div className="p-6 max-w-5xl mx-auto h-full animate-fade-in"><div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-6">{[
              { id: 'daily_dispatch', label: '明日工作排程', icon: <ClipboardListIcon className="w-6 h-6" />, color: 'bg-blue-50 text-blue-600', desc: '確認明日施工地點與人員' },
@@ -823,33 +829,33 @@ const App: React.FC = () => {
             <button key={cat.id} onClick={() => setView(cat.id as any)} className="bg-white p-8 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md hover:border-blue-500 transition-all group flex flex-col items-center text-center gap-4"><div className={`p-4 rounded-xl ${cat.color} group-hover:scale-110 transition-transform`}>{cat.icon}</div><div className="font-bold text-slate-800 text-lg">{cat.label}</div><p className="text-xs text-slate-400 font-medium">{cat.desc}</p><p className="text-[10px] text-slate-300 font-bold uppercase tracking-widest mt-2">Work Schedule Hub</p></button>
           ))}</div></div></div>) :
            view === 'purchasing_hub' ? (<div className="flex-1 overflow-auto"><PurchasingModule onNavigate={setView} allowedViews={systemRules.rolePermissions?.[currentUser.role]?.allowedViews || []} /></div>) :
-           view === 'purchasing_items' ? (<div className="flex-1 overflow-hidden"><GlobalPurchasingItems projects={projects} onUpdateProject={handleUpdateProject} systemRules={systemRules} onBack={() => setView('purchasing_hub')} suppliers={suppliers} subcontractors={subcontractors} onUpdateSuppliers={setSuppliers} onUpdateSubcontractors={setSubcontractors} purchaseOrders={purchaseOrders} onUpdatePurchaseOrders={setPurchaseOrders} /></div>) :
-           view === 'stock_alert' ? (<div className="flex-1 overflow-hidden"><StockAlert items={stockAlertItems} onUpdateItems={setStockAlertItems} onBack={() => setView('purchasing_hub')} /></div>) :
+           view === 'purchasing_items' ? (<div className="flex-1 overflow-hidden"><GlobalPurchasingItems projects={projects} onUpdateProject={handleUpdateProject} systemRules={systemRules} onBack={() => setView('purchasing_hub')} suppliers={suppliers} subcontractors={subcontractors} onUpdateSuppliers={(nl) => handleUpdateList(suppliers, nl, setSuppliers, '供應商', '品項內容')} onUpdateSubcontractors={(nl) => handleUpdateList(subcontractors, nl, setSubcontractors, '外包廠商', '品項內容')} purchaseOrders={purchaseOrders} onUpdatePurchaseOrders={(nl) => handleUpdateList(purchaseOrders, nl, setPurchaseOrders, '採購單', '單據內容')} /></div>) :
+           view === 'stock_alert' ? (<div className="flex-1 overflow-hidden"><StockAlert items={stockAlertItems} onUpdateItems={(nl) => handleUpdateList(stockAlertItems, nl, setStockAlertItems, '預警項目', '數量/備註')} onBack={() => setView('purchasing_hub')} /></div>) :
            view === 'purchasing_suppliers' ? (
               <div className="flex flex-col flex-1 min-h-0">
                 <div className="px-6 pt-4"><button onClick={() => setView('purchasing_hub')} className="flex items-center gap-2 text-slate-500 hover:text-blue-600 font-bold text-xs"><ArrowLeftIcon className="w-3 h-3" /> 返回採購</button></div>
-                <div className="flex-1 overflow-hidden"><SupplierList title="供應商清冊" typeLabel="供應商" themeColor="emerald" suppliers={suppliers} onUpdateSuppliers={setSuppliers} /></div>
+                <div className="flex-1 overflow-hidden"><SupplierList title="供應商清冊" typeLabel="供應商" themeColor="emerald" suppliers={suppliers} onUpdateSuppliers={(nl) => handleUpdateList(suppliers, nl, setSuppliers, '供應商')} /></div>
               </div>
            ) :
            view === 'purchasing_subcontractors' ? (
             <div className="flex flex-col flex-1 min-h-0">
               <div className="px-6 pt-4"><button onClick={() => setView('purchasing_hub')} className="flex items-center gap-2 text-slate-500 hover:text-blue-600 font-bold text-xs"><ArrowLeftIcon className="w-3 h-3" /> 返回採購</button></div>
-              <div className="flex-1 overflow-hidden"><SupplierList title="外包廠商清冊" typeLabel="外包廠商" themeColor="indigo" suppliers={subcontractors} onUpdateSuppliers={setSuppliers} /></div>
+              <div className="flex-1 overflow-hidden"><SupplierList title="外包廠商清冊" typeLabel="外包廠商" themeColor="indigo" suppliers={subcontractors} onUpdateSuppliers={(nl) => handleUpdateList(subcontractors, nl, setSubcontractors, '外包廠商')} /></div>
             </div>
          ) :
            view === 'purchasing_orders' ? (
               <div className="flex flex-col flex-1 min-h-0">
                 <div className="px-6 pt-4"><button onClick={() => setView('purchasing_hub')} className="flex items-center gap-2 text-slate-500 hover:text-blue-600 font-bold text-xs"><ArrowLeftIcon className="w-3 h-3" /> 返回採購</button></div>
-                <div className="flex-1 overflow-hidden"><PurchaseOrders projects={projects} suppliers={[...suppliers, ...subcontractors]} purchaseOrders={purchaseOrders} onUpdatePurchaseOrders={setPurchaseOrders} onUpdateProject={handleUpdateProject} /></div>
+                <div className="flex-1 overflow-hidden"><PurchaseOrders projects={projects} suppliers={[...suppliers, ...subcontractors]} purchaseOrders={purchaseOrders} onUpdatePurchaseOrders={(nl) => handleUpdateList(purchaseOrders, nl, setPurchaseOrders, '採購單')} onUpdateProject={handleUpdateProject} /></div>
               </div>
            ) :
            view === 'purchasing_inbounds' ? (
               <div className="flex flex-col flex-1 min-h-0">
                 <div className="px-6 pt-4"><button onClick={() => setView('purchasing_hub')} className="flex items-center gap-2 text-slate-500 hover:text-blue-600 font-bold text-xs"><ArrowLeftIcon className="w-3 h-3" /> 返回採購</button></div>
-                <div className="flex-1 overflow-hidden"><InboundDetails projects={projects} suppliers={[...suppliers, ...subcontractors]} purchaseOrders={purchaseOrders} onUpdatePurchaseOrders={setPurchaseOrders} /></div>
+                <div className="flex-1 overflow-hidden"><InboundDetails projects={projects} suppliers={[...suppliers, ...subcontractors]} purchaseOrders={purchaseOrders} onUpdatePurchaseOrders={(nl) => handleUpdateList(purchaseOrders, nl, setPurchaseOrders, '採購單狀態')} /></div>
               </div>
            ) :
-           view === 'hr' ? (<div className="flex-1 overflow-hidden"><HRManagement employees={employees} attendance={attendance} overtime={overtime} monthRemarks={monthRemarks} dailyDispatches={dailyDispatches} onUpdateEmployees={setEmployees} onUpdateAttendance={setAttendance} onUpdateOvertime={setOvertime} onUpdateMonthRemarks={setMonthRemarks} /></div>) :
+           view === 'hr' ? (<div className="flex-1 overflow-hidden"><HRManagement employees={employees} attendance={attendance} overtime={overtime} monthRemarks={monthRemarks} dailyDispatches={dailyDispatches} onUpdateEmployees={(nl) => handleUpdateList(employees, nl, setEmployees, '員工資料')} onUpdateAttendance={setAttendance} onUpdateOvertime={setOvertime} onUpdateMonthRemarks={setMonthRemarks} /></div>) :
            view === 'production' ? (<div className="flex-1 overflow-hidden"><GlobalProduction projects={projects} onUpdateProject={handleUpdateProject} systemRules={systemRules} /></div>) :
            view === 'outsourcing' ? (<div className="flex-1 overflow-hidden"><GlobalOutsourcing projects={projects} onUpdateProject={handleUpdateProject} systemRules={systemRules} subcontractors={subcontractors} /></div>) :
            view === 'driving_time' ? (
@@ -880,19 +886,19 @@ const App: React.FC = () => {
            view === 'equipment_tools' ? (
               <div className="flex flex-col flex-1 min-h-0">
                 <div className="px-6 pt-4"><button onClick={() => setView('equipment')} className="flex items-center gap-2 text-slate-500 hover:text-blue-600 font-bold text-xs"><ArrowLeftIcon className="w-3 h-3" /> 返回設備選單</button></div>
-                <div className="flex-1 overflow-hidden"><ToolManagement tools={tools} onUpdateTools={setTools} employees={employees} /></div>
+                <div className="flex-1 overflow-hidden"><ToolManagement tools={tools} onUpdateTools={(nl) => handleUpdateList(tools, nl, setTools, '工具設備', '狀態/借用人')} employees={employees} /></div>
               </div>
            ) :
            view === 'equipment_assets' ? (
               <div className="flex flex-col flex-1 min-h-0">
                 <div className="px-6 pt-4"><button onClick={() => setView('equipment')} className="flex items-center gap-2 text-slate-500 hover:text-blue-600 font-bold text-xs"><ArrowLeftIcon className="w-3 h-3" /> 返回設備選單</button></div>
-                <div className="flex-1 overflow-hidden"><AssetManagement assets={assets} onUpdateAssets={setAssets} /></div>
+                <div className="flex-1 overflow-hidden"><AssetManagement assets={assets} onUpdateAssets={(nl) => handleUpdateList(assets, nl, setAssets, '大型設備', '地點/負責人')} /></div>
               </div>
            ) :
            view === 'equipment_vehicles' ? (
               <div className="flex flex-col flex-1 min-h-0">
                 <div className="px-6 pt-4"><button onClick={() => setView('equipment')} className="flex items-center gap-2 text-slate-500 hover:text-blue-600 font-bold text-xs"><ArrowLeftIcon className="w-3 h-3" /> 返回設備選單</button></div>
-                <div className="flex-1 overflow-hidden"><VehicleManagement vehicles={vehicles} onUpdateVehicles={setVehicles} employees={employees} /></div>
+                <div className="flex-1 overflow-hidden"><VehicleManagement vehicles={vehicles} onUpdateVehicles={(nl) => handleUpdateList(vehicles, nl, setVehicles, '車輛資產', '里程/保險')} employees={employees} /></div>
               </div>
            ) :
            selectedProject ? (
