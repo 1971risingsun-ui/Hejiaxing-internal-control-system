@@ -474,21 +474,59 @@ const App: React.FC = () => {
   };
 
   /**
-   * 輔助函數：比對專案更動並生成詳細描述
+   * 輔助函數：比對專案更動並生成詳細描述 (Summarized Summary 格式)
    */
   const getProjectDiffMessage = (oldP: Project, newP: Project): string => {
     const parts: string[] = [];
-    if (oldP.status !== newP.status) parts.push(`狀態: [${oldP.status}] ➔ [${newP.status}]`);
-    if (oldP.name !== newP.name) parts.push(`基本資料(名稱)`);
-    if (oldP.appointmentDate !== newP.appointmentDate || oldP.reportDate !== newP.reportDate) parts.push(`日期排程`);
-    if (JSON.stringify(oldP.milestones) !== JSON.stringify(newP.milestones)) parts.push(`工期節點`);
-    if (JSON.stringify(oldP.materials) !== JSON.stringify(newP.materials)) parts.push(`材料請購`);
-    if (JSON.stringify(oldP.reports) !== JSON.stringify(newP.reports)) parts.push(`施工日誌`);
-    if (JSON.stringify(oldP.photos) !== JSON.stringify(newP.photos)) parts.push(`施工照片`);
-    if (JSON.stringify(oldP.constructionItems) !== JSON.stringify(newP.constructionItems)) parts.push(`施工紀錄細項`);
-    if (JSON.stringify(oldP.attachments) !== JSON.stringify(newP.attachments)) parts.push(`附件檔案`);
     
-    return parts.length > 0 ? parts.join('、') : '基本資料更新';
+    // 狀態
+    if (oldP.status !== newP.status) {
+        parts.push(`狀態 (${oldP.status} -> ${newP.status})`);
+    }
+
+    // 基本資料
+    if (oldP.name !== newP.name) parts.push(`專案名稱`);
+    
+    // 日期
+    if (oldP.appointmentDate !== newP.appointmentDate || oldP.reportDate !== newP.reportDate) {
+        parts.push(`日期排程`);
+    }
+
+    // 照片 (上傳/移除數量)
+    const oldPh = oldP.photos || [];
+    const newPh = newP.photos || [];
+    if (oldPh.length !== newPh.length) {
+        const diff = newPh.length - oldPh.length;
+        parts.push(`施工照 (${diff > 0 ? `上傳了 ${diff} 張` : `移除了 ${Math.abs(diff)} 張`}照片)`);
+    } else if (JSON.stringify(oldPh) !== JSON.stringify(newPh)) {
+        parts.push(`施工照 (更新了分析或描述)`);
+    }
+
+    // 里程碑
+    if (JSON.stringify(oldP.milestones) !== JSON.stringify(newP.milestones)) {
+        parts.push(`工期里程碑 (已更新)`);
+    }
+
+    // 材料
+    if (JSON.stringify(oldP.materials) !== JSON.stringify(newP.materials)) {
+        parts.push(`材料請購`);
+    }
+
+    // 施工紀錄與日誌
+    if (JSON.stringify(oldP.constructionItems) !== JSON.stringify(newP.constructionItems)) {
+        parts.push(`施工紀錄細項`);
+    }
+    
+    if (JSON.stringify(oldP.reports) !== JSON.stringify(newP.reports)) {
+        parts.push(`施工日誌`);
+    }
+
+    // 附件
+    if (JSON.stringify(oldP.attachments) !== JSON.stringify(newP.attachments)) {
+        parts.push(`附件檔案`);
+    }
+    
+    return parts.length > 0 ? parts.join('、') : '內容更新';
   };
 
   /**
