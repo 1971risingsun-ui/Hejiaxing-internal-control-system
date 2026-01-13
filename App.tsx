@@ -27,7 +27,7 @@ import EquipmentModule from './components/EquipmentModule';
 import ToolManagement from './components/ToolManagement';
 import AssetManagement from './components/AssetManagement';
 import VehicleManagement from './components/VehicleManagement';
-import { HomeIcon, UserIcon, LogOutIcon, ShieldIcon, MenuIcon, XIcon, ChevronRightIcon, WrenchIcon, UploadIcon, LoaderIcon, ClipboardListIcon, LayoutGridIcon, BoxIcon, DownloadIcon, FileTextIcon, CheckCircleIcon, AlertIcon, XCircleIcon, UsersIcon, TruckIcon, BriefcaseIcon, ArrowLeftIcon, CalendarIcon, ClockIcon, NavigationIcon, SaveIcon, ExternalLinkIcon, RefreshIcon, PenToolIcon, StampIcon } from './components/Icons';
+import { HomeIcon, UserIcon, LogOutIcon, ShieldIcon, MenuIcon, XIcon, ChevronRightIcon, WrenchIcon, UploadIcon, LoaderIcon, ClipboardListIcon, LayoutGridIcon, BoxIcon, DownloadIcon, FileTextIcon, CheckCircleIcon, AlertIcon, XCircleIcon, UsersIcon, TruckIcon, BriefcaseIcon, ArrowLeftIcon, CalendarIcon, ClockIcon, NavigationIcon, SaveIcon, ExternalLinkIcon, RefreshIcon, PenToolIcon, StampIcon, HistoryIcon } from './components/Icons';
 import { getDirectoryHandle, saveDbToLocal, loadDbFromLocal, getHandleFromIdb, clearHandleFromIdb, saveAppStateToIdb, loadAppStateFromIdb, saveHandleToIdb } from './utils/fileSystem';
 import { downloadBlob } from './utils/fileHelpers';
 import { GoogleGenAI } from "@google/genai";
@@ -57,23 +57,23 @@ const DEFAULT_SYSTEM_RULES: SystemRules = {
   rolePermissions: {
     [UserRole.ADMIN]: { 
       displayName: '管理員', 
-      allowedViews: ['engineering', 'engineering_hub', 'daily_dispatch', 'driving_time', 'weekly_schedule', 'outsourcing', 'engineering_groups', 'purchasing_hub', 'purchasing_items', 'stock_alert', 'purchasing_suppliers', 'purchasing_subcontractors', 'purchasing_orders', 'purchasing_inbounds', 'hr', 'production', 'equipment', 'report', 'users'] 
+      allowedViews: ['update_log', 'engineering', 'engineering_hub', 'daily_dispatch', 'driving_time', 'weekly_schedule', 'outsourcing', 'engineering_groups', 'purchasing_hub', 'purchasing_items', 'stock_alert', 'purchasing_suppliers', 'purchasing_subcontractors', 'purchasing_orders', 'purchasing_inbounds', 'hr', 'production', 'equipment', 'report', 'users'] 
     },
     [UserRole.MANAGER]: { 
       displayName: '專案經理', 
-      allowedViews: ['engineering', 'engineering_hub', 'daily_dispatch', 'driving_time', 'weekly_schedule', 'outsourcing', 'purchasing_hub', 'purchasing_items', 'stock_alert', 'purchasing_suppliers', 'purchasing_subcontractors', 'purchasing_orders', 'purchasing_inbounds', 'hr', 'production', 'equipment', 'report'] 
+      allowedViews: ['update_log', 'engineering', 'engineering_hub', 'daily_dispatch', 'driving_time', 'weekly_schedule', 'outsourcing', 'purchasing_hub', 'purchasing_items', 'stock_alert', 'purchasing_suppliers', 'purchasing_subcontractors', 'purchasing_orders', 'purchasing_inbounds', 'hr', 'production', 'equipment', 'report'] 
     },
     [UserRole.ENGINEERING]: { 
       displayName: '工務人員', 
-      allowedViews: ['engineering', 'engineering_hub', 'daily_dispatch', 'driving_time', 'weekly_schedule', 'report'] 
+      allowedViews: ['update_log', 'engineering', 'engineering_hub', 'daily_dispatch', 'driving_time', 'weekly_schedule', 'report'] 
     },
     [UserRole.FACTORY]: { 
       displayName: '廠務人員', 
-      allowedViews: ['engineering', 'production', 'equipment', 'equipment_tools', 'report'] 
+      allowedViews: ['update_log', 'engineering', 'production', 'equipment', 'equipment_tools', 'report'] 
     },
     [UserRole.WORKER]: { 
       displayName: '現場人員', 
-      allowedViews: ['engineering', 'engineering_hub', 'daily_dispatch', 'report'] 
+      allowedViews: ['update_log', 'engineering', 'engineering_hub', 'daily_dispatch', 'report'] 
     }
   },
   materialFormulas: [
@@ -165,7 +165,7 @@ const App: React.FC = () => {
   const [isWorkspaceLoading, setIsWorkspaceLoading] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
   const [lastSyncTime, setLastSyncTime] = useState<string>('');
-  const [lastUpdateInfo, setLastUpdateInfo] = useState<{ name: string; time: string } | null>(null);
+  const [lastUpdateInfo, setLastUpdateInfo] = useState<{ name: string; time: string; user?: string } | null>(null);
   
   const dbJsonInputRef = useRef<HTMLInputElement>(null);
 
@@ -185,7 +185,6 @@ const App: React.FC = () => {
     const map = new Map<string | number, T>();
     base.forEach(item => map.set(item.id, item));
     incoming.forEach(item => {
-      // 若已有項目，此處可根據更細緻的時間戳判斷是否覆蓋，目前採後進先出邏輯
       map.set(item.id, item);
     });
     return Array.from(map.values());
@@ -197,7 +196,7 @@ const App: React.FC = () => {
   const mergeAppState = (base: any, incoming: any) => {
     return {
       ...base,
-      ...incoming, // 全域屬性覆蓋
+      ...incoming, 
       projects: sortProjects(mergeLists(base.projects || [], incoming.projects || [])),
       users: mergeLists(base.users || [], incoming.users || []),
       auditLogs: mergeLists(base.auditLogs || [], incoming.auditLogs || []),
@@ -215,7 +214,6 @@ const App: React.FC = () => {
   useEffect(() => {
     const restoreAndLoad = async () => {
       try {
-        // 1. 優先獲取本機 Handle 與實體檔案資料
         const savedHandle = await getHandleFromIdb();
         let fileState = null;
         if (savedHandle) {
@@ -226,59 +224,33 @@ const App: React.FC = () => {
             fileState = await loadDbFromLocal(savedHandle);
           }
         }
-
-        // 2. 獲取 IndexedDB 中的瀏覽器快取
         const cachedState = await loadAppStateFromIdb();
-
-        // 3. 差異比較邏輯
         let finalDataToRestore = null;
-
         if (fileState && cachedState) {
           const fileTimeStr = fileState.lastSaved || '0';
           const cacheTimeStr = cachedState.lastSaved || '0';
-          
           if (fileTimeStr !== cacheTimeStr) {
             const fileTime = new Date(fileTimeStr).getTime();
             const cacheTime = new Date(cacheTimeStr).getTime();
             const newerSource = fileTime > cacheTime ? '指定資料夾 (電腦)' : '瀏覽器內存 (IndexedDB)';
-            
             const fileInfo = fileState.lastUpdateInfo ? `${fileState.lastUpdateInfo.name} (${fileState.lastUpdateInfo.time})` : '未知';
             const cacheInfo = cachedState.lastUpdateInfo ? `${cachedState.lastUpdateInfo.name} (${cachedState.lastUpdateInfo.time})` : '未知';
-
             const msg = `偵測到資料版本差異：\n\n` +
                         `📂 資料夾版本：${new Date(fileTime).toLocaleString()}\n   最後項目：${fileInfo}\n\n` +
                         `🌐 內存版本：${new Date(cacheTime).toLocaleString()}\n   最後項目：${cacheInfo}\n\n` +
                         `目前最新版本為：${newerSource}\n\n` +
                         `是否載入「指定資料夾」並覆蓋內存？\n(按「取消」則採用內存合併策略)`;
+            if (window.confirm(msg)) finalDataToRestore = fileState;
+            else finalDataToRestore = mergeAppState(fileState, cachedState);
+          } else finalDataToRestore = fileState;
+        } else finalDataToRestore = fileState || cachedState;
 
-            if (window.confirm(msg)) {
-              finalDataToRestore = fileState;
-            } else {
-              // 採用合併策略：以 fileState 為基礎，新增/更新 cachedState 的內容
-              finalDataToRestore = mergeAppState(fileState, cachedState);
-            }
-          } else {
-            finalDataToRestore = fileState; // 兩者相同，優先載入資料夾
-          }
-        } else {
-          finalDataToRestore = fileState || cachedState;
-        }
-
-        // 4. 套用選定的資料狀態
         if (finalDataToRestore) {
           restoreDataToState(finalDataToRestore);
-          if (finalDataToRestore.lastSaved) {
-            setLastSyncTime(new Date(finalDataToRestore.lastSaved).toLocaleTimeString('zh-TW', { hour12: false }));
-          }
-          if (finalDataToRestore.lastUpdateInfo) {
-            setLastUpdateInfo(finalDataToRestore.lastUpdateInfo);
-          }
+          if (finalDataToRestore.lastSaved) setLastSyncTime(new Date(finalDataToRestore.lastSaved).toLocaleTimeString('zh-TW', { hour12: false }));
+          if (finalDataToRestore.lastUpdateInfo) setLastUpdateInfo(finalDataToRestore.lastUpdateInfo);
         }
-      } catch (e) {
-        console.error('資料恢復過程失敗', e);
-      } finally {
-        setIsInitialized(true);
-      }
+      } catch (e) { console.error('資料恢復過程失敗', e); } finally { setIsInitialized(true); }
     };
     restoreAndLoad();
   }, []);
@@ -286,8 +258,21 @@ const App: React.FC = () => {
   const updateLastAction = (name: string) => {
     setLastUpdateInfo({
       name,
-      time: new Date().toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' })
+      time: new Date().toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' }),
+      user: currentUser?.name || '系統'
     });
+    // 同時記錄到審計日誌
+    if (currentUser) {
+      setAuditLogs(prev => [{
+        id: generateId(),
+        userId: currentUser.id,
+        userName: currentUser.name,
+        userEmail: currentUser.email,
+        action: 'UPDATE',
+        details: `更新了項目: ${name}`,
+        timestamp: Date.now()
+      }, ...prev]);
+    }
   };
 
   const syncToLocal = async (handle: FileSystemDirectoryHandle, data: any) => {
@@ -296,9 +281,7 @@ const App: React.FC = () => {
       const payload = { ...data, lastSaved: now.toISOString(), lastUpdateInfo };
       await saveDbToLocal(handle, payload);
       setLastSyncTime(now.toLocaleTimeString('zh-TW', { hour12: false }));
-    } catch (e) {
-      console.error('同步至電腦資料夾失敗', e);
-    }
+    } catch (e) { console.error('同步至電腦資料夾失敗', e); }
   };
 
   const handleDirectoryAction = async (force: boolean = false) => {
@@ -316,19 +299,11 @@ const App: React.FC = () => {
         const savedData = await loadDbFromLocal(handle);
         if (savedData) {
           restoreDataToState(savedData);
-          if (savedData.lastSaved) {
-            setLastSyncTime(new Date(savedData.lastSaved).toLocaleTimeString('zh-TW', { hour12: false }));
-          }
-          if (savedData.lastUpdateInfo) {
-            setLastUpdateInfo(savedData.lastUpdateInfo);
-          }
+          if (savedData.lastSaved) setLastSyncTime(new Date(savedData.lastSaved).toLocaleTimeString('zh-TW', { hour12: false }));
+          if (savedData.lastUpdateInfo) setLastUpdateInfo(savedData.lastUpdateInfo);
         }
       }
-    } catch (e: any) {
-      if (e.message !== '已取消選擇') alert(e.message);
-    } finally {
-      setIsWorkspaceLoading(false);
-    }
+    } catch (e: any) { if (e.message !== '已取消選擇') alert(e.message); } finally { setIsWorkspaceLoading(false); }
   };
 
   const restoreDataToState = (data: any) => {
@@ -365,9 +340,7 @@ const App: React.FC = () => {
       const jsonStr = JSON.stringify(appState, null, 2);
       const blob = new Blob([jsonStr], { type: 'application/json' });
       await downloadBlob(blob, `db_${new Date().toISOString().replace(/[:.]/g, '-')}.json`);
-    } catch (e) {
-      alert('存檔失敗');
-    }
+    } catch (e) { alert('存檔失敗'); }
   };
 
   const handleImportDbJson = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -383,9 +356,7 @@ const App: React.FC = () => {
           updateLastAction('匯入系統資料');
           alert('資料已成功還原');
         }
-      } catch (error: any) {
-        alert('解析備份檔案失敗: ' + (error.message || '未知錯誤'));
-      }
+      } catch (error: any) { alert('解析備份檔案失敗: ' + (error.message || '未知錯誤')); }
     };
     reader.readAsText(file);
     if (dbJsonInputRef.current) dbJsonInputRef.current.value = '';
@@ -402,10 +373,7 @@ const App: React.FC = () => {
                 monthRemarks, suppliers, subcontractors, purchaseOrders, stockAlertItems, 
                 tools, assets, vehicles, lastUpdateInfo, lastSaved: now 
             };
-            
-            // 同時儲存至內存快取與本機資料夾
             await saveAppStateToIdb(stateToSave);
-            
             if (dirHandle && dirPermission === 'granted') {
                 await syncToLocal(dirHandle, { 
                     projects, users: allUsers, auditLogs, weeklySchedules, dailyDispatches, 
@@ -414,9 +382,7 @@ const App: React.FC = () => {
                     tools, assets, vehicles 
                 });
             }
-        } catch (e) {
-            console.error('自動儲存失敗', e);
-        }
+        } catch (e) { console.error('自動儲存失敗', e); }
     };
     const timer = setTimeout(saveAll, 500);
     return () => clearTimeout(timer);
@@ -425,10 +391,10 @@ const App: React.FC = () => {
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [view, setView] = useState<'engineering' | 'engineering_hub' | 'driving_time' | 'weekly_schedule' | 'daily_dispatch' | 'engineering_groups' | 'outsourcing' | 'construction' | 'modular_house' | 'maintenance' | 'purchasing_hub' | 'purchasing_items' | 'stock_alert' | 'purchasing_suppliers' | 'purchasing_subcontractors' | 'purchasing_orders' | 'purchasing_inbounds' | 'production' | 'hr' | 'equipment' | 'equipment_tools' | 'equipment_assets' | 'equipment_vehicles' | 'report' | 'users'>('engineering');
+  const [view, setView] = useState<'update_log' | 'engineering' | 'engineering_hub' | 'driving_time' | 'weekly_schedule' | 'daily_dispatch' | 'engineering_groups' | 'outsourcing' | 'construction' | 'modular_house' | 'maintenance' | 'purchasing_hub' | 'purchasing_items' | 'stock_alert' | 'purchasing_suppliers' | 'purchasing_subcontractors' | 'purchasing_orders' | 'purchasing_inbounds' | 'production' | 'hr' | 'equipment' | 'equipment_tools' | 'equipment_assets' | 'equipment_vehicles' | 'report' | 'users'>('update_log');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
-  const handleLogin = (user: User) => { setCurrentUser(user); setView('engineering'); };
+  const handleLogin = (user: User) => { setCurrentUser(user); setView('update_log'); };
   const handleLogout = () => { setCurrentUser(null); setIsSidebarOpen(false); };
   const handleDeleteProject = (id: string) => {
     if (window.confirm('確定要刪除此案件嗎？')) {
@@ -436,9 +402,18 @@ const App: React.FC = () => {
         updateLastAction('刪除案件');
     }
   };
+
+  /**
+   * 擴充更新邏輯以包含審計追蹤
+   */
   const handleUpdateProject = (updatedProject: Project) => {
-    setProjects(prev => sortProjects(prev.map(p => p.id === updatedProject.id ? updatedProject : p)));
-    if (selectedProject?.id === updatedProject.id) setSelectedProject(updatedProject);
+    const auditData = {
+        lastModifiedBy: currentUser?.name || '系統',
+        lastModifiedAt: Date.now()
+    };
+    const finalProject = { ...updatedProject, ...auditData };
+    setProjects(prev => sortProjects(prev.map(p => p.id === updatedProject.id ? finalProject : p)));
+    if (selectedProject?.id === updatedProject.id) setSelectedProject(finalProject);
     updateLastAction(updatedProject.name);
   };
 
@@ -452,10 +427,10 @@ const App: React.FC = () => {
       const weekStart = new Date(d.setDate(diff)).toISOString().split('T')[0];
       let weekIdx = newWeeklySchedules.findIndex(s => s.weekStartDate === weekStart);
       if (weekIdx === -1) {
-        newWeeklySchedules.push({ weekStartDate: weekStart, teamConfigs: {}, days: {} });
+        newWeeklySchedules.push({ weekStartDate: weekStart, teamConfigs: {}, days: {}, lastModifiedBy: currentUser?.name, lastModifiedAt: Date.now() });
         weekIdx = newWeeklySchedules.length - 1;
       }
-      const week = { ...newWeeklySchedules[weekIdx] };
+      const week = { ...newWeeklySchedules[weekIdx], lastModifiedBy: currentUser?.name, lastModifiedAt: Date.now() };
       const days = { ...week.days };
       if (!days[date]) days[date] = { date, teams: {} };
       const dayData = { ...days[date] };
@@ -498,15 +473,16 @@ const App: React.FC = () => {
 
     return (
       <>
-        <div className="flex flex-col items-center justify-center w-full px-2 py-8 mb-2">
-           <div className="w-20 h-20 mb-4 rounded-full bg-white p-0.5 shadow-lg border border-slate-700">
+        <button 
+          onClick={() => { if(isViewAllowed('update_log')) { setSelectedProject(null); setView('update_log'); setIsSidebarOpen(false); } }}
+          className="flex flex-col items-center justify-center w-full px-2 py-8 mb-2 hover:bg-slate-800/50 transition-colors group text-center"
+        >
+           <div className="w-20 h-20 mb-4 rounded-full bg-white p-0.5 shadow-lg border border-slate-700 group-active:scale-95 transition-transform">
               <img src={LOGO_URL} alt="Logo" className="w-full h-full object-contain rounded-full" />
            </div>
-           <h1 className="text-base font-black text-white tracking-[0.15em] border-b-2 border-yellow-500 pb-1">
-             合家興實業
-           </h1>
+           <h1 className="text-base font-black text-white tracking-[0.15em] border-b-2 border-yellow-500 pb-1">合家興實業</h1>
            <div className="mt-2 text-[9px] font-black bg-blue-600 px-3 py-0.5 rounded-full text-white uppercase tracking-widest">{roleName}</div>
-        </div>
+        </button>
         <nav className="flex-1 px-4 space-y-2 overflow-y-auto no-scrollbar pb-10">
           <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-2 mt-4 px-4">工務工程 (Engineering)</div>
           {isViewAllowed('engineering') && (
@@ -569,6 +545,7 @@ const App: React.FC = () => {
 
   const getTitle = () => {
     switch(view) {
+      case 'update_log': return '系統更新紀錄';
       case 'engineering': return '工務總覽';
       case 'engineering_hub': return '工作排程入口';
       case 'driving_time': return '估計行車時間';
@@ -580,7 +557,7 @@ const App: React.FC = () => {
       case 'purchasing_items': return '採購項目總覽';
       case 'stock_alert': return '常備庫存爆量通知';
       case 'purchasing_suppliers': return '供應商清冊';
-      case 'purchasing_subcontractors': return '外包廠商';
+      case 'purchasing_subcontractors': return '外包廠商清冊';
       case 'purchasing_orders': return '採購單管理';
       case 'purchasing_inbounds': return '進料明細';
       case 'production': return '生產／備料總覽';
@@ -615,7 +592,43 @@ const App: React.FC = () => {
           </div>
         </header>
         <main className="flex-1 flex flex-col min-h-0 bg-[#f8fafc] pb-safe">
-          {view === 'users' ? (<UserManagement users={allUsers} onUpdateUsers={setAllUsers} auditLogs={auditLogs} onLogAction={(action, details) => setAuditLogs(prev => [{ id: generateId(), userId: currentUser.id, userName: currentUser.name, action, details, timestamp: Date.now() }, ...prev])} projects={projects} onRestoreData={restoreDataToState} onConnectDirectory={() => handleDirectoryAction(true)} dirPermission={dirPermission} isWorkspaceLoading={isWorkspaceLoading} systemRules={systemRules} onUpdateSystemRules={setSystemRules} />) : 
+          {view === 'update_log' ? (
+              <div className="flex-1 overflow-auto p-4 md:p-6 custom-scrollbar">
+                <div className="max-w-4xl mx-auto space-y-6">
+                    <div className="flex items-center gap-3 mb-6">
+                        <div className="bg-indigo-600 p-2.5 rounded-xl text-white shadow-lg"><HistoryIcon className="w-6 h-6" /></div>
+                        <div><h1 className="text-2xl font-black text-slate-800">系統更新與審計日誌</h1><p className="text-xs text-slate-400 font-bold uppercase tracking-widest">Audit Trail Log</p></div>
+                    </div>
+                    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left border-collapse">
+                                <thead className="bg-slate-50 text-slate-400 text-[10px] font-black uppercase tracking-widest border-b border-slate-200">
+                                    <tr>
+                                        <th className="px-6 py-4">時間</th>
+                                        <th className="px-6 py-4">操作人員</th>
+                                        <th className="px-6 py-4">動作</th>
+                                        <th className="px-6 py-4">詳細內容</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100">
+                                    {auditLogs.length > 0 ? auditLogs.map(log => (
+                                        <tr key={log.id} className="hover:bg-slate-50/50 transition-colors">
+                                            <td className="px-6 py-4 text-xs text-slate-500 font-mono whitespace-nowrap">{new Date(log.timestamp).toLocaleString()}</td>
+                                            <td className="px-6 py-4">
+                                                <div className="font-bold text-slate-800 text-sm">{log.userName}</div>
+                                                <div className="text-[10px] text-slate-400">{log.userEmail}</div>
+                                            </td>
+                                            <td className="px-6 py-4"><span className="px-2 py-1 bg-indigo-50 text-indigo-600 rounded text-[10px] font-black border border-indigo-100 uppercase">{log.action}</span></td>
+                                            <td className="px-6 py-4 text-sm text-slate-600">{log.details}</td>
+                                        </tr>
+                                    )) : <tr><td colSpan={4} className="py-20 text-center text-slate-300 italic">目前無更新紀錄</td></tr>}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+              </div>
+          ) : view === 'users' ? (<UserManagement users={allUsers} onUpdateUsers={setAllUsers} auditLogs={auditLogs} onLogAction={(action, details) => setAuditLogs(prev => [{ id: generateId(), userId: currentUser.id, userName: currentUser.name, userEmail: currentUser.email, action, details, timestamp: Date.now() }, ...prev])} projects={projects} onRestoreData={restoreDataToState} onConnectDirectory={() => handleDirectoryAction(true)} dirPermission={dirPermission} isWorkspaceLoading={isWorkspaceLoading} systemRules={systemRules} onUpdateSystemRules={setSystemRules} />) : 
            view === 'report' ? (<div className="flex-1 overflow-auto"><GlobalWorkReport projects={projects} currentUser={currentUser} onUpdateProject={handleUpdateProject} /></div>) : 
            view === 'engineering_hub' ? (<div className="flex-1 overflow-auto"><div className="p-6 max-w-5xl mx-auto h-full animate-fade-in"><div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-6">{[
              { id: 'daily_dispatch', label: '明日工作排程', icon: <ClipboardListIcon className="w-6 h-6" />, color: 'bg-blue-50 text-blue-600', desc: '確認明日施工地點與人員' },
@@ -722,7 +735,11 @@ const App: React.FC = () => {
         </main>
       </div>
 
-      {isAddModalOpen && <AddProjectModal onClose={() => setIsAddModalOpen(false)} onAdd={(p) => { setProjects(sortProjects([p, ...projects])); updateLastAction(p.name); setIsAddModalOpen(false); }} defaultType={view === 'maintenance' ? ProjectType.MAINTENANCE : view === 'modular_house' ? ProjectType.MODULAR_HOUSE : ProjectType.CONSTRUCTION} />}
+      {isAddModalOpen && <AddProjectModal onClose={() => setIsAddModalOpen(false)} onAdd={(p) => { 
+        const auditData = { lastModifiedBy: currentUser?.name, lastModifiedAt: Date.now() };
+        const finalP = { ...p, ...auditData };
+        setProjects(sortProjects([finalP, ...projects])); updateLastAction(finalP.name); setIsAddModalOpen(false); 
+      }} defaultType={view === 'maintenance' ? ProjectType.MAINTENANCE : view === 'modular_house' ? ProjectType.MODULAR_HOUSE : ProjectType.CONSTRUCTION} />}
       {editingProject && <EditProjectModal project={editingProject} onClose={() => setEditingProject(null)} onSave={handleUpdateProject} />}
     </div>
   );

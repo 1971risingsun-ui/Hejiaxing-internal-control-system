@@ -38,6 +38,8 @@ export interface Milestone {
   date: string;
   completed: boolean;
   notes?: string;
+  lastModifiedBy?: string;
+  lastModifiedAt?: number;
 }
 
 export interface SitePhoto {
@@ -46,6 +48,8 @@ export interface SitePhoto {
   timestamp: number;
   description: string;
   aiAnalysis?: string;
+  lastModifiedBy?: string;
+  lastModifiedAt?: number;
 }
 
 export enum MaterialStatus {
@@ -61,6 +65,8 @@ export interface Material {
   unit: string;
   status: MaterialStatus;
   notes?: string;
+  lastModifiedBy?: string;
+  lastModifiedAt?: number;
 }
 
 export interface Attachment {
@@ -69,6 +75,8 @@ export interface Attachment {
   size: number;
   type: string;
   url: string;
+  lastModifiedBy?: string;
+  lastModifiedAt?: number;
 }
 
 export interface DailyReport {
@@ -81,6 +89,8 @@ export interface DailyReport {
   photos?: string[];
   worker?: string;
   assistant?: string;
+  lastModifiedBy?: string;
+  lastModifiedAt?: number;
 }
 
 export interface ConstructionItem {
@@ -92,6 +102,8 @@ export interface ConstructionItem {
   worker: string;
   assistant: string;
   date: string;
+  lastModifiedBy?: string;
+  lastModifiedAt?: number;
 }
 
 export interface ConstructionSignature {
@@ -99,6 +111,8 @@ export interface ConstructionSignature {
   date: string;
   url: string;
   timestamp: number;
+  lastModifiedBy?: string;
+  lastModifiedAt?: number;
 }
 
 export interface CompletionItem {
@@ -113,6 +127,8 @@ export interface CompletionItem {
   isProduced?: boolean; 
   supplierId?: string;
   isPoCreated?: boolean; 
+  lastModifiedBy?: string;
+  lastModifiedAt?: number;
 }
 
 export interface CompletionReport {
@@ -123,12 +139,16 @@ export interface CompletionReport {
   notes: string;
   signature: string;
   timestamp: number;
+  lastModifiedBy?: string;
+  lastModifiedAt?: number;
 }
 
 export interface TeamConfig {
   master: string;
   assistant: string;
   carNumber: string;
+  lastModifiedBy?: string;
+  lastModifiedAt?: number;
 }
 
 export interface DaySchedule {
@@ -140,6 +160,8 @@ export interface WeeklySchedule {
   weekStartDate: string;
   teamConfigs?: Record<number, TeamConfig>;
   days: Record<string, DaySchedule>;
+  lastModifiedBy?: string;
+  lastModifiedAt?: number;
 }
 
 export type GlobalTeamConfigs = Record<number, TeamConfig>;
@@ -157,6 +179,8 @@ export interface DailyDispatch {
     carNumber: string;
     tasks: DailyDispatchTask[];
   }>;
+  lastModifiedBy?: string;
+  lastModifiedAt?: number;
 }
 
 export interface FenceMaterialItem {
@@ -167,6 +191,8 @@ export interface FenceMaterialItem {
   unit: string;
   supplierId?: string;
   isPoCreated?: boolean; 
+  lastModifiedBy?: string;
+  lastModifiedAt?: number;
 }
 
 export interface FenceMaterialSheet {
@@ -188,7 +214,6 @@ export interface MaterialFormulaConfig {
   items: MaterialFormulaItem[];
 }
 
-// Added ImportConfig interface to fix SystemRules missing property errors in App.tsx
 export interface ImportConfig {
   projectKeywords: {
     maintenance: string;
@@ -218,7 +243,6 @@ export interface SystemRules {
   modularSubcontractorKeywords: string[];
   materialFormulas: MaterialFormulaConfig[];
   rolePermissions?: Record<UserRole, RolePermission>;
-  // Added importConfig property to fix "Property 'importConfig' does not exist on type 'SystemRules'" errors in App.tsx
   importConfig?: ImportConfig;
 }
 
@@ -230,6 +254,8 @@ export interface StockAlertItem {
   unit: string;
   note: string;
   timestamp: number;
+  lastModifiedBy?: string;
+  lastModifiedAt?: number;
 }
 
 export interface Project {
@@ -262,12 +288,15 @@ export interface Project {
   completionReports: CompletionReport[];
   planningReports: CompletionReport[];
   fenceMaterialSheets?: Record<string, FenceMaterialSheet>; 
+  lastModifiedBy?: string;
+  lastModifiedAt?: number;
 }
 
 export interface AuditLog {
   id: string;
   userId: string;
   userName: string;
+  userEmail?: string;
   action: string;
   details: string;
   timestamp: number;
@@ -281,6 +310,8 @@ export interface Employee {
   nickname?: string;
   lineId?: string;
   category: EmployeeCategory;
+  lastModifiedBy?: string;
+  lastModifiedAt?: number;
 }
 
 export interface AttendanceRecord {
@@ -288,6 +319,8 @@ export interface AttendanceRecord {
   employeeId: string;
   status: string; 
   remark?: string;
+  lastModifiedBy?: string;
+  lastModifiedAt?: number;
 }
 
 export interface OvertimeRecord {
@@ -295,6 +328,8 @@ export interface OvertimeRecord {
   employeeId: string;
   hours: number;
   remark?: string;
+  lastModifiedBy?: string;
+  lastModifiedAt?: number;
 }
 
 export interface MonthSummaryRemark {
@@ -318,6 +353,8 @@ export interface Supplier {
   mobilePhone: string;
   lineId?: string;
   productList: ProductEntry[]; 
+  lastModifiedBy?: string;
+  lastModifiedAt?: number;
 }
 
 export interface PurchaseOrderItem {
@@ -349,6 +386,8 @@ export interface PurchaseOrder {
   receiver?: string;
   remarks?: string;
   isOrdered?: boolean; 
+  lastModifiedBy?: string;
+  lastModifiedAt?: number;
 }
 
 export interface Tool {
@@ -360,6 +399,8 @@ export interface Tool {
   borrower?: string;
   lastMaintenance?: string;
   notes?: string;
+  lastModifiedBy?: string;
+  lastModifiedAt?: number;
 }
 
 export interface Asset {
@@ -371,6 +412,8 @@ export interface Asset {
   nextInspection?: string;
   owner: string;
   notes?: string;
+  lastModifiedBy?: string;
+  lastModifiedAt?: number;
 }
 
 export interface Vehicle {
@@ -382,4 +425,6 @@ export interface Vehicle {
   insuranceExpiry: string;
   mainDriver: string;
   notes?: string;
+  lastModifiedBy?: string;
+  lastModifiedAt?: number;
 }
