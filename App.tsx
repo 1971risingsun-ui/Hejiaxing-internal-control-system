@@ -247,7 +247,8 @@ const App: React.FC = () => {
         const fTime = f.lastModifiedAt || 0;
         const cTime = c.lastModifiedAt || 0;
         
-        if (fTime === cTime) return null; // 完全相同不處理
+        // 強化差異偵測：若時間戳記相同但內容字串不同，亦視為衝突
+        if (fTime === cTime && JSON.stringify(f) === JSON.stringify(c)) return null; 
         
         return {
           id,
@@ -265,6 +266,21 @@ const App: React.FC = () => {
     return results;
   };
 
+  const triggerSyncProcess = (fileData: any, cacheData: any) => {
+    if (!fileData || !cacheData) {
+      restoreDataToState(fileData || cacheData);
+      return;
+    }
+    const diffs = computeDiffs(fileData, cacheData);
+    const hasDiffs = Object.values(diffs).some(list => list.length > 0);
+    
+    if (hasDiffs) {
+      setSyncPending({ fileData, cacheData, diffs });
+    } else {
+      restoreDataToState(mergeAppState(fileData, cacheData));
+    }
+  };
+
   useEffect(() => {
     const restoreAndLoad = async () => {
       try {
@@ -279,19 +295,7 @@ const App: React.FC = () => {
           }
         }
         const cachedState = await loadAppStateFromIdb();
-        
-        if (fileState && cachedState) {
-          const diffs = computeDiffs(fileState, cachedState);
-          const hasDiffs = Object.values(diffs).some(list => list.length > 0);
-          
-          if (hasDiffs) {
-            setSyncPending({ fileData: fileState, cacheData: cachedState, diffs });
-          } else {
-            restoreDataToState(mergeAppState(fileState, cachedState));
-          }
-        } else if (fileState || cachedState) {
-          restoreDataToState(fileState || cachedState);
-        }
+        triggerSyncProcess(fileState, cachedState);
       } catch (e) { console.error('資料恢復過程失敗', e); } finally { setIsInitialized(true); }
     };
     restoreAndLoad();
@@ -301,7 +305,7 @@ const App: React.FC = () => {
     if (!syncPending) return;
     const { fileData, cacheData } = syncPending;
     
-    const finalData = { ...mergeAppState(fileData, cacheData) }; // 先做基礎合併
+    const finalData = { ...mergeAppState(fileData, cacheData) }; 
 
     Object.entries(selections).forEach(([cat, list]) => {
       const catList: any[] = [];
@@ -311,7 +315,6 @@ const App: React.FC = () => {
         if (item) catList.push(item);
       });
 
-      // 對於沒在 selections 中的項目（可能兩邊一致），也要保留
       const allIdsInSelections = new Set(list.map(l => l.id));
       const identicalItems = (fileData[cat] || []).filter((i: any) => !allIdsInSelections.has(i.id));
       
@@ -330,7 +333,6 @@ const App: React.FC = () => {
       time: new Date().toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' }),
       user: currentUser?.name || '系統'
     });
-    // 同時記錄到審計日誌
     if (currentUser) {
       setAuditLogs(prev => [{
         id: generateId(),
@@ -365,17 +367,16 @@ const App: React.FC = () => {
       const status = await (handle as any).requestPermission({ mode: 'readwrite' });
       setDirPermission(status);
       if (status === 'granted') {
-        const savedData = await loadDbFromLocal(handle);
-        if (savedData) {
-          restoreDataToState(savedData);
-          if (savedData.lastSaved) setLastSyncTime(new Date(savedData.lastSaved).toLocaleTimeString('zh-TW', { hour12: false }));
-          if (savedData.lastUpdateInfo) setLastUpdateInfo(savedData.lastUpdateInfo);
-        }
+        const fileState = await loadDbFromLocal(handle);
+        const cachedState = await loadAppStateFromIdb();
+        // 此處改為觸發同步檢查流程
+        triggerSyncProcess(fileState, cachedState);
       }
     } catch (e: any) { if (e.message !== '已取消選擇') alert(e.message); } finally { setIsWorkspaceLoading(false); }
   };
 
   const restoreDataToState = (data: any) => {
+    if (!data) return;
     if (Array.isArray(data.projects)) setProjects(sortProjects(data.projects));
     if (Array.isArray(data.users)) setAllUsers(data.users);
     if (Array.isArray(data.auditLogs)) setAuditLogs(data.auditLogs);
@@ -735,7 +736,6 @@ const App: React.FC = () => {
                 <div className="flex-1 overflow-hidden"><InboundDetails projects={projects} suppliers={[...suppliers, ...subcontractors]} purchaseOrders={purchaseOrders} onUpdatePurchaseOrders={setPurchaseOrders} /></div>
               </div>
            ) :
-           /* Fix: Corrected typo 'setUpdateOvertime' to 'setOvertime' to resolve reference error */
            view === 'hr' ? (<div className="flex-1 overflow-hidden"><HRManagement employees={employees} attendance={attendance} overtime={overtime} monthRemarks={monthRemarks} dailyDispatches={dailyDispatches} onUpdateEmployees={setEmployees} onUpdateAttendance={setAttendance} onUpdateOvertime={setOvertime} onUpdateMonthRemarks={setMonthRemarks} /></div>) :
            view === 'production' ? (<div className="flex-1 overflow-hidden"><GlobalProduction projects={projects} onUpdateProject={handleUpdateProject} systemRules={systemRules} /></div>) :
            view === 'outsourcing' ? (<div className="flex-1 overflow-hidden"><GlobalOutsourcing projects={projects} onUpdateProject={handleUpdateProject} systemRules={systemRules} subcontractors={subcontractors} /></div>) :
@@ -810,6 +810,7 @@ const App: React.FC = () => {
           diffs={syncPending.diffs}
           onConfirm={handleSyncConfirm}
           onCancel={() => {
+            // 取消時預設合併
             restoreDataToState(mergeAppState(syncPending.fileData, syncPending.cacheData));
             setSyncPending(null);
           }}
