@@ -327,22 +327,75 @@ const App: React.FC = () => {
     updateLastAction('完成選擇性同步');
   };
 
+  /**
+   * 智慧日誌系統：處理連續操作的整併與去重
+   */
   const updateLastAction = (name: string, customDetails?: string) => {
+    const now = Date.now();
+    const timeStr = new Date(now).toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' });
+    
     setLastUpdateInfo({
       name,
-      time: new Date().toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' }),
+      time: timeStr,
       user: currentUser?.name || '系統'
     });
+
     if (currentUser) {
-      setAuditLogs(prev => [{
-        id: generateId(),
-        userId: currentUser.id,
-        userName: currentUser.name,
-        userEmail: currentUser.email,
-        action: 'UPDATE',
-        details: customDetails || `更新了項目: ${name}`,
-        timestamp: Date.now()
-      }, ...prev]);
+      const details = customDetails || `更新了項目: ${name}`;
+      
+      setAuditLogs(prev => {
+        if (prev.length > 0) {
+          const lastLog = prev[0];
+          const isSameUser = lastLog.userId === currentUser.id;
+          const isRecent = (now - lastLog.timestamp) < 15000; // 15秒內的連續動作視為同一批操作
+          
+          // 解析案件名稱標籤
+          const getProjectTag = (d: string) => {
+              const match = d.match(/^\[(.*?)\]\s*修改了：/);
+              return match ? match[1] : null;
+          };
+          
+          const lastProject = getProjectTag(lastLog.details);
+          const currentProject = getProjectTag(details);
+
+          // 條件：同使用者、時間接近、同專案
+          if (isSameUser && isRecent && lastProject && currentProject && lastProject === currentProject) {
+              const lastContent = lastLog.details.split('：')[1] || '';
+              const currentContent = details.split('：')[1] || '';
+              
+              if (lastContent && currentContent) {
+                  const lastParts = lastContent.split('、');
+                  const currentParts = currentContent.split('、');
+                  // 移除重複並合併
+                  const combinedParts = Array.from(new Set([...lastParts, ...currentParts])).filter(Boolean);
+                  const mergedDetails = `[${currentProject}] 修改了：${combinedParts.join('、')}`;
+                  
+                  // 如果整併後的內容跟最後一筆完全一樣，就不變動
+                  if (lastLog.details === mergedDetails) return prev;
+                  
+                  const newLogs = [...prev];
+                  newLogs[0] = { ...lastLog, details: mergedDetails, timestamp: now };
+                  return newLogs;
+              }
+          }
+          
+          // 如果內容完全相同且在 5 秒內，直接過濾掉（通常是 UI 冗餘觸發）
+          if (isSameUser && (now - lastLog.timestamp) < 5000 && lastLog.details === details) {
+            return prev;
+          }
+        }
+        
+        // 否則，新增一筆紀錄
+        return [{
+          id: generateId(),
+          userId: currentUser.id,
+          userName: currentUser.name,
+          userEmail: currentUser.email,
+          action: 'UPDATE',
+          details: details,
+          timestamp: now
+        }, ...prev];
+      });
     }
   };
 
