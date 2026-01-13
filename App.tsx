@@ -473,16 +473,16 @@ const App: React.FC = () => {
 
     return (
       <>
-        <button 
-          onClick={() => { if(isViewAllowed('update_log')) { setSelectedProject(null); setView('update_log'); setIsSidebarOpen(false); } }}
-          className="flex flex-col items-center justify-center w-full px-2 py-8 mb-2 hover:bg-slate-800/50 transition-colors group text-center"
+        <div 
+          onClick={() => { setSelectedProject(null); setView('update_log'); setIsSidebarOpen(false); }}
+          className="flex flex-col items-center justify-center w-full px-2 py-8 mb-2 hover:bg-slate-800/50 transition-colors group text-center cursor-pointer"
         >
            <div className="w-20 h-20 mb-4 rounded-full bg-white p-0.5 shadow-lg border border-slate-700 group-active:scale-95 transition-transform">
               <img src={LOGO_URL} alt="Logo" className="w-full h-full object-contain rounded-full" />
            </div>
            <h1 className="text-base font-black text-white tracking-[0.15em] border-b-2 border-yellow-500 pb-1">合家興實業</h1>
            <div className="mt-2 text-[9px] font-black bg-blue-600 px-3 py-0.5 rounded-full text-white uppercase tracking-widest">{roleName}</div>
-        </button>
+        </div>
         <nav className="flex-1 px-4 space-y-2 overflow-y-auto no-scrollbar pb-10">
           <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-2 mt-4 px-4">工務工程 (Engineering)</div>
           {isViewAllowed('engineering') && (
@@ -666,6 +666,7 @@ const App: React.FC = () => {
                 <div className="flex-1 overflow-hidden"><InboundDetails projects={projects} suppliers={[...suppliers, ...subcontractors]} purchaseOrders={purchaseOrders} onUpdatePurchaseOrders={setPurchaseOrders} /></div>
               </div>
            ) :
+           /* Fix: Corrected typo 'setUpdateOvertime' to 'setOvertime' to resolve reference error */
            view === 'hr' ? (<div className="flex-1 overflow-hidden"><HRManagement employees={employees} attendance={attendance} overtime={overtime} monthRemarks={monthRemarks} dailyDispatches={dailyDispatches} onUpdateEmployees={setEmployees} onUpdateAttendance={setAttendance} onUpdateOvertime={setOvertime} onUpdateMonthRemarks={setMonthRemarks} /></div>) :
            view === 'production' ? (<div className="flex-1 overflow-hidden"><GlobalProduction projects={projects} onUpdateProject={handleUpdateProject} systemRules={systemRules} /></div>) :
            view === 'outsourcing' ? (<div className="flex-1 overflow-hidden"><GlobalOutsourcing projects={projects} onUpdateProject={handleUpdateProject} systemRules={systemRules} subcontractors={subcontractors} /></div>) :
