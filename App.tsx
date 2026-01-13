@@ -27,6 +27,7 @@ import EquipmentModule from './components/EquipmentModule';
 import ToolManagement from './components/ToolManagement';
 import AssetManagement from './components/AssetManagement';
 import VehicleManagement from './components/VehicleManagement';
+import SyncDecisionCenter from './components/SyncDecisionCenter';
 import { HomeIcon, UserIcon, LogOutIcon, ShieldIcon, MenuIcon, XIcon, ChevronRightIcon, WrenchIcon, UploadIcon, LoaderIcon, ClipboardListIcon, LayoutGridIcon, BoxIcon, DownloadIcon, FileTextIcon, CheckCircleIcon, AlertIcon, XCircleIcon, UsersIcon, TruckIcon, BriefcaseIcon, ArrowLeftIcon, CalendarIcon, ClockIcon, NavigationIcon, SaveIcon, ExternalLinkIcon, RefreshIcon, PenToolIcon, StampIcon, HistoryIcon } from './components/Icons';
 import { getDirectoryHandle, saveDbToLocal, loadDbFromLocal, getHandleFromIdb, clearHandleFromIdb, saveAppStateToIdb, loadAppStateFromIdb, saveHandleToIdb } from './utils/fileSystem';
 import { downloadBlob } from './utils/fileHelpers';
@@ -167,6 +168,8 @@ const App: React.FC = () => {
   const [lastSyncTime, setLastSyncTime] = useState<string>('');
   const [lastUpdateInfo, setLastUpdateInfo] = useState<{ name: string; time: string; user?: string } | null>(null);
   
+  const [syncPending, setSyncPending] = useState<{ fileData: any, cacheData: any, diffs: any } | null>(null);
+
   const dbJsonInputRef = useRef<HTMLInputElement>(null);
 
   const sortProjects = (list: Project[]) => {
@@ -211,6 +214,57 @@ const App: React.FC = () => {
     };
   };
 
+  const computeDiffs = (file: any, cache: any) => {
+    const categories = [
+      { key: 'projects', label: '施工案件' },
+      { key: 'employees', label: '員工資料' },
+      { key: 'suppliers', label: '供應商' },
+      { key: 'subcontractors', label: '外包商' },
+      { key: 'purchaseOrders', label: '採購單' },
+      { key: 'stockAlertItems', label: '庫存預警' },
+      { key: 'tools', label: '工具設備' },
+      { key: 'assets', label: '大型資產' },
+      { key: 'vehicles', label: '公司車輛' }
+    ];
+
+    const results: Record<string, any[]> = {};
+
+    categories.forEach(({ key }) => {
+      const fileList = file[key] || [];
+      const cacheList = cache[key] || [];
+      const allIds = Array.from(new Set([
+        ...fileList.map((i: any) => i.id),
+        ...cacheList.map((i: any) => i.id)
+      ]));
+
+      results[key] = allIds.map(id => {
+        const f = fileList.find((i: any) => i.id === id);
+        const c = cacheList.find((i: any) => i.id === id);
+        
+        if (!f) return { id, name: c.name || c.plateNumber || id, status: 'ONLY_CACHE', data: c, side: 'cache', cacheTime: c.lastModifiedAt };
+        if (!c) return { id, name: f.name || f.plateNumber || id, status: 'ONLY_FILE', data: f, side: 'file', fileTime: f.lastModifiedAt };
+        
+        const fTime = f.lastModifiedAt || 0;
+        const cTime = c.lastModifiedAt || 0;
+        
+        if (fTime === cTime) return null; // 完全相同不處理
+        
+        return {
+          id,
+          name: f.name || f.plateNumber || id,
+          status: 'CONFLICT',
+          fileData: f,
+          cacheData: c,
+          newer: fTime > cTime ? 'file' : 'cache',
+          fileTime: fTime,
+          cacheTime: cTime
+        };
+      }).filter(Boolean);
+    });
+
+    return results;
+  };
+
   useEffect(() => {
     const restoreAndLoad = async () => {
       try {
@@ -225,35 +279,50 @@ const App: React.FC = () => {
           }
         }
         const cachedState = await loadAppStateFromIdb();
-        let finalDataToRestore = null;
+        
         if (fileState && cachedState) {
-          const fileTimeStr = fileState.lastSaved || '0';
-          const cacheTimeStr = cachedState.lastSaved || '0';
-          if (fileTimeStr !== cacheTimeStr) {
-            const fileTime = new Date(fileTimeStr).getTime();
-            const cacheTime = new Date(cacheTimeStr).getTime();
-            const newerSource = fileTime > cacheTime ? '指定資料夾 (電腦)' : '瀏覽器內存 (IndexedDB)';
-            const fileInfo = fileState.lastUpdateInfo ? `${fileState.lastUpdateInfo.name} (${fileState.lastUpdateInfo.time})` : '未知';
-            const cacheInfo = cachedState.lastUpdateInfo ? `${cachedState.lastUpdateInfo.name} (${cachedState.lastUpdateInfo.time})` : '未知';
-            const msg = `偵測到資料版本差異：\n\n` +
-                        `📂 資料夾版本：${new Date(fileTime).toLocaleString()}\n   最後項目：${fileInfo}\n\n` +
-                        `🌐 內存版本：${new Date(cacheTime).toLocaleString()}\n   最後項目：${cacheInfo}\n\n` +
-                        `目前最新版本為：${newerSource}\n\n` +
-                        `是否載入「指定資料夾」並覆蓋內存？\n(按「取消」則採用內存合併策略)`;
-            if (window.confirm(msg)) finalDataToRestore = fileState;
-            else finalDataToRestore = mergeAppState(fileState, cachedState);
-          } else finalDataToRestore = fileState;
-        } else finalDataToRestore = fileState || cachedState;
-
-        if (finalDataToRestore) {
-          restoreDataToState(finalDataToRestore);
-          if (finalDataToRestore.lastSaved) setLastSyncTime(new Date(finalDataToRestore.lastSaved).toLocaleTimeString('zh-TW', { hour12: false }));
-          if (finalDataToRestore.lastUpdateInfo) setLastUpdateInfo(finalDataToRestore.lastUpdateInfo);
+          const diffs = computeDiffs(fileState, cachedState);
+          const hasDiffs = Object.values(diffs).some(list => list.length > 0);
+          
+          if (hasDiffs) {
+            setSyncPending({ fileData: fileState, cacheData: cachedState, diffs });
+          } else {
+            restoreDataToState(mergeAppState(fileState, cachedState));
+          }
+        } else if (fileState || cachedState) {
+          restoreDataToState(fileState || cachedState);
         }
       } catch (e) { console.error('資料恢復過程失敗', e); } finally { setIsInitialized(true); }
     };
     restoreAndLoad();
   }, []);
+
+  const handleSyncConfirm = (selections: Record<string, { id: string, side: 'file' | 'cache' }[]>) => {
+    if (!syncPending) return;
+    const { fileData, cacheData } = syncPending;
+    
+    const finalData = { ...mergeAppState(fileData, cacheData) }; // 先做基礎合併
+
+    Object.entries(selections).forEach(([cat, list]) => {
+      const catList: any[] = [];
+      list.forEach(({ id, side }) => {
+        const source = side === 'file' ? fileData[cat] : cacheData[cat];
+        const item = source?.find((i: any) => i.id === id);
+        if (item) catList.push(item);
+      });
+
+      // 對於沒在 selections 中的項目（可能兩邊一致），也要保留
+      const allIdsInSelections = new Set(list.map(l => l.id));
+      const identicalItems = (fileData[cat] || []).filter((i: any) => !allIdsInSelections.has(i.id));
+      
+      finalData[cat] = [...catList, ...identicalItems];
+      if (cat === 'projects') finalData[cat] = sortProjects(finalData[cat]);
+    });
+
+    restoreDataToState(finalData);
+    setSyncPending(null);
+    updateLastAction('完成選擇性同步');
+  };
 
   const updateLastAction = (name: string) => {
     setLastUpdateInfo({
@@ -735,6 +804,17 @@ const App: React.FC = () => {
            ) : null}
         </main>
       </div>
+
+      {syncPending && (
+        <SyncDecisionCenter 
+          diffs={syncPending.diffs}
+          onConfirm={handleSyncConfirm}
+          onCancel={() => {
+            restoreDataToState(mergeAppState(syncPending.fileData, syncPending.cacheData));
+            setSyncPending(null);
+          }}
+        />
+      )}
 
       {isAddModalOpen && <AddProjectModal onClose={() => setIsAddModalOpen(false)} onAdd={(p) => { 
         const auditData = { lastModifiedBy: currentUser?.name, lastModifiedAt: Date.now() };
