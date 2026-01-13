@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { BoxIcon, FileTextIcon, UsersIcon, ClipboardListIcon, AlertIcon, TruckIcon } from './Icons';
 
@@ -56,7 +55,7 @@ const PurchasingModule: React.FC<PurchasingModuleProps> = ({ onNavigate, allowed
   const visibleCategories = categories.filter(cat => allowedViews.includes(cat.id));
 
   return (
-    <div className="p-6 max-w-5xl mx-auto h-full animate-fade-in">
+    <div className="p-6 max-w-5xl mx-auto h-full animate-fade-in overflow-y-auto custom-scrollbar">
       <div className="mb-8">
         <h1 className="text-2xl font-black text-slate-800">採購與供應鏈管理</h1>
         <p className="text-sm text-slate-500 font-bold uppercase tracking-widest mt-1 opacity-60">Purchasing & Supply Chain</p>

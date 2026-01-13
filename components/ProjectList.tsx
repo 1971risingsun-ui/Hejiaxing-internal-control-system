@@ -90,7 +90,6 @@ const ProjectList: React.FC<ProjectListProps> = ({
 
   const formatDescription = (text: string) => {
     if (!text) return '';
-    // 依據項目數字 (1. 2. 3. 等) 在前面插入換行符號
     return text.replace(/(\d+\.\s)/g, (match, p1, offset) => {
       return offset === 0 ? match : `\n${match}`;
     }).trim();
@@ -98,20 +97,13 @@ const ProjectList: React.FC<ProjectListProps> = ({
 
   const filteredProjects = projects.filter(project => {
     if (!project) return false;
-    
     const search = searchTerm.toLowerCase();
     const name = (project.name || '').toLowerCase();
     const client = (project.clientName || '').toLowerCase();
     const addr = (project.address || '').toLowerCase();
-    
-    const matchesSearch = 
-      name.includes(search) || 
-      client.includes(search) || 
-      addr.includes(search);
-    
+    const matchesSearch = name.includes(search) || client.includes(search) || addr.includes(search);
     const matchesStatus = statusFilter === 'ALL' || project.status === statusFilter;
     const matchesType = typeFilter === 'ALL' || project.type === typeFilter;
-
     return matchesSearch && matchesStatus && matchesType;
   });
 
@@ -163,7 +155,7 @@ const ProjectList: React.FC<ProjectListProps> = ({
   };
 
   return (
-    <div className="p-4 md:p-6 w-full max-w-[1600px] mx-auto pb-20 md:pb-6" onClick={() => setActiveMenuId(null)}>
+    <div className="p-4 md:p-6 w-full max-w-[1600px] mx-auto pb-20 md:pb-6 h-full overflow-y-auto custom-scrollbar" onClick={() => setActiveMenuId(null)}>
       {/* Page Title & Global Actions */}
       <div className="flex flex-row items-center justify-between mb-6 gap-4">
         <div>
@@ -176,7 +168,7 @@ const ProjectList: React.FC<ProjectListProps> = ({
           )}
         </div>
         <div className="flex gap-2">
-          {/* 整合後的批量匯入中心 */}
+          {/* 批量匯入中心 */}
           {(onImportConstructionRecords || onImportConstructionReports || onImportCompletionReports) && (
             <div className="relative" ref={importMenuRef}>
               <button
@@ -267,10 +259,10 @@ const ProjectList: React.FC<ProjectListProps> = ({
         </div>
       </div>
 
-      {/* Unified Project Section (Merged tabs and projects) */}
+      {/* Unified Project Section */}
       <div className="flex flex-col bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         
-        {/* Category Tabs Section - Shrinked by approx 40% */}
+        {/* Category Tabs Section */}
         <div className="bg-slate-50 border-b border-slate-200">
             <div className="flex overflow-x-auto no-scrollbar">
                 <button 
@@ -300,7 +292,7 @@ const ProjectList: React.FC<ProjectListProps> = ({
             </div>
         </div>
 
-        {/* Toolbar Section (Search & Status) */}
+        {/* Toolbar Section */}
         <div className="p-4 md:p-6 border-b border-slate-100 bg-white space-y-4">
             <div className="flex flex-col md:flex-row gap-4 items-center">
                 <div className="relative flex-1 w-full">

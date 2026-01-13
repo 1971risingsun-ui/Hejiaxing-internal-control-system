@@ -139,8 +139,7 @@ const App: React.FC = () => {
     return () => clearTimeout(timer);
   }, [projects, allUsers, auditLogs, weeklySchedules, dailyDispatches, globalTeamConfigs, systemRules, employees, attendance, overtime, monthRemarks, suppliers, subcontractors, purchaseOrders, stockAlertItems, tools, assets, vehicles, dirHandle, dirPermission, isInitialized, lastUpdateInfo]);
 
-  // --- 精確更新攔截器 (用於全模組日誌追蹤) ---
-
+  // --- 精確更新攔截器 ---
   const handleUpdateList = <T extends object>(
     oldList: T[], 
     newList: T[], 
@@ -150,13 +149,11 @@ const App: React.FC = () => {
     idKey: keyof T = 'id' as keyof T
   ) => {
     const getId = (item: T) => (item as any)[idKey];
-    
     if (newList.length !== oldList.length) {
       const isAdded = newList.length > oldList.length;
       const target = isAdded 
         ? newList.find(n => !oldList.find(o => getId(o) === getId(n)))
         : oldList.find(o => !newList.find(n => getId(n) === getId(o)));
-      
       if (target) {
         const name = (target as any).name || (target as any).plateNumber || String(getId(target));
         updateLastAction(name, `[${name}] ${isAdded ? '新增了' : '刪除了'}${entityLabel}`);
@@ -166,7 +163,6 @@ const App: React.FC = () => {
         const old = oldList.find(o => getId(o) === getId(n));
         return old && JSON.stringify(old) !== JSON.stringify(n);
       });
-      
       if (changed) {
         const name = (changed as any).name || (changed as any).plateNumber || String(getId(changed));
         updateLastAction(name, `[${name}] 修改了：${blockName}`);
@@ -179,43 +175,12 @@ const App: React.FC = () => {
     const diff = newList.find(n => {
         const old = attendance.find(o => o.employeeId === n.employeeId && o.date === n.date);
         return !old || old.status !== n.status;
-    }) || attendance.find(o => !newList.find(n => n.employeeId === o.employeeId && n.date === o.date));
-
+    });
     if (diff) {
         const emp = employees.find(e => e.id === diff.employeeId);
-        if (emp) {
-            updateLastAction(emp.name, `[${emp.name}] 修改了：出勤紀錄 (${diff.date})`);
-        }
+        if (emp) updateLastAction(emp.name, `[${emp.name}] 修改了：出勤紀錄 (${diff.date})`);
     }
     setAttendance(newList);
-  };
-
-  const handleUpdateOvertime = (newList: OvertimeRecord[]) => {
-    const diff = newList.find(n => {
-        const old = overtime.find(o => o.employeeId === n.employeeId && o.date === n.date);
-        return !old || old.hours !== n.hours;
-    });
-    if (diff) {
-        const emp = employees.find(e => e.id === diff.employeeId);
-        if (emp) {
-            updateLastAction(emp.name, `[${emp.name}] 修改了：加班時數 (${diff.hours}hr)`);
-        }
-    }
-    setOvertime(newList);
-  };
-
-  const handleUpdateMonthRemarks = (newList: MonthSummaryRemark[]) => {
-    const diff = newList.find(n => {
-        const old = monthRemarks.find(o => o.employeeId === n.employeeId && o.month === n.month);
-        return !old || old.remark !== n.remark;
-    });
-    if (diff) {
-        const emp = employees.find(e => e.id === diff.employeeId);
-        if (emp) {
-            updateLastAction(emp.name, `[${emp.name}] 修改了：人事月備註`);
-        }
-    }
-    setMonthRemarks(newList);
   };
 
   // --- 同步與檔案功能 ---
@@ -243,8 +208,7 @@ const App: React.FC = () => {
   };
 
   const handleImportDbJson = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const file = e.target.files?.[0]; if (!file) return;
     const reader = new FileReader();
     reader.onload = (evt) => {
       try {
@@ -287,8 +251,7 @@ const App: React.FC = () => {
   };
 
   const handleDeleteProject = (projectId: string) => {
-    const project = projects.find(p => p.id === projectId);
-    if (!project) return;
+    const project = projects.find(p => p.id === projectId); if (!project) return;
     if (window.confirm(`確定要刪除案件「${project.name}」嗎？此操作無法還原。`)) {
       setProjects(prev => prev.filter(p => p.id !== projectId));
       updateLastAction(project.name, `[${project.name}] 刪除了案件`);
@@ -379,37 +342,37 @@ const App: React.FC = () => {
       <aside className="hidden md:flex w-64 flex-col bg-slate-900 text-white flex-shrink-0">{renderSidebarContent()}</aside>
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
         <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 md:px-6 shadow-sm z-20 flex-shrink-0"><button onClick={() => setIsSidebarOpen(true)} className="md:hidden text-slate-500 p-2"><MenuIcon className="w-6 h-6" /></button><div className="text-sm font-bold text-slate-700">{selectedProject ? selectedProject.name : '合家興管理系統'}</div><div className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center overflow-hidden border border-slate-200 shadow-sm"><img src={LOGO_URL} alt="User" className="w-full h-full object-cover" /></div></header>
-        <main className="flex-1 min-h-0 bg-[#f8fafc] pb-safe flex flex-col">
+        <main className="flex-1 min-h-0 bg-[#f8fafc] pb-safe flex flex-col overflow-hidden">
           {view === 'update_log' ? (<AuditLogList logs={auditLogs} />) : 
            view === 'users' ? (<UserManagement users={allUsers} onUpdateUsers={(nl) => handleUpdateList(allUsers, nl, setAllUsers, '系統帳號')} auditLogs={auditLogs} onLogAction={(action, details) => updateLastAction('系統', details)} projects={projects} onRestoreData={restoreDataToState} systemRules={systemRules} onUpdateSystemRules={setSystemRules} />) : 
            view === 'report' ? (<GlobalWorkReport projects={projects} currentUser={currentUser} onUpdateProject={handleUpdateProject} />) : 
-           view === 'engineering_hub' ? (<div className="flex-1 overflow-auto p-6 animate-fade-in"><div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-6 max-w-4xl mx-auto">{[
+           view === 'engineering_hub' ? (<div className="flex-1 overflow-y-auto custom-scrollbar p-6 animate-fade-in"><div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-6 max-w-4xl mx-auto">{[
              { id: 'daily_dispatch', label: '明日工作排程', icon: <ClipboardListIcon className="w-6 h-6" />, color: 'bg-blue-50 text-blue-600' },
              { id: 'driving_time', label: '估計行車時間', icon: <NavigationIcon className="w-6 h-6" />, color: 'bg-amber-50 text-amber-600' },
              { id: 'weekly_schedule', label: '週間工作排程', icon: <CalendarIcon className="w-6 h-6" />, color: 'bg-indigo-50 text-indigo-600' },
              { id: 'outsourcing', label: '外包廠商管理', icon: <BriefcaseIcon className="w-6 h-6" />, color: 'bg-blue-50 text-blue-600' },
              { id: 'engineering_groups', label: '工程小組設定', icon: <UsersIcon className="w-6 h-6" />, color: 'bg-emerald-50 text-emerald-600' },
            ].filter(cat => isViewAllowed(cat.id)).map(cat => (<button key={cat.id} onClick={() => setView(cat.id as any)} className="bg-white p-8 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md hover:border-blue-500 transition-all group flex flex-col items-center text-center gap-4"><div className={`p-4 rounded-xl ${cat.color} group-hover:scale-110 transition-transform`}>{cat.icon}</div><div className="font-bold text-slate-800 text-lg">{cat.label}</div></button>))}</div></div>) :
-           view === 'purchasing_hub' ? (<PurchasingModule onNavigate={setView} allowedViews={systemRules.rolePermissions?.[currentUser.role]?.allowedViews || []} />) :
+           view === 'purchasing_hub' ? (<div className="flex-1 overflow-y-auto custom-scrollbar"><PurchasingModule onNavigate={setView} allowedViews={systemRules.rolePermissions?.[currentUser.role]?.allowedViews || []} /></div>) :
            view === 'purchasing_items' ? (<GlobalPurchasingItems projects={projects} onUpdateProject={handleUpdateProject} systemRules={systemRules} onBack={() => setView('purchasing_hub')} suppliers={suppliers} subcontractors={subcontractors} onUpdateSuppliers={(nl) => handleUpdateList(suppliers, nl, setSuppliers, '供應商', '清單細項')} onUpdateSubcontractors={(nl) => handleUpdateList(subcontractors, nl, setSubcontractors, '外包廠商', '清單細項')} purchaseOrders={purchaseOrders} onUpdatePurchaseOrders={(nl) => handleUpdateList(purchaseOrders, nl, setPurchaseOrders, '採購單', '單據內容')} />) :
            view === 'stock_alert' ? (<StockAlert items={stockAlertItems} onUpdateItems={(nl) => handleUpdateList(stockAlertItems, nl, setStockAlertItems, '預警項目', '數量內容')} onBack={() => setView('purchasing_hub')} />) :
            view === 'purchasing_suppliers' ? (<SupplierList title="供應商清冊" typeLabel="供應商" themeColor="emerald" suppliers={suppliers} onUpdateSuppliers={(nl) => handleUpdateList(suppliers, nl, setSuppliers, '供應商')} />) :
            view === 'purchasing_subcontractors' ? (<SupplierList title="外包廠商清冊" typeLabel="外包廠商" themeColor="indigo" suppliers={subcontractors} onUpdateSuppliers={(nl) => handleUpdateList(subcontractors, nl, setSubcontractors, '外包廠商')} />) :
            view === 'purchasing_orders' ? (<PurchaseOrders projects={projects} suppliers={[...suppliers, ...subcontractors]} purchaseOrders={purchaseOrders} onUpdatePurchaseOrders={(nl) => handleUpdateList(purchaseOrders, nl, setPurchaseOrders, '採購單')} onUpdateProject={handleUpdateProject} />) :
            view === 'purchasing_inbounds' ? (<InboundDetails projects={projects} suppliers={[...suppliers, ...subcontractors]} purchaseOrders={purchaseOrders} onUpdatePurchaseOrders={(nl) => handleUpdateList(purchaseOrders, nl, setPurchaseOrders, '進料清單')} />) :
-           view === 'hr' ? (<HRManagement employees={employees} attendance={attendance} overtime={overtime} monthRemarks={monthRemarks} dailyDispatches={dailyDispatches} onUpdateEmployees={(nl) => handleUpdateList(employees, nl, setEmployees, '員工資料')} onUpdateAttendance={handleUpdateAttendance} onUpdateOvertime={handleUpdateOvertime} onUpdateMonthRemarks={handleUpdateMonthRemarks} />) :
+           view === 'hr' ? (<HRManagement employees={employees} attendance={attendance} overtime={overtime} monthRemarks={monthRemarks} dailyDispatches={dailyDispatches} onUpdateEmployees={(nl) => handleUpdateList(employees, nl, setEmployees, '員工資料')} onUpdateAttendance={handleUpdateAttendance} onUpdateOvertime={(nl) => handleUpdateList(overtime, nl, setOvertime, '加班紀錄', '時數內容', 'date')} onUpdateMonthRemarks={(nl) => handleUpdateList(monthRemarks, nl, setMonthRemarks, '人事備註', '備註內容', 'month')} />) :
            view === 'production' ? (<GlobalProduction projects={projects} onUpdateProject={handleUpdateProject} systemRules={systemRules} />) :
            view === 'outsourcing' ? (<GlobalOutsourcing projects={projects} onUpdateProject={handleUpdateProject} systemRules={systemRules} subcontractors={subcontractors} />) :
-           view === 'driving_time' ? (<div className="flex-1 overflow-auto"><div className="px-6 pt-4"><button onClick={() => setView('engineering_hub')} className="flex items-center gap-2 text-slate-500 font-bold text-xs"><ArrowLeftIcon className="w-3 h-3" /> 返回</button></div><DrivingTimeEstimator projects={projects} onAddToSchedule={handleAddToSchedule} globalTeamConfigs={globalTeamConfigs} /></div>) :
+           view === 'driving_time' ? (<div className="flex-1 overflow-y-auto custom-scrollbar"><div className="px-6 pt-4"><button onClick={() => setView('engineering_hub')} className="flex items-center gap-2 text-slate-500 font-bold text-xs"><ArrowLeftIcon className="w-3 h-3" /> 返回</button></div><DrivingTimeEstimator projects={projects} onAddToSchedule={handleAddToSchedule} globalTeamConfigs={globalTeamConfigs} /></div>) :
            view === 'weekly_schedule' ? (<div className="flex-1 flex flex-col overflow-hidden"><div className="px-6 pt-4"><button onClick={() => setView('engineering_hub')} className="flex items-center gap-2 text-slate-500 font-bold text-xs"><ArrowLeftIcon className="w-3 h-3" /> 返回</button></div><WeeklySchedule projects={projects} weeklySchedules={weeklySchedules} globalTeamConfigs={globalTeamConfigs} onUpdateWeeklySchedules={(nl) => handleUpdateList(weeklySchedules, nl, setWeeklySchedules, '排程', '週計畫', 'weekStartDate')} onOpenDrivingTime={() => setView('driving_time')} /></div>) :
            view === 'daily_dispatch' ? (<div className="flex-1 flex flex-col overflow-hidden"><div className="px-6 pt-4"><button onClick={() => setView('engineering_hub')} className="flex items-center gap-2 text-slate-500 font-bold text-xs"><ArrowLeftIcon className="w-3 h-3" /> 返回</button></div><DailyDispatch projects={projects} weeklySchedules={weeklySchedules} dailyDispatches={dailyDispatches} globalTeamConfigs={globalTeamConfigs} onUpdateDailyDispatches={(nl) => handleUpdateList(dailyDispatches, nl, setDailyDispatches, '派工', '當日內容', 'date')} onOpenDrivingTime={() => setView('driving_time')} /></div>) :
-           view === 'engineering_groups' ? (<div className="flex-1 overflow-auto"><div className="px-6 pt-4"><button onClick={() => setView('engineering_hub')} className="flex items-center gap-2 text-slate-500 font-bold text-xs"><ArrowLeftIcon className="w-3 h-3" /> 返回</button></div><EngineeringGroups globalTeamConfigs={globalTeamConfigs} onUpdateGlobalTeamConfigs={(nl) => { setGlobalTeamConfigs(nl); updateLastAction('系統設定', '[小組設定] 修改了：工程小組預設配置'); }} /></div>) :
-           view === 'equipment' ? (<EquipmentModule onNavigate={setView} allowedViews={currentUser.role === UserRole.ADMIN ? ['equipment_tools','equipment_assets','equipment_vehicles'] : (systemRules.rolePermissions?.[currentUser.role]?.allowedViews || [])} />) :
+           view === 'engineering_groups' ? (<div className="flex-1 overflow-y-auto custom-scrollbar"><div className="px-6 pt-4"><button onClick={() => setView('engineering_hub')} className="flex items-center gap-2 text-slate-500 font-bold text-xs"><ArrowLeftIcon className="w-3 h-3" /> 返回</button></div><EngineeringGroups globalTeamConfigs={globalTeamConfigs} onUpdateGlobalTeamConfigs={(nl) => { setGlobalTeamConfigs(nl); updateLastAction('系統設定', '[小組設定] 修改了：工程小組預設配置'); }} /></div>) :
+           view === 'equipment' ? (<div className="flex-1 overflow-y-auto custom-scrollbar"><EquipmentModule onNavigate={setView} allowedViews={currentUser.role === UserRole.ADMIN ? ['equipment_tools','equipment_assets','equipment_vehicles'] : (systemRules.rolePermissions?.[currentUser.role]?.allowedViews || [])} /></div>) :
            view === 'equipment_tools' ? (<ToolManagement tools={tools} onUpdateTools={(nl) => handleUpdateList(tools, nl, setTools, '工具', '狀態借用人')} employees={employees} />) :
            view === 'equipment_assets' ? (<AssetManagement assets={assets} onUpdateAssets={(nl) => handleUpdateList(assets, nl, setAssets, '大型設備', '地點檢驗日')} />) :
            view === 'equipment_vehicles' ? (<VehicleManagement vehicles={vehicles} onUpdateVehicles={(nl) => handleUpdateList(vehicles, nl, setVehicles, '車輛', '里程保險')} employees={employees} />) :
            selectedProject ? (<div className="flex-1 overflow-hidden"><ProjectDetail project={selectedProject} currentUser={currentUser} onBack={() => setSelectedProject(null)} onUpdateProject={handleUpdateProject} onEditProject={setEditingProject} onAddToSchedule={handleAddToSchedule} globalTeamConfigs={globalTeamConfigs} systemRules={systemRules} /></div>) : 
-           view === 'engineering' ? (<EngineeringView projects={projects} setProjects={setProjects} currentUser={currentUser} lastUpdateInfo={lastUpdateInfo} updateLastAction={updateLastAction} systemRules={systemRules} employees={employees} setAttendance={handleUpdateAttendance} onSelectProject={setSelectedProject} onAddProject={() => setIsAddModalOpen(true)} onEditProject={setEditingProject} handleDeleteProject={handleDeleteProject} onAddToSchedule={handleAddToSchedule} globalTeamConfigs={globalTeamConfigs} />) : null}
+           view === 'engineering' ? (<div className="flex-1 overflow-y-auto custom-scrollbar"><EngineeringView projects={projects} setProjects={setProjects} currentUser={currentUser} lastUpdateInfo={lastUpdateInfo} updateLastAction={updateLastAction} systemRules={systemRules} employees={employees} setAttendance={handleUpdateAttendance} onSelectProject={setSelectedProject} onAddProject={() => setIsAddModalOpen(true)} onEditProject={setEditingProject} handleDeleteProject={handleDeleteProject} onAddToSchedule={handleAddToSchedule} globalTeamConfigs={globalTeamConfigs} /></div>) : null}
         </main>
       </div>
       {syncPending && <SyncDecisionCenter diffs={syncPending.diffs} onConfirm={handleSyncConfirm} onCancel={() => { restoreDataToState(mergeAppState(syncPending.fileData || {}, syncPending.cacheData || {})); setSyncPending(null); }} />}
