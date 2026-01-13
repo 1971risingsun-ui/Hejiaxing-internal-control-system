@@ -327,7 +327,7 @@ const App: React.FC = () => {
     updateLastAction('完成選擇性同步');
   };
 
-  const updateLastAction = (name: string) => {
+  const updateLastAction = (name: string, customDetails?: string) => {
     setLastUpdateInfo({
       name,
       time: new Date().toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' }),
@@ -340,7 +340,7 @@ const App: React.FC = () => {
         userName: currentUser.name,
         userEmail: currentUser.email,
         action: 'UPDATE',
-        details: `更新了項目: ${name}`,
+        details: customDetails || `更新了項目: ${name}`,
         timestamp: Date.now()
       }, ...prev]);
     }
@@ -474,9 +474,30 @@ const App: React.FC = () => {
   };
 
   /**
-   * 擴充更新邏輯以包含審計追蹤
+   * 輔助函數：比對專案更動並生成詳細描述
+   */
+  const getProjectDiffMessage = (oldP: Project, newP: Project): string => {
+    const parts: string[] = [];
+    if (oldP.status !== newP.status) parts.push(`狀態: [${oldP.status}] ➔ [${newP.status}]`);
+    if (oldP.name !== newP.name) parts.push(`基本資料(名稱)`);
+    if (oldP.appointmentDate !== newP.appointmentDate || oldP.reportDate !== newP.reportDate) parts.push(`日期排程`);
+    if (JSON.stringify(oldP.milestones) !== JSON.stringify(newP.milestones)) parts.push(`工期節點`);
+    if (JSON.stringify(oldP.materials) !== JSON.stringify(newP.materials)) parts.push(`材料請購`);
+    if (JSON.stringify(oldP.reports) !== JSON.stringify(newP.reports)) parts.push(`施工日誌`);
+    if (JSON.stringify(oldP.photos) !== JSON.stringify(newP.photos)) parts.push(`施工照片`);
+    if (JSON.stringify(oldP.constructionItems) !== JSON.stringify(newP.constructionItems)) parts.push(`施工紀錄細項`);
+    if (JSON.stringify(oldP.attachments) !== JSON.stringify(newP.attachments)) parts.push(`附件檔案`);
+    
+    return parts.length > 0 ? parts.join('、') : '基本資料更新';
+  };
+
+  /**
+   * 擴充更新邏輯以包含區塊級別審計追蹤
    */
   const handleUpdateProject = (updatedProject: Project) => {
+    const oldProject = projects.find(p => p.id === updatedProject.id);
+    const diffText = oldProject ? getProjectDiffMessage(oldProject, updatedProject) : '';
+
     const auditData = {
         lastModifiedBy: currentUser?.name || '系統',
         lastModifiedAt: Date.now()
@@ -484,7 +505,8 @@ const App: React.FC = () => {
     const finalProject = { ...updatedProject, ...auditData };
     setProjects(prev => sortProjects(prev.map(p => p.id === updatedProject.id ? finalProject : p)));
     if (selectedProject?.id === updatedProject.id) setSelectedProject(finalProject);
-    updateLastAction(updatedProject.name);
+    
+    updateLastAction(updatedProject.name, diffText ? `[${updatedProject.name}] 修改了：${diffText}` : undefined);
   };
 
   const handleAddToSchedule = (date: string, teamId: number, taskName: string) => {
@@ -518,7 +540,7 @@ const App: React.FC = () => {
       newWeeklySchedules[weekIdx] = week;
       return newWeeklySchedules;
     });
-    if (wasAdded) updateLastAction(`排程: ${taskName}`);
+    if (wasAdded) updateLastAction(`排程: ${taskName}`, `[排程系統] 將 ${taskName} 加入 ${date} 第 ${teamId} 組`);
     return wasAdded;
   };
 
@@ -820,7 +842,7 @@ const App: React.FC = () => {
       {isAddModalOpen && <AddProjectModal onClose={() => setIsAddModalOpen(false)} onAdd={(p) => { 
         const auditData = { lastModifiedBy: currentUser?.name, lastModifiedAt: Date.now() };
         const finalP = { ...p, ...auditData };
-        setProjects(sortProjects([finalP, ...projects])); updateLastAction(finalP.name); setIsAddModalOpen(false); 
+        setProjects(sortProjects([finalP, ...projects])); updateLastAction(finalP.name, `[${finalP.name}] 新增了此案件`); setIsAddModalOpen(false); 
       }} defaultType={view === 'maintenance' ? ProjectType.MAINTENANCE : view === 'modular_house' ? ProjectType.MODULAR_HOUSE : ProjectType.CONSTRUCTION} />}
       {editingProject && <EditProjectModal project={editingProject} onClose={() => setEditingProject(null)} onSave={handleUpdateProject} />}
     </div>
