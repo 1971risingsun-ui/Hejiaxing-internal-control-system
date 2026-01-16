@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Project, ConstructionItem, User, UserRole, ConstructionSignature, DailyReport, SitePhoto, ProjectType, SystemRules } from '../types';
+import { Project, ConstructionItem, User, UserRole, ConstructionSignature, DailyReport, SitePhoto, ProjectType } from '../types';
 import { DownloadIcon, PlusIcon, ClipboardListIcon, ArrowLeftIcon, ChevronRightIcon, TrashIcon, CheckCircleIcon as SubmitIcon, PenToolIcon, XIcon, StampIcon, XCircleIcon, SunIcon, CloudIcon, RainIcon, CameraIcon, LoaderIcon, FileTextIcon, BoxIcon, ImageIcon, EditIcon } from './Icons';
 import { downloadBlob, processFile } from '../utils/fileHelpers';
 import JSZip from 'jszip';
@@ -13,10 +13,70 @@ interface ConstructionRecordProps {
   project: Project;
   currentUser: User;
   onUpdateProject: (updatedProject: Project) => void;
-  systemRules: SystemRules;
   forceEntryMode?: boolean; 
   initialDate?: string; 
 }
+
+const STANDARD_CONSTRUCTION_ITEMS = [
+  { name: '立柱', unit: '支' },
+  { name: '澆置', unit: '洞' },
+  { name: '(雙模)前模', unit: '米' },
+  { name: '(雙模)後模', unit: '米' },
+  { name: '(雙模)螺桿', unit: '米' },
+  { name: '(雙模)澆置', unit: '米' },
+  { name: '(雙模)拆模', unit: '米' },
+  { name: '(雙模)清潔', unit: '' },
+  { name: '(雙模)收模', unit: '米' },
+  { name: '三橫骨架', unit: '米' },
+  { name: '封板', unit: '米' },
+  { name: '(單模)組模', unit: '米' },
+  { name: '(單模)澆置', unit: '米' },
+  { name: '(單模)拆模', unit: '米' },
+  { name: '(單模)清潔', unit: '' },
+  { name: '(單模)收模', unit: '米' },
+  { name: '安走骨架', unit: '米' },
+  { name: '安走三橫', unit: '米' },
+  { name: '安走封板', unit: '米' },
+  { name: '隔音帆布骨架', unit: '米' },
+  { name: '隔音帆布', unit: '米' },
+  { name: '大門門片安裝', unit: '樘' },
+];
+
+const MAINTENANCE_CONSTRUCTION_ITEMS = [
+  { name: '一般大門 (Cổng thông thường)', unit: '組/bộ' },
+  { name: '日式拉門 (Cửa kéo kiểu Nhật)', unit: '組/bộ' },
+  { name: '摺疊門 (Cửa xếp)', unit: '組/bộ' },
+  { name: '(4", 5") 門柱 (Trụ cổng)', unit: '支/cây' },
+  { name: '大門斜撐 (Thanh chống chéo cổng)', unit: '支/cây' },
+  { name: '上拉桿 (Thanh kéo lên)', unit: '組/bộ' },
+  { name: '後紐 (Nút sau)', unit: '片/tấm' },
+  { name: '門栓、地栓 (Chốt cửa/Chốt sàn)', unit: '支/cây' },
+  { name: '門片 (Cánh cửa)', unit: '片/tấm' },
+  { name: '上軌道整修 (Sửa chữa ray trên)', unit: '支/thanh' },
+  { name: '門片整修 (Sửa chữa cánh cửa)', unit: '組/bộ' },
+  { name: '基礎座 (Chân đế)', unit: '個/cái' },
+  { name: '下軌道 (Ray dưới)', unit: '米/mét' },
+  { name: 'H型鋼立柱 (Cột thép hình H)', unit: '支/cây' },
+  { name: '橫衍 (Thanh ngang)', unit: '米/mét' },
+  { name: '簡易小門加工 (Gia công cửa nhỏ đơn)', unit: '樘/cửa' },
+  { name: '簡易小門維修 (Sửa cửa nhỏ đơn giản)', unit: '式/kiểu' },
+  { name: '小門後紐 (Nút sau cửa nhỏ)', unit: '個/cái' },
+  { name: '甲種圍籬 (Hàng rào loại A)', unit: '米/mét' },
+  { name: '乙種圍籬 (Hàng rào loại B)', unit: '米/mét' },
+  { name: '防颱型圍籬 (Hàng rào công trình chống bão)', unit: '米/mét' },
+  { name: '一般圍籬立柱 (Trụ hàng rào)', unit: '支/cây' },
+  { name: '斜撐 (Chống chéo)', unit: '支/cây' },
+  { name: '防颱型立柱 (Cột chống bão)', unit: '支/cây' },
+  { name: '6米角鋼 (Thép góc)', unit: '支/cây' },
+  { name: '長斜撐 (Dầm chéo dài)', unit: '支/cây' },
+  { name: '一般鋼板 (Tấm thép thường)', unit: '片/tấm' },
+  { name: '烤漆鋼板 (Thép tấm sơn tĩnh điện)', unit: '片/tấm' },
+  { name: '鍍鋅鋼板 (Thép mạ kẽm)', unit: '片/tấm' },
+  { name: '懸吊式骨架 (Khung treo)', unit: '支/cây' },
+  { name: '懸吊式懸臂/短臂 (Cần treo kiểu treo)', unit: '支/cây' },
+  { name: 'L收邊板 (Tấm vi園 chữ L)', unit: '片/tấm' },
+  { name: '懸吊式安走鋼板 (Tấm thép lối đi an全)', unit: '片/tấm' },
+];
 
 const RESOURCE_ITEMS = [
     { name: '點工 (Công nhân theo ngày)', unit: '工/công' },
@@ -24,7 +84,7 @@ const RESOURCE_ITEMS = [
     { name: '怪手 (Máy đào)', unit: '式/chuyến' }
 ];
 
-const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, currentUser, onUpdateProject, systemRules, forceEntryMode = false, initialDate }) => {
+const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, currentUser, onUpdateProject, forceEntryMode = false, initialDate }) => {
   const isMaintenance = project.type === ProjectType.MAINTENANCE;
   const mainTitle = isMaintenance ? '施工報告' : '施工紀錄';
 
@@ -57,7 +117,7 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
   const [isGeneratingExcel, setIsGeneratingExcel] = useState(false);
 
   const canEdit = currentUser.role === UserRole.ADMIN || currentUser.role === UserRole.MANAGER;
-  const currentStandardItems = isMaintenance ? systemRules.maintenanceConstructionItems : systemRules.standardConstructionItems;
+  const currentStandardItems = isMaintenance ? MAINTENANCE_CONSTRUCTION_ITEMS : STANDARD_CONSTRUCTION_ITEMS;
 
   useEffect(() => {
     const items = (project.constructionItems || []).filter(i => i.date === constructionDate);
@@ -149,7 +209,6 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
   };
 
   const handleAddItem = () => {
-    if (!currentStandardItems || currentStandardItems.length === 0) return;
     const newItem: ConstructionItem = {
       id: crypto.randomUUID(),
       name: currentStandardItems[0].name,
@@ -636,7 +695,7 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
             }
 
             // --- 填充標準項目 (1-22) ---
-            currentStandardItems.forEach((stdItem, idx) => {
+            STANDARD_CONSTRUCTION_ITEMS.forEach((stdItem, idx) => {
                 const rowIdx = 4 + idx;
                 const row = worksheet.getRow(rowIdx);
                 row.getCell(1).value = idx + 1;
@@ -651,11 +710,11 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
                 });
             });
 
-            // --- 填充其他項目 (不在 標準項目 內的) ---
-            const otherItems = groupItems.filter(i => !currentStandardItems.some(std => std.name === i.name));
+            // --- 填充其他項目 (不在 22 項內的) ---
+            const otherItems = groupItems.filter(i => !STANDARD_CONSTRUCTION_ITEMS.some(std => std.name === i.name));
             const otherNames = Array.from(new Set(otherItems.map(i => i.name)));
             
-            let currentOtherRow = 4 + currentStandardItems.length;
+            let currentOtherRow = 4 + STANDARD_CONSTRUCTION_ITEMS.length;
             if (otherNames.length > 0) {
                 const otherLabelRow = worksheet.getRow(currentOtherRow);
                 otherLabelRow.getCell(1).value = '其他';

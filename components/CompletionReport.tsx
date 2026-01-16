@@ -1,5 +1,6 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { Project, User, CompletionReport as CompletionReportType, CompletionItem, SystemRules } from '../types';
+
+import React, { useState, useRef, useEffect } from 'react';
+import { Project, User, CompletionReport as CompletionReportType, CompletionItem } from '../types';
 import { PlusIcon, FileTextIcon, TrashIcon, PenToolIcon, XIcon, StampIcon, CheckCircleIcon, EditIcon, LoaderIcon } from './Icons';
 import { downloadBlob } from '../utils/fileHelpers';
 
@@ -10,8 +11,52 @@ interface CompletionReportProps {
   project: Project;
   currentUser: User;
   onUpdateProject: (updatedProject: Project) => void;
-  systemRules: SystemRules;
 }
+
+// Define Categories and their items
+const CATEGORIES = {
+    FENCE: {
+        id: 'FENCE',
+        label: '圍籬 (Hàng rào)',
+        defaultUnit: '米',
+        items: [
+            "一般型安裝 (Hàng rào loại tiêu chuẩn)",
+            "防颱型安裝 (Hàng rào loại chống bão)",
+            "懸吊式安全走廊安裝 (Lắp đặt hành lang an toàn treo)"
+        ]
+    },
+    BARRIER: {
+        id: 'BARRIER',
+        label: '防溢座 (Bệ chống tràn)',
+        defaultUnit: '米',
+        items: [
+            "30cm單模 (Khuôn đơ)", "30cm雙模 (Khuôn đôi)", "30cm假模 (Khuôn giả)",
+            "60cm單模 (Khuôn đơn)", "60cm雙模 (Khuôn đôi)", "60cm假模 (Khuôn giả)"
+        ]
+    },
+    DOOR: {
+        id: 'DOOR',
+        label: '門 (Cửa)',
+        defaultUnit: '組',
+        items: [
+            "一般大門 (Cửa chính loại tiêu chuẩn)",
+            "日式拉門 (Cửa trượt kiểu Nhật)",
+            "客製化小門 (Cửa nhỏ tùy chỉnh)",
+            "簡易小門加工 (Gia công cửa nhỏ đơn giản)"
+        ]
+    },
+    OTHER: {
+        id: 'OTHER',
+        label: '其他 (Khác)',
+        defaultUnit: '',
+        items: [
+            "警示燈 (Đèn cảnh báo)",
+            "巨型告示牌 (Biển báo khổng lồ)",
+            "告示牌 (Biển báo)",
+            "五合一偵測器 (Bộ cảm biến 5 trong 1)"
+        ]
+    }
+};
 
 const RESOURCE_ITEMS = [
     { name: '點工 (Công nhân theo ngày)', unit: '工/công', category: 'RESOURCES' },
@@ -19,21 +64,7 @@ const RESOURCE_ITEMS = [
     { name: '怪手 (Máy đào)', unit: '式/chuyến', category: 'RESOURCES' }
 ];
 
-const CompletionReport: React.FC<CompletionReportProps> = ({ project, currentUser, onUpdateProject, systemRules }) => {
-  // 將 systemRules 的配置轉換為元件內部使用的結構
-  const categoriesMap = useMemo(() => {
-    const map: Record<string, any> = {};
-    (systemRules.completionCategories || []).forEach(cat => {
-        map[cat.id] = {
-            id: cat.id,
-            label: cat.label,
-            defaultUnit: cat.defaultUnit,
-            items: cat.items
-        };
-    });
-    return map;
-  }, [systemRules.completionCategories]);
-
+const CompletionReport: React.FC<CompletionReportProps> = ({ project, currentUser, onUpdateProject }) => {
   // State
   const [reportDate, setReportDate] = useState(new Date().toISOString().split('T')[0]);
   const [isEditing, setIsEditing] = useState(true);
@@ -71,18 +102,12 @@ const CompletionReport: React.FC<CompletionReportProps> = ({ project, currentUse
             let unit = item.unit;
             
             if (!cat || !unit) {
-                // Try to deduce from dynamic config
-                const foundCat = Object.values(categoriesMap).find((c: any) => c.items.includes(item.name));
-                if (foundCat) {
-                    cat = foundCat.id;
-                    unit = unit || foundCat.defaultUnit;
-                } else if (RESOURCE_ITEMS.some(r => r.name === item.name)) {
-                    cat = 'RESOURCES';
-                    unit = unit || RESOURCE_ITEMS.find(r => r.name === item.name)?.unit || '';
-                } else {
-                    cat = 'OTHER';
-                    unit = unit || '';
-                }
+                // Try to deduce
+                if (CATEGORIES.FENCE.items.includes(item.name)) { cat = 'FENCE'; unit = unit || '米'; }
+                else if (CATEGORIES.BARRIER.items.includes(item.name)) { cat = 'BARRIER'; unit = unit || '米'; }
+                else if (CATEGORIES.DOOR.items.includes(item.name)) { cat = 'DOOR'; unit = unit || '組'; }
+                else if (RESOURCE_ITEMS.some(r => r.name === item.name)) { cat = 'RESOURCES'; unit = unit || RESOURCE_ITEMS.find(r => r.name === item.name)?.unit || ''; }
+                else { cat = 'OTHER'; unit = unit || ''; }
             }
             return { ...item, category: cat, unit: unit };
         });
@@ -98,7 +123,7 @@ const CompletionReport: React.FC<CompletionReportProps> = ({ project, currentUse
         setSignatureUrl(null);
         setIsEditing(true); // Default to edit mode for new
     }
-  }, [reportDate, project.completionReports, categoriesMap]);
+  }, [reportDate, project.completionReports, currentUser.name]);
 
   const handleSave = () => {
       const newReport: CompletionReportType = {
@@ -129,10 +154,9 @@ const CompletionReport: React.FC<CompletionReportProps> = ({ project, currentUse
   };
 
   const handleAddCategoryItem = (catId: string) => {
-      const cat = categoriesMap[catId];
-      if (!cat) return;
+      const cat = CATEGORIES[catId as keyof typeof CATEGORIES];
       setItems([...items, { 
-          name: cat.items[0] || '新項目', 
+          name: cat.items[0], 
           action: 'install', 
           quantity: '', 
           unit: cat.defaultUnit,
@@ -159,7 +183,7 @@ const CompletionReport: React.FC<CompletionReportProps> = ({ project, currentUse
       if (field === 'name') {
            const currentCatId = newItems[index].category;
            if (currentCatId !== 'RESOURCES' && currentCatId !== 'OTHER') {
-             const cat = categoriesMap[currentCatId];
+             const cat = CATEGORIES[currentCatId as keyof typeof CATEGORIES];
              if (cat && cat.defaultUnit) {
                  newItems[index].unit = cat.defaultUnit;
              }
@@ -270,8 +294,7 @@ const CompletionReport: React.FC<CompletionReportProps> = ({ project, currentUse
     const emptyBox = `<span style="font-family: Arial; font-size: 16px;">&#9744;</span>`;
 
     const renderCategorySection = (catKey: string) => {
-        const cat = categoriesMap[catKey];
-        if (!cat) return '';
+        const cat = CATEGORIES[catKey as keyof typeof CATEGORIES];
         const categoryItems = items.filter(i => i.category === catKey);
 
         if (categoryItems.length === 0) return '';
@@ -344,7 +367,7 @@ const CompletionReport: React.FC<CompletionReportProps> = ({ project, currentUse
         `;
     };
 
-    const categoriesHtml = Object.keys(categoriesMap).map(renderCategorySection).join('');
+    const categoriesHtml = Object.keys(CATEGORIES).map(renderCategorySection).join('');
     const resourcesHtml = renderResourcesSection();
 
     container.innerHTML = `
@@ -418,10 +441,8 @@ const CompletionReport: React.FC<CompletionReportProps> = ({ project, currentUse
     }
   };
 
-  const renderSection = (catKey: string) => {
-      const cat = categoriesMap[catKey];
-      if (!cat) return null;
-      
+  const renderSection = (catKey: keyof typeof CATEGORIES) => {
+      const cat = CATEGORIES[catKey];
       const categoryItems = items
           .map((item, index) => ({ item, index }))
           .filter(({ item }) => item.category === catKey);
@@ -458,7 +479,7 @@ const CompletionReport: React.FC<CompletionReportProps> = ({ project, currentUse
                                                 onChange={(e) => updateItem(index, 'name', e.target.value)}
                                                 className="w-full bg-transparent border-b border-transparent hover:border-slate-300 focus:border-blue-500 focus:outline-none py-1"
                                             >
-                                                {cat.items.map((opt: string) => (
+                                                {cat.items.map(opt => (
                                                     <option key={opt} value={opt}>{opt}</option>
                                                 ))}
                                                 {!cat.items.includes(item.name) && (
@@ -534,7 +555,7 @@ const CompletionReport: React.FC<CompletionReportProps> = ({ project, currentUse
                         onClick={() => handleAddCategoryItem(catKey)}
                         className="w-full py-2 bg-white border border-dashed border-slate-300 rounded text-blue-600 hover:text-blue-700 text-xs font-medium flex items-center justify-center gap-1 hover:bg-slate-50"
                     >
-                        <PlusIcon className="w-3 h-3" /> 新增項目
+                        <PlusIcon className="w-3 h-3" /> 新增{cat.label.split(' ')[0]}項目
                     </button>
                 </div>
             )}
@@ -543,7 +564,10 @@ const CompletionReport: React.FC<CompletionReportProps> = ({ project, currentUse
   };
 
   const renderResourcesSection = () => {
+    // Collect resources currently in items
     const resourceItems = items.filter(i => i.category === 'RESOURCES');
+    
+    // Map existing quantities for the inputs
     const resourceQuantities: Record<string, string> = {};
     resourceItems.forEach(i => resourceQuantities[i.name] = i.quantity);
 
@@ -613,11 +637,14 @@ const CompletionReport: React.FC<CompletionReportProps> = ({ project, currentUse
           </div>
 
           <div className="p-6 space-y-6 overflow-x-auto pb-4">
-              {/* 動態渲染分類區塊 */}
-              {Object.keys(categoriesMap).map(catKey => renderSection(catKey))}
+              
+              {/* Sections */}
+              {(Object.keys(CATEGORIES) as Array<keyof typeof CATEGORIES>).map(catKey => renderSection(catKey))}
 
+              {/* Resources & Others (Same as maintenance construction record) */}
               {renderResourcesSection()}
 
+              {/* Custom Item for Other */}
               {isEditing && (
                  <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 mt-4">
                     <h4 className="text-xs font-bold text-slate-500 mb-2 uppercase tracking-wide">自訂項目 (加入其他分類)</h4>
@@ -661,6 +688,7 @@ const CompletionReport: React.FC<CompletionReportProps> = ({ project, currentUse
                   ></textarea>
               </div>
 
+               {/* Personnel & Signature Row */}
               <div className="flex flex-col md:flex-row gap-6 border-t border-slate-100 pt-6 mt-2 items-end">
                   <div className="flex-1 w-full">
                       <label className="block text-xs font-semibold text-slate-500 mb-1">現場人員 (Người thi công)</label>
@@ -695,6 +723,7 @@ const CompletionReport: React.FC<CompletionReportProps> = ({ project, currentUse
               </div>
           </div>
           
+          {/* Footer Actions */}
           <div className="p-3 border-t border-slate-100 bg-white flex justify-end gap-3 flex-shrink-0 z-20 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
               {isEditing ? (
                   <>
