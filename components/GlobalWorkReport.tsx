@@ -1,7 +1,10 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { Project, User, ProjectType, DailyReport, SitePhoto } from '../types';
-import { ClipboardListIcon, BoxIcon, CalendarIcon, XIcon, ChevronRightIcon, PlusIcon, TrashIcon, CheckCircleIcon, SunIcon, CloudIcon, RainIcon, CameraIcon, LoaderIcon, XCircleIcon } from './Icons';
-import { processFile } from '../utils/fileHelpers';
+import { Project, User, ProjectType, DailyReport, SitePhoto, ConstructionItem, CompletionReport } from '../types';
+import { ClipboardListIcon, BoxIcon, CalendarIcon, XIcon, ChevronRightIcon, PlusIcon, TrashIcon, CheckCircleIcon, SunIcon, CloudIcon, RainIcon, CameraIcon, LoaderIcon, XCircleIcon, FileTextIcon, DownloadIcon } from './Icons';
+import { processFile, downloadBlob } from '../utils/fileHelpers';
+
+declare const html2canvas: any;
+declare const jspdf: any;
 
 interface GlobalWorkReportProps {
   projects: Project[];
@@ -15,6 +18,7 @@ const GlobalWorkReport: React.FC<GlobalWorkReportProps> = ({ projects, currentUs
   const [selectedDate, setSelectedDate] = useState(new Date().toLocaleDateString('sv-SE'));
 
   const [manuallyAddedIds, setManuallyAddedIds] = useState<Record<string, string[]>>({});
+  const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   
   const [formBuffer, setFormBuffer] = useState<{
     worker: string;
@@ -150,6 +154,155 @@ const GlobalWorkReport: React.FC<GlobalWorkReportProps> = ({ projects, currentUs
     }
   };
 
+  // 全域 PDF 匯出功能
+  const handleExportGlobalPDF = async () => {
+    if (activeProjects.length === 0) return alert("當日無活躍案件可供匯出");
+    if (typeof html2canvas === 'undefined' || typeof jspdf === 'undefined') return alert("必要元件尚未載入");
+    
+    setIsGeneratingPDF(true);
+
+    const exportData: any = {
+        date: selectedDate,
+        exportedAt: new Date().toISOString(),
+        projects: activeProjects.map(p => ({
+            id: p.id,
+            name: p.name,
+            dailyReport: (p.reports || []).find(r => r.date === selectedDate),
+            constructionItems: (p.constructionItems || []).filter(i => i.date === selectedDate),
+            completionReport: (p.completionReports || []).find(r => r.date === selectedDate)
+        }))
+    };
+
+    const container = document.createElement('div');
+    container.style.position = 'fixed';
+    container.style.top = '-9999px';
+    container.style.left = '-9999px';
+    container.style.width = '850px';
+    container.style.backgroundColor = '#ffffff';
+    document.body.appendChild(container);
+
+    let html = `
+      <div style="font-family: 'Microsoft JhengHei', sans-serif; padding: 40px; color: #333;">
+        <h1 style="text-align: center; border-bottom: 2px solid #0f172a; padding-bottom: 15px; font-size: 26px;">
+          合家興實業 - 當日工作回報彙整
+        </h1>
+        <div style="margin: 20px 0; font-size: 16px; display: flex; justify-content: space-between;">
+          <span>彙整日期：<strong>${selectedDate}</strong></span>
+          <span>案件數量：<strong>${activeProjects.length} 筆</strong></span>
+        </div>
+    `;
+
+    activeProjects.forEach(p => {
+        const report = (p.reports || []).find(r => r.date === selectedDate);
+        const items = (p.constructionItems || []).filter(i => i.date === selectedDate);
+        const completion = (p.completionReports || []).find(r => r.date === selectedDate);
+        
+        html += `
+          <div style="margin-top: 40px; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; page-break-inside: avoid;">
+            <div style="background: #f1f5f9; padding: 15px; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center;">
+              <h2 style="margin: 0; font-size: 18px; color: #1e293b;">[${p.type.toUpperCase()}] ${p.name}</h2>
+            </div>
+            <div style="padding: 20px;">
+              <div style="margin-bottom: 15px;">
+                <span style="font-weight: bold; color: #64748b; font-size: 13px;">人員：</span>
+                <span style="font-size: 14px;">師傅: ${report?.worker || items[0]?.worker || '未指定'} / 助手: ${report?.assistant || items[0]?.assistant || '無'}</span>
+              </div>
+              
+              <div style="margin-bottom: 20px;">
+                <div style="font-weight: bold; margin-bottom: 8px; font-size: 14px; border-left: 4px solid #3b82f6; padding-left: 10px;">施工紀錄與回報</div>
+                <div style="background: #fafafa; padding: 12px; border-radius: 6px; font-size: 14px; white-space: pre-wrap;">${report?.content || '今日無詳細文字回報'}</div>
+              </div>
+
+              ${items.length > 0 ? `
+                <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 13px;">
+                  <thead>
+                    <tr style="background-color: #f8fafc;">
+                      <th style="border: 1px solid #e2e8f0; padding: 8px; text-align: left;">施工項目</th>
+                      <th style="border: 1px solid #e2e8f0; padding: 8px; text-align: center; width: 60px;">數量</th>
+                      <th style="border: 1px solid #e2e8f0; padding: 8px; text-align: center; width: 60px;">單位</th>
+                      <th style="border: 1px solid #e2e8f0; padding: 8px; text-align: left;">位置/作業</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${items.map(i => `
+                      <tr>
+                        <td style="border: 1px solid #e2e8f0; padding: 8px;">${i.name}</td>
+                        <td style="border: 1px solid #e2e8f0; padding: 8px; text-align: center;">${i.quantity}</td>
+                        <td style="border: 1px solid #e2e8f0; padding: 8px; text-align: center;">${i.unit}</td>
+                        <td style="border: 1px solid #e2e8f0; padding: 8px;">${i.location || '-'}</td>
+                      </tr>
+                    `).join('')}
+                  </tbody>
+                </table>
+              ` : ''}
+
+              ${completion ? `
+                 <div style="margin-top: 15px; border-top: 1px dashed #e2e8f0; pt-15px;">
+                   <div style="font-weight: bold; margin: 15px 0 8px; font-size: 14px; border-left: 4px solid #10b981; padding-left: 10px;">完工報告摘要</div>
+                   <div style="font-size: 13px; color: #475569;">已提交當日完工確認清單 (含 ${completion.items?.length || 0} 個細項)。</div>
+                 </div>
+              ` : ''}
+
+              ${report?.photos?.length ? `
+                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 20px;">
+                  ${report.photos.map(pid => {
+                    const photo = p.photos.find(img => img.id === pid);
+                    return photo ? `<img src="${photo.url}" style="width: 100%; border-radius: 4px; border: 1px solid #eee;" />` : '';
+                  }).join('')}
+                </div>
+              ` : ''}
+            </div>
+          </div>
+        `;
+    });
+
+    html += `</div>`;
+    container.innerHTML = html;
+
+    await new Promise(resolve => setTimeout(resolve, 800));
+
+    try {
+        const canvas = await html2canvas(container, { scale: 2, useCORS: true });
+        const imgData = canvas.toDataURL('image/jpeg', 0.9);
+        // @ts-ignore
+        const { jsPDF } = window.jspdf;
+        const pdf = new jsPDF('p', 'mm', 'a4');
+        
+        // 嵌入全域 JSON 數據
+        pdf.setProperties({
+            title: `合家興工作彙整_${selectedDate}`,
+            subject: JSON.stringify(exportData),
+            author: currentUser.name,
+            creator: '合家興 AI 管理系統'
+        });
+
+        const pdfWidth = pdf.internal.pageSize.getWidth();
+        const pdfHeight = pdf.internal.pageSize.getHeight();
+        const imgProps = pdf.getImageProperties(imgData);
+        const imgHeight = (imgProps.height * pdfWidth) / imgProps.width;
+        let heightLeft = imgHeight;
+        let position = 0;
+
+        pdf.addImage(imgData, 'JPEG', 0, position, pdfWidth, imgHeight);
+        heightLeft -= pdfHeight;
+
+        while (heightLeft > 0) {
+          position = heightLeft - imgHeight;
+          pdf.addPage();
+          pdf.addImage(imgData, 'JPEG', 0, position, pdfWidth, imgHeight);
+          heightLeft -= pdfHeight;
+        }
+
+        downloadBlob(pdf.output('blob'), `合家興工作彙整_${selectedDate}.pdf`);
+    } catch (err) {
+        console.error(err);
+        alert("PDF 生成失敗");
+    } finally {
+        document.body.removeChild(container);
+        setIsGeneratingPDF(false);
+    }
+  };
+
   const renderActiveList = (type: ProjectType) => {
       const items = activeProjects.filter(p => p.type === type);
       const label = type === ProjectType.CONSTRUCTION 
@@ -195,7 +348,7 @@ const GlobalWorkReport: React.FC<GlobalWorkReportProps> = ({ projects, currentUs
                                         };
                                         onUpdateProject({ ...p, reports: [...otherReports, updatedReport] });
                                     }}
-                                    className={`text-[11px] font-bold px-3 py-1.5 rounded-lg border-none shadow-sm ${report?.content?.startsWith('[已完成]') ? 'bg-green-600 text-white' : 'bg-slate-100 text-slate-600'}`}
+                                    className={`text-[11px] font-bold px-3 py-1.5 rounded-lg border-none shadow-sm ${report?.content?.startsWith('[聯完成]') ? 'bg-green-600 text-white' : 'bg-slate-100 text-slate-600'}`}
                                   >
                                       <option value="未完成">未完成</option>
                                       <option value="已完成">已完成</option>
@@ -245,6 +398,14 @@ const GlobalWorkReport: React.FC<GlobalWorkReportProps> = ({ projects, currentUs
                 <CalendarIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                 <input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-blue-700 outline-none" />
             </div>
+            <button 
+                onClick={handleExportGlobalPDF} 
+                disabled={isGeneratingPDF}
+                className="bg-white border border-slate-200 w-11 h-11 rounded-xl text-indigo-600 flex items-center justify-center shadow-sm active:scale-95 flex-shrink-0 disabled:opacity-50"
+                title="匯出今日 PDF 綜合報告"
+            >
+                {isGeneratingPDF ? <LoaderIcon className="w-5 h-5 animate-spin" /> : <FileTextIcon className="w-5 h-5" />}
+            </button>
             <button onClick={() => setShowCalendar(true)} className="bg-white border border-slate-200 w-11 h-11 rounded-xl text-blue-600 flex items-center justify-center shadow-sm active:scale-95 flex-shrink-0"><CalendarIcon className="w-5 h-5" /></button>
         </div>
       </div>
