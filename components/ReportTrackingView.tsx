@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Project, ProjectStatus, ProjectType, DailyDispatch } from '../types';
+import { Project, ProjectStatus, ProjectType, DailyDispatch, DailyDispatchTeam } from '../types';
 import { FileTextIcon, SearchIcon, ArrowLeftIcon, CheckCircleIcon, XCircleIcon, UserIcon, CalendarIcon, ChevronRightIcon, BoxIcon } from './Icons';
 
 interface ReportTrackingViewProps {
@@ -30,7 +30,8 @@ const ReportTrackingView: React.FC<ReportTrackingViewProps> = ({ projects, daily
     
     dailyDispatches.forEach(disp => {
         const date = disp.date;
-        Object.values(disp.teams).forEach(team => {
+        // Fix: Explicitly cast team values to DailyDispatchTeam to resolve type error
+        (Object.values(disp.teams) as DailyDispatchTeam[]).forEach(team => {
             team.tasks.forEach(task => {
                 const projectName = task.name;
                 const master = team.master;

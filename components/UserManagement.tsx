@@ -1,6 +1,6 @@
 import React, { useState, useRef, useMemo } from 'react';
-import { User, UserRole, AuditLog, Project, SystemRules, MaterialFormulaConfig, MaterialFormulaItem, RolePermission } from '../types';
-import { PlusIcon, TrashIcon, ShieldIcon, UserIcon, HistoryIcon, DownloadIcon, UploadIcon, BoxIcon, SettingsIcon, CheckCircleIcon, LoaderIcon, AlertIcon, PenToolIcon, ChevronRightIcon, WrenchIcon, EditIcon, XIcon, LayoutGridIcon, BriefcaseIcon, UsersIcon, FileTextIcon, TruckIcon, ClipboardListIcon } from './Icons';
+import { User, UserRole, AuditLog, Project, SystemRules, MaterialFormulaConfig, MaterialFormulaItem, RolePermission, ConstructionItemOption, CompletionCategoryOption } from '../types';
+import { PlusIcon, TrashIcon, ShieldIcon, UserIcon, HistoryIcon, DownloadIcon, UploadIcon, BoxIcon, SettingsIcon, CheckCircleIcon, LoaderIcon, AlertIcon, PenToolIcon, ChevronRightIcon, WrenchIcon, EditIcon, XIcon, LayoutGridIcon, BriefcaseIcon, UsersIcon, FileTextIcon, TruckIcon, ClipboardListIcon, StampIcon } from './Icons';
 import { downloadBlob } from '../utils/fileHelpers';
 
 interface UserManagementProps {
@@ -23,6 +23,7 @@ const PERMISSION_STRUCTURE = [
     { id: 'daily_dispatch', label: '明日工作排程' },
     { id: 'driving_time', label: '估計行車時間' },
     { id: 'weekly_schedule', label: '週間工作排程' },
+    { id: 'report_tracking', label: '回報追蹤表' },
     { id: 'outsourcing', label: '外包廠商管理' },
     { id: 'engineering_groups', label: '工程小組設定' },
   ]},
@@ -50,7 +51,7 @@ const UserManagement: React.FC<UserManagementProps> = ({
   onConnectDirectory, dirPermission, isWorkspaceLoading,
   systemRules, onUpdateSystemRules
 }) => {
-  const [activeTab, setActiveTab] = useState<'users' | 'logs' | 'data' | 'rules' | 'settings'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'rules' | 'logs' | 'data' | 'settings'>('users');
   const [activeRoleTab, setActiveRoleTab] = useState<UserRole>(UserRole.ADMIN);
   const [isAdding, setIsAdding] = useState(false);
   const [newUser, setNewUser] = useState({ name: '', email: '', role: UserRole.WORKER });
@@ -113,7 +114,6 @@ const UserManagement: React.FC<UserManagementProps> = ({
     let next;
     if (current.includes(viewId)) {
       next = current.filter(id => id !== viewId);
-      // 如果關閉的是父項目，同步關閉所有子項目
       const item = PERMISSION_STRUCTURE.find(p => p.id === viewId);
       if (item?.children) {
         const childIds = item.children.map(c => c.id);
@@ -121,18 +121,13 @@ const UserManagement: React.FC<UserManagementProps> = ({
       }
     } else {
       next = [...current, viewId];
-      // 如果開啟的是子項目，自動開啟父項目
       PERMISSION_STRUCTURE.forEach(p => {
         if (p.children?.some(c => c.id === viewId) && !next.includes(p.id)) {
           next.push(p.id);
         }
       });
     }
-    handleUpdateUpdateRolePermission(role, { allowedViews: next });
-  };
-
-  const handleUpdateUpdateRolePermission = (role: UserRole, updates: Partial<RolePermission>) => {
-      handleUpdateRolePermission(role, updates);
+    handleUpdateRolePermission(role, { allowedViews: next });
   };
 
   const handleExportData = () => {
@@ -185,7 +180,6 @@ const UserManagement: React.FC<UserManagementProps> = ({
     if (importFileRef.current) importFileRef.current.value = '';
   };
 
-  // --- 規則設定相關函數 ---
   const handleUpdateKeywords = (type: 'production' | 'subcontractor' | 'modular-production' | 'modular-subcontractor', value: string) => {
     const keywords = value.split(',').map(s => s.trim()).filter(s => !!s);
     if (type === 'production') {
@@ -273,6 +267,95 @@ const UserManagement: React.FC<UserManagementProps> = ({
     });
   };
 
+  const handleAddConstructionItem = (type: 'standard' | 'maintenance') => {
+    const list = type === 'standard' ? [...systemRules.standardConstructionItems] : [...systemRules.maintenanceConstructionItems];
+    list.push({ name: '新項目', unit: '項' });
+    if (type === 'standard') onUpdateSystemRules({ ...systemRules, standardConstructionItems: list });
+    else onUpdateSystemRules({ ...systemRules, maintenanceConstructionItems: list });
+  };
+
+  const handleUpdateConstructionItem = (type: 'standard' | 'maintenance', idx: number, field: keyof ConstructionItemOption, val: string) => {
+    const list = type === 'standard' ? [...systemRules.standardConstructionItems] : [...systemRules.maintenanceConstructionItems];
+    list[idx] = { ...list[idx], [field]: val };
+    if (type === 'standard') onUpdateSystemRules({ ...systemRules, standardConstructionItems: list });
+    else onUpdateSystemRules({ ...systemRules, maintenanceConstructionItems: list });
+  };
+
+  const handleRemoveConstructionItem = (type: 'standard' | 'maintenance', idx: number) => {
+    const list = type === 'standard' ? [...systemRules.standardConstructionItems] : [...systemRules.maintenanceConstructionItems];
+    list.splice(idx, 1);
+    if (type === 'standard') onUpdateSystemRules({ ...systemRules, standardConstructionItems: list });
+    else onUpdateSystemRules({ ...systemRules, maintenanceConstructionItems: list });
+  };
+
+  const handleAddCompletionCategory = () => {
+    const newCat: CompletionCategoryOption = {
+      id: crypto.randomUUID(),
+      label: '新分類',
+      defaultUnit: '項',
+      items: ['新項目']
+    };
+    onUpdateSystemRules({
+      ...systemRules,
+      completionCategories: [...(systemRules.completionCategories || []), newCat]
+    });
+  };
+
+  const handleUpdateCompletionCategory = (id: string, field: keyof CompletionCategoryOption, val: any) => {
+    onUpdateSystemRules({
+      ...systemRules,
+      completionCategories: systemRules.completionCategories.map(c => c.id === id ? { ...c, [field]: val } : c)
+    });
+  };
+
+  const handleRemoveCompletionCategory = (id: string) => {
+    if (!confirm('確定刪除整組完工分類？')) return;
+    onUpdateSystemRules({
+      ...systemRules,
+      completionCategories: systemRules.completionCategories.filter(c => c.id !== id)
+    });
+  };
+
+  const handleAddCompletionItem = (catId: string) => {
+    onUpdateSystemRules({
+      ...systemRules,
+      completionCategories: systemRules.completionCategories.map(c => {
+        if (c.id === catId) {
+            return { ...c, items: [...c.items, '新項目'] };
+        }
+        return c;
+      })
+    });
+  };
+
+  const handleUpdateCompletionItemText = (catId: string, idx: number, val: string) => {
+    onUpdateSystemRules({
+      ...systemRules,
+      completionCategories: systemRules.completionCategories.map(c => {
+        if (c.id === catId) {
+            const newItems = [...c.items];
+            newItems[idx] = val;
+            return { ...c, items: newItems };
+        }
+        return c;
+      })
+    });
+  };
+
+  const handleRemoveCompletionItemFromCat = (catId: string, idx: number) => {
+    onUpdateSystemRules({
+      ...systemRules,
+      completionCategories: systemRules.completionCategories.map(c => {
+        if (c.id === catId) {
+            const newItems = [...c.items];
+            newItems.splice(idx, 1);
+            return { ...c, items: newItems };
+        }
+        return c;
+      })
+    });
+  };
+
   const currentRolePerm = useMemo(() => {
     return systemRules.rolePermissions?.[activeRoleTab] || { displayName: '', allowedViews: [] };
   }, [systemRules.rolePermissions, activeRoleTab]);
@@ -306,7 +389,6 @@ const UserManagement: React.FC<UserManagementProps> = ({
       <div className="flex-1 overflow-auto custom-scrollbar pr-1">
         {activeTab === 'users' && (
           <div className="space-y-10 pb-10">
-            {/* 使用者名單部分 */}
             <div>
               <div className="flex justify-between items-center mb-4">
                 <h3 className="font-bold text-slate-800 flex items-center gap-2"><UsersIcon className="w-5 h-5 text-indigo-500" /> 使用者名單</h3>
@@ -393,13 +475,11 @@ const UserManagement: React.FC<UserManagementProps> = ({
               </div>
             </div>
 
-            {/* 權限角色設定部分 */}
             <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
               <div className="flex items-center justify-between mb-6">
                 <h3 className="font-bold text-slate-800 flex items-center gap-2"><ShieldIcon className="w-5 h-5 text-blue-600" /> 權限角色細節設定</h3>
               </div>
 
-              {/* 角色頁籤 */}
               <div className="flex flex-wrap gap-2 mb-6 p-1 bg-slate-100 rounded-xl w-fit">
                 {[UserRole.ADMIN, UserRole.MANAGER, UserRole.ENGINEERING, UserRole.FACTORY, UserRole.WORKER].map(role => (
                   <button 
@@ -474,7 +554,102 @@ const UserManagement: React.FC<UserManagementProps> = ({
 
         {activeTab === 'rules' && (
           <div className="space-y-8 pb-10">
-            {/* 分流關鍵字設定 */}
+            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="font-bold text-slate-800 flex items-center gap-2">
+                  <ClipboardListIcon className="w-5 h-5 text-blue-600" /> 施工項目清單管理
+                </h3>
+              </div>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center bg-slate-50 p-3 rounded-xl border border-slate-200">
+                    <span className="font-black text-xs text-slate-600">圍籬施工紀錄項目 (Standard)</span>
+                    <button onClick={() => handleAddConstructionItem('standard')} className="bg-blue-600 text-white p-1 rounded-lg"><PlusIcon className="w-4 h-4" /></button>
+                  </div>
+                  <div className="max-h-[400px] overflow-y-auto pr-2 space-y-2 custom-scrollbar">
+                    {systemRules.standardConstructionItems?.map((item, idx) => (
+                      <div key={idx} className="flex gap-2 items-center bg-white p-2 rounded-lg border border-slate-100 shadow-sm">
+                        <input type="text" value={item.name} onChange={e => handleUpdateConstructionItem('standard', idx, 'name', e.target.value)} className="flex-1 bg-slate-50 px-2 py-1 rounded text-xs font-bold outline-none border border-transparent focus:border-blue-300" />
+                        <input type="text" value={item.unit} onChange={e => handleUpdateConstructionItem('standard', idx, 'unit', e.target.value)} className="w-12 bg-slate-50 px-1 py-1 rounded text-[10px] text-center outline-none border border-transparent focus:border-blue-300" />
+                        <button onClick={() => handleRemoveConstructionItem('standard', idx)} className="text-slate-300 hover:text-red-500"><XIcon className="w-4 h-4" /></button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center bg-slate-50 p-3 rounded-xl border border-slate-200">
+                    <span className="font-black text-xs text-slate-600">維修施工報告項目 (Maintenance)</span>
+                    <button onClick={() => handleAddConstructionItem('maintenance')} className="bg-orange-600 text-white p-1 rounded-lg"><PlusIcon className="w-4 h-4" /></button>
+                  </div>
+                  <div className="max-h-[400px] overflow-y-auto pr-2 space-y-2 custom-scrollbar">
+                    {systemRules.maintenanceConstructionItems?.map((item, idx) => (
+                      <div key={idx} className="flex gap-2 items-center bg-white p-2 rounded-lg border border-slate-100 shadow-sm">
+                        <input type="text" value={item.name} onChange={e => handleUpdateConstructionItem('maintenance', idx, 'name', e.target.value)} className="flex-1 bg-slate-50 px-2 py-1 rounded text-xs font-bold outline-none border border-transparent focus:border-orange-300" />
+                        <input type="text" value={item.unit} onChange={e => handleUpdateConstructionItem('maintenance', idx, 'unit', e.target.value)} className="w-16 bg-slate-50 px-1 py-1 rounded text-[10px] text-center outline-none border border-transparent focus:border-orange-300" />
+                        <button onClick={() => handleRemoveConstructionItem('maintenance', idx)} className="text-slate-300 hover:text-red-500"><XIcon className="w-4 h-4" /></button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                <div className="flex justify-between items-center mb-6">
+                    <h3 className="font-bold text-slate-800 flex items-center gap-2">
+                        <StampIcon className="w-5 h-5 text-green-600" /> 完工報告分類與項目管理
+                    </h3>
+                    <button 
+                        onClick={handleAddCompletionCategory}
+                        className="bg-green-600 text-white px-4 py-2 rounded-xl text-xs font-black shadow-lg shadow-green-100 transition-all active:scale-95 flex items-center gap-2"
+                    >
+                        <PlusIcon className="w-4 h-4" /> 新增主分類
+                    </button>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {systemRules.completionCategories?.map((cat) => (
+                        <div key={cat.id} className="border border-slate-200 rounded-2xl overflow-hidden shadow-sm flex flex-col bg-white group">
+                            <div className="bg-slate-50 px-4 py-3 border-b border-slate-200 flex justify-between items-center group-hover:bg-green-50/50 transition-colors">
+                                <div className="flex gap-2 flex-1 mr-4">
+                                    <input 
+                                        type="text" value={cat.label} 
+                                        onChange={e => handleUpdateCompletionCategory(cat.id, 'label', e.target.value)}
+                                        className="bg-transparent border-b border-transparent focus:border-green-500 outline-none font-black text-slate-700 text-sm flex-1"
+                                    />
+                                    <input 
+                                        type="text" value={cat.defaultUnit} placeholder="單位"
+                                        onChange={e => handleUpdateCompletionCategory(cat.id, 'defaultUnit', e.target.value)}
+                                        className="w-12 bg-white border border-slate-200 rounded px-1 text-[10px] text-center font-bold text-slate-500"
+                                    />
+                                </div>
+                                <button onClick={() => handleRemoveCompletionCategory(cat.id)} className="text-slate-300 hover:text-red-500"><TrashIcon className="w-4 h-4" /></button>
+                            </div>
+                            <div className="p-4 space-y-2 flex-1">
+                                <div className="max-h-[200px] overflow-y-auto pr-1 custom-scrollbar space-y-2">
+                                    {cat.items.map((item, idx) => (
+                                        <div key={idx} className="flex gap-2 items-center bg-slate-50 p-2 rounded-lg border border-slate-100 animate-fade-in">
+                                            <input 
+                                                type="text" value={item}
+                                                onChange={e => handleUpdateCompletionItemText(cat.id, idx, e.target.value)}
+                                                className="flex-1 bg-transparent text-xs font-bold text-slate-600 outline-none"
+                                            />
+                                            <button onClick={() => handleRemoveCompletionItemFromCat(cat.id, idx)} className="text-slate-200 hover:text-red-400"><XIcon className="w-3 h-3" /></button>
+                                        </div>
+                                    ))}
+                                </div>
+                                <button 
+                                    onClick={() => handleAddCompletionItem(cat.id)}
+                                    className="w-full mt-2 py-2 border-2 border-dashed border-slate-100 rounded-xl text-[10px] font-black text-slate-400 hover:text-green-600 hover:bg-green-50 hover:border-green-200 transition-all"
+                                >
+                                    + 新增子項目
+                                </button>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </div>
+
             <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
               <h3 className="font-bold text-slate-800 mb-6 flex items-center gap-2">
                 <BoxIcon className="w-5 h-5 text-indigo-500" /> 生產與協力分流關鍵字 (圍籬)
@@ -490,7 +665,6 @@ const UserManagement: React.FC<UserManagementProps> = ({
                     value={systemRules.productionKeywords.join(', ')}
                     onChange={(e) => handleUpdateKeywords('production', e.target.value)}
                   />
-                  <p className="text-[10px] text-slate-400 mt-2 font-medium italic">命中後將歸類至「生產／備料」頁面，通常為需預作的大門、防溢座等。</p>
                 </div>
                 <div>
                   <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">
@@ -502,286 +676,60 @@ const UserManagement: React.FC<UserManagementProps> = ({
                     value={systemRules.subcontractorKeywords.join(', ')}
                     onChange={(e) => handleUpdateKeywords('subcontractor', e.target.value)}
                   />
-                  <p className="text-[10px] text-slate-400 mt-2 font-medium italic">命中後將歸類至「協力廠商安排」，通常為怪手、告示牌、吊卡等。</p>
                 </div>
-              </div>
-            </div>
-
-            {/* 組合屋分流關鍵字區塊 */}
-            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-              <h3 className="font-bold text-slate-800 mb-6 flex items-center gap-2">
-                <BoxIcon className="w-5 h-5 text-blue-500" /> 組合屋分流關鍵字
-              </h3>
-              <div className="space-y-6">
-                <div>
-                  <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">
-                    生產／備料關鍵字 (以半形逗號隔開)
-                  </label>
-                  <textarea 
-                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
-                    rows={2}
-                    value={systemRules.modularProductionKeywords?.join(', ') || ''}
-                    onChange={(e) => handleUpdateKeywords('modular-production', e.target.value)}
-                  />
-                  <p className="text-[10px] text-slate-400 mt-2 font-medium italic">命中後將歸類至「生產／備料」頁面。</p>
-                </div>
-                <div>
-                  <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">
-                    協力廠商關鍵字 (以半形逗號隔開)
-                  </label>
-                  <textarea 
-                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
-                    rows={2}
-                    value={systemRules.modularSubcontractorKeywords?.join(', ') || ''}
-                    onChange={(e) => handleUpdateKeywords('modular-subcontractor', e.target.value)}
-                  />
-                  <p className="text-[10px] text-slate-400 mt-2 font-medium italic">命中後將歸類至「協力廠商安排」。</p>
-                </div>
-              </div>
-            </div>
-
-            {/* 材料自動換算公式設定 */}
-            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-              <div className="flex justify-between items-center mb-6">
-                <h3 className="font-bold text-slate-800 flex items-center gap-2">
-                  <WrenchIcon className="w-5 h-5 text-indigo-500" /> 材料自動換算公式 (基於報價單數量)
-                </h3>
-                <button 
-                  onClick={handleAddFormula}
-                  className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-xs font-black shadow-lg shadow-indigo-100 active:scale-95 transition-all flex items-center gap-2"
-                >
-                  <PlusIcon className="w-4 h-4" /> 新增換算規則
-                </button>
-              </div>
-
-              <div className="space-y-4">
-                {systemRules.materialFormulas.map((f) => (
-                  <div key={f.id} className="border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
-                    <div className="bg-slate-50 px-5 py-3 border-b border-slate-200 flex justify-between items-center">
-                      <div className="flex items-center gap-4">
-                        <div className="flex items-center gap-2">
-                          <div className="flex flex-col">
-                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-tighter">觸發關鍵字</label>
-                            <input 
-                              type="text" value={f.keyword}
-                              onChange={(e) => handleUpdateFormulaConfig(f.id, 'keyword', e.target.value)}
-                              className="bg-transparent border-b border-transparent focus:border-indigo-500 outline-none font-black text-slate-700 text-sm"
-                            />
-                          </div>
-                          <div className="flex flex-col">
-                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-tighter">歸屬分類</label>
-                            <input 
-                              type="text" value={f.category}
-                              onChange={(e) => handleUpdateFormulaConfig(f.id, 'category', e.target.value)}
-                              className="bg-transparent border-b border-transparent focus:border-indigo-500 outline-none font-bold text-indigo-600 text-sm"
-                            />
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex gap-2">
-                        <button 
-                          onClick={() => setEditingFormulaId(editingFormulaId === f.id ? null : f.id)}
-                          className="p-2 text-slate-400 hover:text-indigo-600 transition-colors"
-                        >
-                          <EditIcon className="w-4 h-4" />
-                        </button>
-                        <button onClick={() => handleDeleteFormula(f.id)} className="p-2 text-slate-300 hover:text-red-500 transition-colors">
-                          <TrashIcon className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
-
-                    {editingFormulaId === f.id && (
-                      <div className="p-5 bg-white animate-fade-in">
-                        <div className="overflow-x-auto">
-                          <table className="w-full text-xs text-left">
-                            <thead className="text-slate-400 font-bold uppercase tracking-widest text-[9px] bg-slate-50/50">
-                              <tr>
-                                <th className="px-3 py-2 w-1/4">材料名稱</th>
-                                <th className="px-3 py-2 w-1/2">計算公式 (基數: baseQty)</th>
-                                <th className="px-3 py-2 w-1/6">單位</th>
-                                <th className="px-3 py-2 w-12 text-center">刪</th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100">
-                              {f.items.map((item) => (
-                                <tr key={item.id} className="hover:bg-slate-50/30">
-                                  <td className="px-3 py-2">
-                                    <input 
-                                      type="text" value={item.name}
-                                      onChange={(e) => handleUpdateFormulaItem(f.id, item.id, 'name', e.target.value)}
-                                      className="w-full bg-transparent border-b border-transparent focus:border-indigo-400 outline-none font-bold text-slate-700"
-                                    />
-                                  </td>
-                                  <td className="px-3 py-2">
-                                    <input 
-                                      type="text" value={item.formula}
-                                      onChange={(e) => handleUpdateFormulaItem(f.id, item.id, 'formula', e.target.value)}
-                                      className="w-full bg-slate-50 px-2 py-1 rounded border border-slate-200 outline-none font-mono text-indigo-600"
-                                      placeholder="Math.ceil(baseQty / 2.4)"
-                                    />
-                                  </td>
-                                  <td className="px-3 py-2">
-                                    <input 
-                                      type="text" value={item.unit}
-                                      onChange={(e) => handleUpdateFormulaItem(f.id, item.id, 'unit', e.target.value)}
-                                      className="w-full bg-transparent border-b border-transparent focus:border-indigo-400 outline-none text-slate-500 font-medium"
-                                    />
-                                  </td>
-                                  <td className="px-3 py-2 text-center">
-                                    <button onClick={() => handleRemoveFormulaItem(f.id, item.id)} className="text-slate-300 hover:text-red-500">
-                                      <TrashIcon className="w-3.5 h-3.5" />
-                                    </button>
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                          <button 
-                            onClick={() => handleAddFormulaItem(f.id)}
-                            className="w-full mt-4 py-2 border-2 border-dashed border-slate-100 rounded-xl text-[10px] font-black text-slate-400 hover:text-indigo-500 hover:bg-indigo-50 hover:border-indigo-200 transition-all"
-                          >
-                            + 新增細項材料與公式
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                ))}
               </div>
             </div>
           </div>
         )}
 
-        {activeTab === 'logs' && (
-          <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead className="bg-slate-50 text-slate-500 text-xs uppercase font-semibold">
-                <tr>
-                  <th className="px-4 py-3 whitespace-nowrap">時間</th>
-                  <th className="px-4 py-3 whitespace-nowrap">人員</th>
-                  <th className="px-4 py-3 whitespace-nowrap">動作</th>
-                  <th className="px-4 py-3 whitespace-nowrap">內容</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {auditLogs && auditLogs.length > 0 ? (
-                  auditLogs.map((log) => (
-                    <tr key={log.id} className="hover:bg-slate-50 transition-colors">
-                      <td className="px-4 py-3 text-slate-500 text-xs whitespace-nowrap">
-                        {new Date(log.timestamp).toLocaleString()}
-                      </td>
-                      <td className="px-4 py-3 font-medium text-slate-700 whitespace-nowrap">{log.userName}</td>
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        <span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded text-xs font-bold border border-slate-200">
-                          {log.action}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-slate-600 text-xs line-clamp-2 max-w-[200px]">
-                        {log.details}
-                      </td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan={4} className="px-6 py-12 text-center text-slate-400">
-                      <HistoryIcon className="w-8 h-8 mx-auto mb-2 text-slate-300" />
-                      無紀錄
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-            </div>
-          </div>
-        )}
+        {activeTab === 'logs' && <div className="pb-10"><h3 className="font-bold text-slate-800 mb-4">系統日誌</h3><div className="bg-white rounded-xl border overflow-hidden"><table className="w-full text-left text-xs"><thead className="bg-slate-50"><tr><th className="px-4 py-2">時間</th><th className="px-4 py-2">人員</th><th className="px-4 py-2">細節</th></tr></thead><tbody>{auditLogs.map(log => (<tr key={log.id} className="border-t border-slate-100"><td className="px-4 py-2 text-slate-400 font-mono">{new Date(log.timestamp).toLocaleString()}</td><td className="px-4 py-2 font-bold">{log.userName}</td><td className="px-4 py-2 text-slate-600">{log.details}</td></tr>))}</tbody></table></div></div>}
 
         {activeTab === 'data' && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-             <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center text-center">
-                <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mb-3">
-                   <DownloadIcon className="w-6 h-6" />
-                </div>
-                <h3 className="text-base font-bold text-slate-800 mb-1">匯出備份</h3>
-                <p className="text-slate-500 text-xs mb-4">下載系統完整備份檔 (.json)</p>
-                <button 
-                  onClick={handleExportData}
-                  className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg shadow-sm font-medium transition-all flex justify-center items-center gap-2 text-sm"
-                >
-                  <DownloadIcon className="w-4 h-4" /> 下載
-                </button>
-             </div>
-
-             <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center text-center">
-                <div className="w-12 h-12 bg-orange-50 text-orange-600 rounded-full flex items-center justify-center mb-3">
-                   <UploadIcon className="w-6 h-6" />
-                </div>
-                <h3 className="text-base font-bold text-slate-800 mb-1">還原資料</h3>
-                <p className="text-slate-500 text-xs mb-4">警告：將覆蓋現有資料</p>
+          <div className="space-y-6 pb-10">
+            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row items-center gap-4">
+              <div className="bg-emerald-50 p-4 rounded-full text-emerald-600"><BoxIcon className="w-12 h-12" /></div>
+              <div className="flex-1 text-center md:text-left">
+                <h3 className="text-xl font-bold text-slate-800">手動備份與還原</h3>
+                <p className="text-sm text-slate-500">下載目前的系統狀態為 JSON 檔案，或從先前存檔還原資料。</p>
+              </div>
+              <div className="flex gap-2">
+                <button onClick={handleExportData} className="px-6 py-3 bg-slate-900 text-white rounded-xl font-bold flex items-center gap-2 hover:bg-black transition-all shadow-lg active:scale-95"><DownloadIcon className="w-5 h-5" /> 下載備份</button>
                 <input type="file" accept=".json" ref={importFileRef} className="hidden" onChange={handleFileChange} />
-                <button 
-                  onClick={handleImportClick}
-                  className="w-full bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 py-2 rounded-lg shadow-sm font-medium transition-all flex justify-center items-center gap-2 text-sm"
-                >
-                  <UploadIcon className="w-4 h-4" /> 選擇檔案
-                </button>
-             </div>
+                <button onClick={handleImportClick} className="px-6 py-3 bg-white border border-slate-300 text-slate-700 rounded-xl font-bold flex items-center gap-2 hover:bg-slate-50 transition-all shadow-sm active:scale-95"><UploadIcon className="w-5 h-5" /> 匯入還原</button>
+              </div>
+            </div>
           </div>
         )}
 
         {activeTab === 'settings' && (
-          <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm animate-fade-in">
-             <h3 className="font-bold text-lg text-slate-800 mb-6 flex items-center gap-2">
-               <SettingsIcon className="w-5 h-5 text-slate-400" /> 系統全域設定
-             </h3>
-             
-             <div className="space-y-10">
+           <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+             <h3 className="font-bold text-slate-800 mb-6 flex items-center gap-2"><SettingsIcon className="w-5 h-5 text-slate-600" /> 系統偏好設定</h3>
+             <div className="space-y-6">
                 <div>
-                  <label className="block text-sm font-bold text-slate-700 mb-2">自動備份 db.json 權限設定</label>
-                  <p className="text-xs text-slate-500 mb-4">
-                    授權瀏覽器存取電腦特定的實體資料夾。選定後，系統將在每次更動時自動於該目錄寫入 db.json 進行即時同步。
-                  </p>
-                  
-                  <div className="mt-4">
-                    <button 
-                      onClick={onConnectDirectory}
-                      disabled={isWorkspaceLoading || !isBrowserSupported}
-                      className={`flex items-center gap-4 px-6 py-5 rounded-2xl w-full transition-all border-2 ${
-                        !isBrowserSupported ? 'bg-slate-50 border-slate-200 opacity-50 cursor-not-allowed' :
-                        dirPermission === 'granted' 
-                          ? 'bg-green-50 border-green-500 text-green-700' 
-                          : 'bg-blue-50 border-blue-500 text-blue-700'
-                      } hover:shadow-md active:scale-[0.99]`}
-                    >
-                      <div className={`p-3 rounded-xl ${!isBrowserSupported ? 'bg-slate-300' : dirPermission === 'granted' ? 'bg-green-600' : 'bg-blue-600'} text-white`}>
-                        {isWorkspaceLoading ? <LoaderIcon className="w-6 h-6 animate-spin" /> : <BoxIcon className="w-6 h-6" />}
+                   <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Excel 匯入：類別識別關鍵字</label>
+                   <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-1">
+                        <span className="text-[10px] font-bold text-slate-400">維修判定字串</span>
+                        <input 
+                          type="text" 
+                          value={systemRules.importConfig?.projectKeywords?.maintenance || ''}
+                          onChange={(e) => onUpdateSystemRules({ ...systemRules, importConfig: { ...systemRules.importConfig!, projectKeywords: { ...systemRules.importConfig!.projectKeywords, maintenance: e.target.value } } })}
+                          className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold"
+                        />
                       </div>
-                      <div className="flex flex-col items-start text-left flex-1 min-w-0">
-                        <span className="text-lg font-black tracking-tight">
-                          {dirPermission === 'granted' ? '電腦同步已開啟' : '連結電腦自動備份目錄'}
-                        </span>
-                        <span className="text-xs opacity-70 font-bold">
-                          {!isBrowserSupported ? '目前瀏覽器不支援' : dirPermission === 'granted' ? '點擊可更換儲存資料夾' : '選取資料夾以開啟即時備份功能'}
-                        </span>
+                      <div className="space-y-1">
+                        <span className="text-[10px] font-bold text-slate-400">組合屋判定字串</span>
+                        <input 
+                          type="text" 
+                          value={systemRules.importConfig?.projectKeywords?.modular || ''}
+                          onChange={(e) => onUpdateSystemRules({ ...systemRules, importConfig: { ...systemRules.importConfig!, projectKeywords: { ...systemRules.importConfig!.projectKeywords, modular: e.target.value } } })}
+                          className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold"
+                        />
                       </div>
-                      {isBrowserSupported && (
-                        <div className="flex items-center gap-2">
-                          {dirPermission === 'granted' ? <CheckCircleIcon className="w-6 h-6" /> : <AlertIcon className="w-6 h-6" />}
-                        </div>
-                      )}
-                    </button>
-                    
-                    {dirPermission === 'granted' && (
-                      <div className="mt-4 p-4 bg-slate-50 rounded-xl border border-slate-200 flex items-center gap-3">
-                        <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
-                        <span className="text-xs font-bold text-slate-600">系統目前正在同步您的資料夾根目錄下的 db.json</span>
-                      </div>
-                    )}
-                  </div>
+                   </div>
                 </div>
              </div>
-          </div>
+           </div>
         )}
       </div>
     </div>

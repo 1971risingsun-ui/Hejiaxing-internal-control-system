@@ -1,101 +1,111 @@
-import { SystemRules, UserRole } from '../types';
-
-export const ROC_HOLIDAYS = ['01-01', '02-28', '04-04', '04-05', '05-01', '10-10'];
-
-export const PERMISSION_STRUCTURE = [
-  { id: 'engineering', label: '工務總覽', type: 'main' },
-  { id: 'engineering_hub', label: '工作排程', type: 'main', children: [
-    { id: 'daily_dispatch', label: '明日工作排程' },
-    { id: 'driving_time', label: '估計行車時間' },
-    { id: 'weekly_schedule', label: '週間工作排程' },
-    { id: 'report_tracking', label: '回報追蹤表' },
-    { id: 'outsourcing', label: '外包廠商管理' },
-    { id: 'engineering_groups', label: '工程小組設定' },
-  ]},
-  { id: 'purchasing_hub', label: '採購管理', type: 'main', children: [
-    { id: 'purchasing_items', label: '採購項目' },
-    { id: 'stock_alert', label: '常備庫存爆量通知' },
-    { id: 'purchasing_suppliers', label: '供應商清冊' },
-    { id: 'purchasing_subcontractors', label: '外包廠商' },
-    { id: 'purchasing_orders', label: '採購單管理' },
-    { id: 'purchasing_inbounds', label: '進料明細' },
-  ]},
-  { id: 'hr', label: '人事管理', type: 'main' },
-  { id: 'production', label: '生產／備料', type: 'main' },
-  { id: 'equipment', label: '設備與工具', type: 'main', children: [
-    { id: 'equipment_tools', label: '工具管理' },
-    { id: 'equipment_assets', label: '大型設備管理' },
-    { id: 'equipment_vehicles', label: '車輛管理' },
-  ]},
-  { id: 'report', label: '工作回報', type: 'main' },
-  { id: 'users', label: '系統權限設定', type: 'main' },
-];
+import { SystemRules } from '../types';
 
 export const DEFAULT_SYSTEM_RULES: SystemRules = {
-  productionKeywords: ['防溢座', '施工大門', '小門', '巨'],
-  subcontractorKeywords: ['怪手', '告示牌', '安衛貼紙', '美化帆布', '噪音管制看板', '監測告示牌', '寫字'],
-  modularProductionKeywords: [],
-  modularSubcontractorKeywords: [],
-  rolePermissions: {
-    [UserRole.ADMIN]: { 
-      displayName: '管理員', 
-      allowedViews: ['update_log', 'engineering', 'engineering_hub', 'daily_dispatch', 'driving_time', 'weekly_schedule', 'report_tracking', 'outsourcing', 'engineering_groups', 'purchasing_hub', 'purchasing_items', 'stock_alert', 'purchasing_suppliers', 'purchasing_subcontractors', 'purchasing_orders', 'purchasing_inbounds', 'hr', 'production', 'equipment', 'report', 'users'] 
-    },
-    [UserRole.MANAGER]: { 
-      displayName: '專案經理', 
-      allowedViews: ['update_log', 'engineering', 'engineering_hub', 'daily_dispatch', 'driving_time', 'weekly_schedule', 'report_tracking', 'outsourcing', 'purchasing_hub', 'purchasing_items', 'stock_alert', 'purchasing_suppliers', 'purchasing_subcontractors', 'purchasing_orders', 'purchasing_inbounds', 'hr', 'production', 'equipment', 'report'] 
-    },
-    [UserRole.ENGINEERING]: { 
-      displayName: '工務人員', 
-      allowedViews: ['update_log', 'engineering', 'engineering_hub', 'daily_dispatch', 'driving_time', 'weekly_schedule', 'report', 'report_tracking'] 
-    },
-    [UserRole.FACTORY]: { 
-      displayName: '廠務人員', 
-      allowedViews: ['update_log', 'engineering', 'production', 'equipment', 'equipment_tools', 'report'] 
-    },
-    [UserRole.WORKER]: { 
-      displayName: '現場人員', 
-      allowedViews: ['update_log', 'engineering', 'engineering_hub', 'daily_dispatch', 'report'] 
-    }
-  },
-  materialFormulas: [
-    {
-      id: 'f-1',
-      keyword: '甲種圍籬',
-      category: '圍籬',
-      items: [
-        { id: 'fi-1', name: '立柱', formula: 'Math.ceil(baseQty / 2.4 + 1)', unit: '支' },
-        { id: 'fi-2', name: '二橫', formula: 'Math.ceil((baseQty / 2.4 + 1) * 2)', unit: '支' },
-        { id: 'fi-3', name: '三橫', formula: 'Math.ceil((baseQty / 2.4 + 1) * 3)', unit: '支' },
-        { id: 'fi-4', name: '斜撐', formula: 'Math.ceil(baseQty / 2.4 + 1)', unit: '支' },
-        { id: 'fi-5', name: '圍籬板', formula: 'Math.ceil(baseQty / 0.75)', unit: '片' },
-        { id: 'fi-6', name: '2.4m圍籬板', formula: 'Math.ceil(baseQty / 0.95)', unit: '片' },
-      ]
-    },
-    { id: 'f-2', keyword: '防溢座', category: '防溢座', items: [
-      { id: 'fi-7', name: '單模', formula: 'Math.ceil(baseQty / 1.5)', unit: '片' },
-      { id: 'fi-8', name: '雙模', formula: 'Math.ceil((baseQty / 1.5) * 2)', unit: '片' },
-      { id: 'fi-9', name: '假模', formula: 'Math.ceil(baseQty / 2.4)', unit: '片' },
-    ]},
-    { id: 'f-3', keyword: '轉角', category: '轉角', items: [
-      { id: 'fi-10', name: '透明板', formula: 'Math.ceil(baseQty / 0.75)', unit: '片' },
-    ]},
-    { id: 'f-4', keyword: '安全走廊', category: '安全走廊', items: [
-      { id: 'fi-11', name: '骨料', formula: 'Math.ceil(baseQty / 2.4 + 1)', unit: '組' },
-      { id: 'fi-12', name: '安走板', formula: 'Math.ceil(baseQty / 0.75)', unit: '片' },
-    ]}
+  productionKeywords: ['大門', '防溢座', '加強'],
+  subcontractorKeywords: ['怪手', '吊卡', '告示牌', '安衛貼紙', '警示燈', '帆布'],
+  modularProductionKeywords: ['屋頂', '門片', '走道'],
+  modularSubcontractorKeywords: ['吊裝', '土尾', '粉光'],
+  materialFormulas: [],
+  standardConstructionItems: [
+    { name: '立柱', unit: '支' },
+    { name: '澆置', unit: '洞' },
+    { name: '(雙模)前模', unit: '米' },
+    { name: '(雙模)後模', unit: '米' },
+    { name: '(雙模)螺桿', unit: '米' },
+    { name: '(雙模)澆置', unit: '米' },
+    { name: '(雙模)拆模', unit: '米' },
+    { name: '(雙模)清潔', unit: '' },
+    { name: '(雙模)收模', unit: '米' },
+    { name: '三橫骨架', unit: '米' },
+    { name: '封板', unit: '米' },
+    { name: '(單模)組模', unit: '米' },
+    { name: '(單模)澆置', unit: '米' },
+    { name: '(單模)拆模', unit: '米' },
+    { name: '(單模)清潔', unit: '' },
+    { name: '(單模)收模', unit: '米' },
+    { name: '安走骨架', unit: '米' },
+    { name: '安走三橫', unit: '米' },
+    { name: '安走封板', unit: '米' },
+    { name: '隔音帆布骨架', unit: '米' },
+    { name: '隔音帆布', unit: '米' },
+    { name: '大門門片安裝', unit: '樘' },
   ],
-  importConfig: {
-    projectKeywords: { maintenance: '維修', modular: '組合屋' },
-    recordKeywords: { recordTitle: '施工紀錄', reportTitle: '施工報告' },
-    completionKeywords: { dismantle: '拆' },
-    planningKeywords: {
-      headerRow: 8,
-      subCatFence: '安全圍籬及休息區',
-      subCatModularStruct: '主結構租賃',
-      subCatModularReno: '裝修工程',
-      subCatModularOther: '其他工程',
-      subCatModularDismantle: '拆除工程'
+  maintenanceConstructionItems: [
+    { name: '一般大門 (Cổng thông thường)', unit: '組/bộ' },
+    { name: '日式拉門 (Cửa kéo kiểu Nhật)', unit: '組/bộ' },
+    { name: '摺疊門 (Cửa xếp)', unit: '組/bộ' },
+    { name: '(4", 5") 門柱 (Trụ cổng)', unit: '支/cây' },
+    { name: '大門斜撐 (Thanh chống chéo cổng)', unit: '支/cây' },
+    { name: '上拉桿 (Thanh kéo lên)', unit: '組/bộ' },
+    { name: '後紐 (Nút sau)', unit: '片/tấm' },
+    { name: '門栓、地栓 (Chốt cửa/Chốt sàn)', unit: '支/cây' },
+    { name: '門片 (Cánh cửa)', unit: '片/tấm' },
+    { name: '上軌道整修 (Sửa chữa ray trên)', unit: '支/thanh' },
+    { name: '門片整修 (Sửa chữa cánh cửa)', unit: '組/bộ' },
+    { name: '基礎座 (Chân đế)', unit: '個/cái' },
+    { name: '下軌道 (Ray dưới)', unit: '米/mét' },
+    { name: 'H型鋼立柱 (Cột thép hình H)', unit: '支/cây' },
+    { name: '橫衍 (Thanh ngang)', unit: '米/mét' },
+    { name: '簡易小門加工 (Gia công cửa nhỏ đơn)', unit: '樘/cửa' },
+    { name: '簡易小門維修 (Sửa cửa nhỏ đơn giản)', unit: '式/kiểu' },
+    { name: '小門後紐 (Nút sau cửa nhỏ)', unit: '個/cái' },
+    { name: '甲種圍籬 (Hàng rào loại A)', unit: '米/mét' },
+    { name: '乙種圍籬 (Hàng rào loại B)', unit: '米/mét' },
+    { name: '防颱型圍籬 (Hàng rào công trình chống bão)', unit: '米/mét' },
+    { name: '一般圍籬立柱 (Trụ hàng rào)', unit: '支/cây' },
+    { name: '斜撐 (Chống chéo)', unit: '支/cây' },
+    { name: '防颱型立柱 (Cột chống bão)', unit: '支/cây' },
+    { name: '6米角鋼 (Thép góc)', unit: '支/cây' },
+    { name: '長斜撐 (Dầm chéo dài)', unit: '支/cây' },
+    { name: '一般鋼板 (Tấm thép thường)', unit: '片/tấm' },
+    { name: '烤漆鋼板 (Thép tấm sơn tĩnh điện)', unit: '片/tấm' },
+    { name: '鍍鋅鋼板 (Thép mạ kẽm)', unit: '片/tấm' },
+    { name: '懸吊式骨架 (Khung treo)', unit: '支/cây' },
+    { name: '懸吊式懸臂/短臂 (Cần treo kiểu treo)', unit: '支/cây' },
+    { name: 'L收邊板 (Tấm vi園 chữ L)', unit: '片/tấm' },
+    { name: '懸吊式安走鋼板 (Tấm thép lối đi an全)', unit: '片/tấm' },
+  ],
+  completionCategories: [
+    {
+        id: 'FENCE',
+        label: '圍籬 (Hàng rào)',
+        defaultUnit: '米',
+        items: [
+            "一般型安裝 (Hàng rào loại tiêu chuẩn)",
+            "防颱型安裝 (Hàng rào loại chống bão)",
+            "懸吊式安全走廊安裝 (Lắp đặt hành lang an toàn treo)"
+        ]
+    },
+    {
+        id: 'BARRIER',
+        label: '防溢座 (Bệ chống tràn)',
+        defaultUnit: '米',
+        items: [
+            "30cm單模 (Khuôn đơ)", "30cm雙模 (Khuôn đôi)", "30cm假模 (Khuôn giả)",
+            "60cm單模 (Khuôn đơn)", "60cm雙模 (Khuôn đôi)", "60cm假模 (Khuôn giả)"
+        ]
+    },
+    {
+        id: 'DOOR',
+        label: '門 (Cửa)',
+        defaultUnit: '組',
+        items: [
+            "一般大門 (Cửa chính loại tiêu chuẩn)",
+            "日式拉門 (Cửa trượt kiểu Nhật)",
+            "客製化小門 (Cửa nhỏ tùy chỉnh)",
+            "簡易小門加工 (Gia công cửa nhỏ đơn giản)"
+        ]
+    },
+    {
+        id: 'OTHER',
+        label: '其他 (Khác)',
+        defaultUnit: '',
+        items: [
+            "警示燈 (Đèn cảnh báo)",
+            "巨型告示牌 (Biển báo khổng lồ)",
+            "告示牌 (Biển báo)",
+            "五合一偵測器 (Bộ cảm biến 5 trong 1)"
+        ]
     }
-  }
+  ]
 };
