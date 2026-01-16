@@ -155,14 +155,14 @@ const GlobalWorkReport: React.FC<GlobalWorkReportProps> = ({ projects, currentUs
     }
   };
 
-  // 實作全域 PDF 匯出
+  // 修改後的全域 PDF 匯出：確保每個案件之間強制換頁
   const handleExportGlobalPDF = async () => {
     if (activeProjects.length === 0) return alert("當日無活躍案件可供匯出");
     if (typeof html2canvas === 'undefined' || typeof jspdf === 'undefined') return alert("必要元件尚未載入");
     
     setIsGeneratingPDF(true);
 
-    // 準備匯出的 JSON 數據
+    // 準備匯出的 JSON 數據物件 (內嵌於 Metadata)
     const exportData: any = {
         date: selectedDate,
         exportedAt: new Date().toISOString(),
@@ -175,32 +175,58 @@ const GlobalWorkReport: React.FC<GlobalWorkReportProps> = ({ projects, currentUs
         }))
     };
 
-    const container = document.createElement('div');
-    container.style.position = 'fixed';
-    container.style.top = '-9999px';
-    container.style.left = '-9999px';
-    container.style.width = '850px';
-    container.style.backgroundColor = '#ffffff';
-    document.body.appendChild(container);
+    // 初始化 jsPDF
+    // @ts-ignore
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF('p', 'mm', 'a4');
+    const pdfWidth = pdf.internal.pageSize.getWidth();
+    const pdfHeight = pdf.internal.pageSize.getHeight();
 
-    let html = `
-      <div style="font-family: 'Microsoft JhengHei', sans-serif; padding: 40px; color: #333;">
-        <h1 style="text-align: center; border-bottom: 2px solid #0f172a; padding-bottom: 15px; font-size: 26px; font-weight: bold;">
-          合家興實業 - 當日工作回報綜合彙整
-        </h1>
-        <div style="margin: 20px 0; font-size: 16px; display: flex; justify-content: space-between; border-bottom: 1px solid #eee; padding-bottom: 10px;">
-          <span>彙整日期：<strong>${selectedDate}</strong></span>
-          <span>案件數量：<strong>${activeProjects.length} 筆</strong></span>
-        </div>
-    `;
+    // 設定 PDF 元數據，內嵌 JSON
+    pdf.setProperties({
+        title: `合家興工作彙整_${selectedDate}`,
+        subject: JSON.stringify(exportData),
+        author: currentUser.name,
+        keywords: 'DailyWorkReport, MultiProject, JSON_Embedded',
+        creator: '合家興 AI 管理系統'
+    });
 
-    activeProjects.forEach(p => {
+    // 逐案渲染並加入 PDF
+    for (let i = 0; i < activeProjects.length; i++) {
+        const p = activeProjects[i];
+        
+        // 除第一案外，其餘案件開始前先新增一頁
+        if (i > 0) pdf.addPage();
+
+        const container = document.createElement('div');
+        container.style.position = 'fixed';
+        container.style.top = '-9999px';
+        container.style.left = '-9999px';
+        container.style.width = '850px';
+        container.style.backgroundColor = '#ffffff';
+        document.body.appendChild(container);
+
         const report = (p.reports || []).find(r => r.date === selectedDate);
         const items = (p.constructionItems || []).filter(i => i.date === selectedDate);
         const completion = (p.completionReports || []).find(r => r.date === selectedDate);
+
+        let html = `<div style="font-family: 'Microsoft JhengHei', sans-serif; padding: 40px; color: #333; background: white;">`;
         
+        // 只有在第一頁顯示總彙整標題
+        if (i === 0) {
+            html += `
+                <h1 style="text-align: center; border-bottom: 2px solid #0f172a; padding-bottom: 15px; font-size: 26px; font-weight: bold;">
+                  合家興實業 - 當日工作回報綜合彙整
+                </h1>
+                <div style="margin: 20px 0; font-size: 16px; display: flex; justify-content: space-between; border-bottom: 1px solid #eee; padding-bottom: 10px;">
+                  <span>彙整日期：<strong>${selectedDate}</strong></span>
+                  <span>案件數量：<strong>${activeProjects.length} 筆</strong></span>
+                </div>
+            `;
+        }
+
         html += `
-          <div style="margin-top: 40px; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; page-break-inside: avoid; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);">
+          <div style="margin-top: 10px; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);">
             <div style="background: #1e293b; color: white; padding: 15px; display: flex; justify-content: space-between; align-items: center;">
               <h2 style="margin: 0; font-size: 18px;">[${p.type.toUpperCase()}] ${p.name}</h2>
             </div>
@@ -250,65 +276,51 @@ const GlobalWorkReport: React.FC<GlobalWorkReportProps> = ({ projects, currentUs
 
               ${report?.photos?.length ? `
                 <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 20px;">
-                  ${report.photos.slice(0, 6).map(pid => {
+                  ${report.photos.slice(0, 9).map(pid => {
                     const photo = p.photos.find(img => img.id === pid);
                     return photo ? `<div style="aspect-ratio: 1; overflow: hidden; border: 1px solid #eee; border-radius: 4px;"><img src="${photo.url}" style="width: 100%; height: 100%; object-fit: cover;" /></div>` : '';
                   }).join('')}
                 </div>
-                ${report.photos.length > 6 ? `<div style="text-align: right; font-size: 10px; color: #94a3b8; margin-top: 5px;">* 僅顯示前 6 張照片</div>` : ''}
+                ${report.photos.length > 9 ? `<div style="text-align: right; font-size: 10px; color: #94a3b8; margin-top: 5px;">* 僅顯示前 9 張照片</div>` : ''}
               ` : ''}
             </div>
           </div>
-        `;
-    });
+        </div>`;
 
-    html += `</div>`;
-    container.innerHTML = html;
+        container.innerHTML = html;
+        // 等待樣式與圖片渲染
+        await new Promise(resolve => setTimeout(resolve, 800));
 
-    // 確保圖片載入
-    await new Promise(resolve => setTimeout(resolve, 1000));
+        try {
+            const canvas = await html2canvas(container, { scale: 2, useCORS: true });
+            const imgData = canvas.toDataURL('image/jpeg', 0.9);
+            const imgProps = pdf.getImageProperties(imgData);
+            const imgHeight = (imgProps.height * pdfWidth) / imgProps.width;
+            
+            let heightLeft = imgHeight;
+            let position = 0;
 
-    try {
-        const canvas = await html2canvas(container, { scale: 2, useCORS: true });
-        const imgData = canvas.toDataURL('image/jpeg', 0.9);
-        // @ts-ignore
-        const { jsPDF } = window.jspdf;
-        const pdf = new jsPDF('p', 'mm', 'a4');
-        
-        // 嵌入當日全域 JSON 數據到 PDF Metadata
-        pdf.setProperties({
-            title: `合家興工作彙整_${selectedDate}`,
-            subject: JSON.stringify(exportData),
-            author: currentUser.name,
-            keywords: 'DailyWorkReport, JSON_Embedded',
-            creator: '合家興管理系統'
-        });
+            // 將畫布加入當前頁面
+            pdf.addImage(imgData, 'JPEG', 0, position, pdfWidth, imgHeight);
+            heightLeft -= pdfHeight;
 
-        const pdfWidth = pdf.internal.pageSize.getWidth();
-        const pdfHeight = pdf.internal.pageSize.getHeight();
-        const imgProps = pdf.getImageProperties(imgData);
-        const imgHeight = (imgProps.height * pdfWidth) / imgProps.width;
-        let heightLeft = imgHeight;
-        let position = 0;
-
-        pdf.addImage(imgData, 'JPEG', 0, position, pdfWidth, imgHeight);
-        heightLeft -= pdfHeight;
-
-        while (heightLeft > 0) {
-          position = heightLeft - imgHeight;
-          pdf.addPage();
-          pdf.addImage(imgData, 'JPEG', 0, position, pdfWidth, imgHeight);
-          heightLeft -= pdfHeight;
+            // 如果該案件內容本身超過一頁 A4，則繼續在該案下進行內部分頁
+            while (heightLeft > 0) {
+              position = heightLeft - imgHeight;
+              pdf.addPage();
+              pdf.addImage(imgData, 'JPEG', 0, position, pdfWidth, imgHeight);
+              heightLeft -= pdfHeight;
+            }
+        } catch (err) {
+            console.error(`渲染案件 ${p.name} 失敗:`, err);
+        } finally {
+            document.body.removeChild(container);
         }
-
-        downloadBlob(pdf.output('blob'), `合家興工作彙整_${selectedDate}.pdf`);
-    } catch (err) {
-        console.error(err);
-        alert("PDF 生成失敗");
-    } finally {
-        document.body.removeChild(container);
-        setIsGeneratingPDF(false);
     }
+
+    // 全部案場處理完畢，下載檔案
+    downloadBlob(pdf.output('blob'), `合家興工作彙整_${selectedDate}.pdf`);
+    setIsGeneratingPDF(false);
   };
 
   const renderActiveList = (type: ProjectType) => {
