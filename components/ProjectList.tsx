@@ -201,7 +201,7 @@ const ProjectList: React.FC<ProjectListProps> = ({
                         <div className="w-7 h-7 rounded-lg bg-orange-100 flex items-center justify-center">
                           <FileTextIcon className="w-4 h-4 text-orange-600" />
                         </div>
-                        批量匯入施工報告 (Excel)
+                        批量匯入施工報告 (PDF)
                      </button>
                    )}
                    {onImportCompletionReports && (
