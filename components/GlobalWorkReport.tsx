@@ -39,15 +39,16 @@ const GlobalWorkReport: React.FC<GlobalWorkReportProps> = ({ projects, currentUs
   const [isProcessingPhotos, setIsProcessingPhotos] = useState(false);
   const photoInputRef = useRef<HTMLInputElement | null>(null);
 
+  // 優化過濾邏輯：確保手動追加與自動偵測都能正確顯示
   const activeProjects = useMemo(() => {
     const todayAdded = manuallyAddedIds[selectedDate] || [];
     return projects.filter(p => {
-        if (p.type === ProjectType.CONSTRUCTION || p.type === ProjectType.MODULAR_HOUSE) {
-            const hasReport = (p.reports || []).some(r => r.date === selectedDate);
-            const hasItems = (p.constructionItems || []).some(i => i.date === selectedDate);
-            return hasReport || hasItems || todayAdded.includes(p.id);
-        }
-        return todayAdded.includes(p.id);
+        const hasReport = (p.reports || []).some(r => r.date === selectedDate);
+        const hasItems = (p.constructionItems || []).some(i => i.date === selectedDate);
+        const hasCompletion = (p.completionReports || []).some(r => r.date === selectedDate);
+        
+        // 只要有數據或是在手動追加清單中就顯示
+        return hasReport || hasItems || hasCompletion || todayAdded.includes(p.id);
     });
   }, [projects, selectedDate, manuallyAddedIds]);
 
@@ -77,7 +78,7 @@ const GlobalWorkReport: React.FC<GlobalWorkReportProps> = ({ projects, currentUs
 
   const recordedDates = useMemo(() => {
     const dates = new Set<string>();
-    projects.filter(p => p.type === ProjectType.CONSTRUCTION || p.type === ProjectType.MODULAR_HOUSE).forEach(p => {
+    projects.forEach(p => {
         (p.reports || []).forEach(r => dates.add(r.date));
         (p.constructionItems || []).forEach(i => dates.add(i.date));
     });
@@ -154,13 +155,14 @@ const GlobalWorkReport: React.FC<GlobalWorkReportProps> = ({ projects, currentUs
     }
   };
 
-  // 全域 PDF 匯出功能
+  // 實作全域 PDF 匯出
   const handleExportGlobalPDF = async () => {
     if (activeProjects.length === 0) return alert("當日無活躍案件可供匯出");
     if (typeof html2canvas === 'undefined' || typeof jspdf === 'undefined') return alert("必要元件尚未載入");
     
     setIsGeneratingPDF(true);
 
+    // 準備匯出的 JSON 數據
     const exportData: any = {
         date: selectedDate,
         exportedAt: new Date().toISOString(),
@@ -183,10 +185,10 @@ const GlobalWorkReport: React.FC<GlobalWorkReportProps> = ({ projects, currentUs
 
     let html = `
       <div style="font-family: 'Microsoft JhengHei', sans-serif; padding: 40px; color: #333;">
-        <h1 style="text-align: center; border-bottom: 2px solid #0f172a; padding-bottom: 15px; font-size: 26px;">
-          合家興實業 - 當日工作回報彙整
+        <h1 style="text-align: center; border-bottom: 2px solid #0f172a; padding-bottom: 15px; font-size: 26px; font-weight: bold;">
+          合家興實業 - 當日工作回報綜合彙整
         </h1>
-        <div style="margin: 20px 0; font-size: 16px; display: flex; justify-content: space-between;">
+        <div style="margin: 20px 0; font-size: 16px; display: flex; justify-content: space-between; border-bottom: 1px solid #eee; padding-bottom: 10px;">
           <span>彙整日期：<strong>${selectedDate}</strong></span>
           <span>案件數量：<strong>${activeProjects.length} 筆</strong></span>
         </div>
@@ -198,58 +200,62 @@ const GlobalWorkReport: React.FC<GlobalWorkReportProps> = ({ projects, currentUs
         const completion = (p.completionReports || []).find(r => r.date === selectedDate);
         
         html += `
-          <div style="margin-top: 40px; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; page-break-inside: avoid;">
-            <div style="background: #f1f5f9; padding: 15px; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center;">
-              <h2 style="margin: 0; font-size: 18px; color: #1e293b;">[${p.type.toUpperCase()}] ${p.name}</h2>
+          <div style="margin-top: 40px; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; page-break-inside: avoid; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);">
+            <div style="background: #1e293b; color: white; padding: 15px; display: flex; justify-content: space-between; align-items: center;">
+              <h2 style="margin: 0; font-size: 18px;">[${p.type.toUpperCase()}] ${p.name}</h2>
             </div>
             <div style="padding: 20px;">
-              <div style="margin-bottom: 15px;">
-                <span style="font-weight: bold; color: #64748b; font-size: 13px;">人員：</span>
-                <span style="font-size: 14px;">師傅: ${report?.worker || items[0]?.worker || '未指定'} / 助手: ${report?.assistant || items[0]?.assistant || '無'}</span>
+              <div style="margin-bottom: 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 20px; background: #f8fafc; padding: 10px; border-radius: 8px;">
+                <div><span style="font-weight: bold; color: #64748b; font-size: 12px;">負責人員：</span><br/><span style="font-size: 14px;">師傅: ${report?.worker || items[0]?.worker || '未指定'} / 助手: ${report?.assistant || items[0]?.assistant || '無'}</span></div>
+                <div><span style="font-weight: bold; color: #64748b; font-size: 12px;">當日天氣：</span><br/><span style="font-size: 14px;">${report?.weather === 'sunny' ? '☀️ 晴天' : report?.weather === 'cloudy' ? '☁️ 陰天' : '🌧️ 雨天'}</span></div>
               </div>
               
               <div style="margin-bottom: 20px;">
-                <div style="font-weight: bold; margin-bottom: 8px; font-size: 14px; border-left: 4px solid #3b82f6; padding-left: 10px;">施工紀錄與回報</div>
-                <div style="background: #fafafa; padding: 12px; border-radius: 6px; font-size: 14px; white-space: pre-wrap;">${report?.content || '今日無詳細文字回報'}</div>
+                <div style="font-weight: bold; margin-bottom: 8px; font-size: 14px; border-left: 4px solid #3b82f6; padding-left: 10px; color: #1e40af;">施工日誌與備註</div>
+                <div style="background: #fafafa; padding: 12px; border-radius: 6px; font-size: 13px; white-space: pre-wrap; border: 1px solid #f1f5f9;">${report?.content || '今日無文字回報'}</div>
               </div>
 
               ${items.length > 0 ? `
-                <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 13px;">
-                  <thead>
-                    <tr style="background-color: #f8fafc;">
-                      <th style="border: 1px solid #e2e8f0; padding: 8px; text-align: left;">施工項目</th>
-                      <th style="border: 1px solid #e2e8f0; padding: 8px; text-align: center; width: 60px;">數量</th>
-                      <th style="border: 1px solid #e2e8f0; padding: 8px; text-align: center; width: 60px;">單位</th>
-                      <th style="border: 1px solid #e2e8f0; padding: 8px; text-align: left;">位置/作業</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    ${items.map(i => `
-                      <tr>
-                        <td style="border: 1px solid #e2e8f0; padding: 8px;">${i.name}</td>
-                        <td style="border: 1px solid #e2e8f0; padding: 8px; text-align: center;">${i.quantity}</td>
-                        <td style="border: 1px solid #e2e8f0; padding: 8px; text-align: center;">${i.unit}</td>
-                        <td style="border: 1px solid #e2e8f0; padding: 8px;">${i.location || '-'}</td>
-                      </tr>
-                    `).join('')}
-                  </tbody>
-                </table>
+                <div style="margin-bottom: 20px;">
+                   <div style="font-weight: bold; margin-bottom: 8px; font-size: 14px; border-left: 4px solid #10b981; padding-left: 10px; color: #065f46;">施工報告清單</div>
+                   <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
+                      <thead>
+                        <tr style="background-color: #f1f5f9;">
+                          <th style="border: 1px solid #e2e8f0; padding: 8px; text-align: left;">施工項目</th>
+                          <th style="border: 1px solid #e2e8f0; padding: 8px; text-align: center; width: 60px;">數量</th>
+                          <th style="border: 1px solid #e2e8f0; padding: 8px; text-align: center; width: 60px;">單位</th>
+                          <th style="border: 1px solid #e2e8f0; padding: 8px; text-align: left;">施作位置/動作</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        ${items.map(i => `
+                          <tr>
+                            <td style="border: 1px solid #e2e8f0; padding: 8px; font-weight: bold;">${i.name}</td>
+                            <td style="border: 1px solid #e2e8f0; padding: 8px; text-align: center;">${i.quantity}</td>
+                            <td style="border: 1px solid #e2e8f0; padding: 8px; text-align: center;">${i.unit}</td>
+                            <td style="border: 1px solid #e2e8f0; padding: 8px;">${i.location || '-'}</td>
+                          </tr>
+                        `).join('')}
+                      </tbody>
+                   </table>
+                </div>
               ` : ''}
 
               ${completion ? `
-                 <div style="margin-top: 15px; border-top: 1px dashed #e2e8f0; pt-15px;">
-                   <div style="font-weight: bold; margin: 15px 0 8px; font-size: 14px; border-left: 4px solid #10b981; padding-left: 10px;">完工報告摘要</div>
-                   <div style="font-size: 13px; color: #475569;">已提交當日完工確認清單 (含 ${completion.items?.length || 0} 個細項)。</div>
+                 <div style="margin-top: 20px; border-top: 1px dashed #e2e8f0; padding-top: 15px;">
+                   <div style="font-weight: bold; margin-bottom: 8px; font-size: 14px; border-left: 4px solid #f59e0b; padding-left: 10px; color: #92400e;">完工報告確認</div>
+                   <div style="font-size: 13px; color: #475569;">已於今日提交正式完工報告 (包含 ${completion.items?.length || 0} 個查驗項)。</div>
                  </div>
               ` : ''}
 
               ${report?.photos?.length ? `
                 <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 20px;">
-                  ${report.photos.map(pid => {
+                  ${report.photos.slice(0, 6).map(pid => {
                     const photo = p.photos.find(img => img.id === pid);
-                    return photo ? `<img src="${photo.url}" style="width: 100%; border-radius: 4px; border: 1px solid #eee;" />` : '';
+                    return photo ? `<div style="aspect-ratio: 1; overflow: hidden; border: 1px solid #eee; border-radius: 4px;"><img src="${photo.url}" style="width: 100%; height: 100%; object-fit: cover;" /></div>` : '';
                   }).join('')}
                 </div>
+                ${report.photos.length > 6 ? `<div style="text-align: right; font-size: 10px; color: #94a3b8; margin-top: 5px;">* 僅顯示前 6 張照片</div>` : ''}
               ` : ''}
             </div>
           </div>
@@ -259,7 +265,8 @@ const GlobalWorkReport: React.FC<GlobalWorkReportProps> = ({ projects, currentUs
     html += `</div>`;
     container.innerHTML = html;
 
-    await new Promise(resolve => setTimeout(resolve, 800));
+    // 確保圖片載入
+    await new Promise(resolve => setTimeout(resolve, 1000));
 
     try {
         const canvas = await html2canvas(container, { scale: 2, useCORS: true });
@@ -268,12 +275,13 @@ const GlobalWorkReport: React.FC<GlobalWorkReportProps> = ({ projects, currentUs
         const { jsPDF } = window.jspdf;
         const pdf = new jsPDF('p', 'mm', 'a4');
         
-        // 嵌入全域 JSON 數據
+        // 嵌入當日全域 JSON 數據到 PDF Metadata
         pdf.setProperties({
             title: `合家興工作彙整_${selectedDate}`,
             subject: JSON.stringify(exportData),
             author: currentUser.name,
-            creator: '合家興 AI 管理系統'
+            keywords: 'DailyWorkReport, JSON_Embedded',
+            creator: '合家興管理系統'
         });
 
         const pdfWidth = pdf.internal.pageSize.getWidth();
@@ -306,10 +314,10 @@ const GlobalWorkReport: React.FC<GlobalWorkReportProps> = ({ projects, currentUs
   const renderActiveList = (type: ProjectType) => {
       const items = activeProjects.filter(p => p.type === type);
       const label = type === ProjectType.CONSTRUCTION 
-          ? '圍籬案件 (Fence)' 
+          ? '圍籬案件' 
           : type === ProjectType.MODULAR_HOUSE 
-              ? '組合屋案件 (Modular)' 
-              : '維修案件 (Maintenance)';
+              ? '組合屋案件' 
+              : '維修案件';
       const colorClass = type === ProjectType.CONSTRUCTION 
           ? 'bg-blue-600' 
           : type === ProjectType.MODULAR_HOUSE 
@@ -348,7 +356,7 @@ const GlobalWorkReport: React.FC<GlobalWorkReportProps> = ({ projects, currentUs
                                         };
                                         onUpdateProject({ ...p, reports: [...otherReports, updatedReport] });
                                     }}
-                                    className={`text-[11px] font-bold px-3 py-1.5 rounded-lg border-none shadow-sm ${report?.content?.startsWith('[聯完成]') ? 'bg-green-600 text-white' : 'bg-slate-100 text-slate-600'}`}
+                                    className={`text-[11px] font-bold px-3 py-1.5 rounded-lg border-none shadow-sm ${report?.content?.startsWith('[已完成]') ? 'bg-green-600 text-white' : 'bg-slate-100 text-slate-600'}`}
                                   >
                                       <option value="未完成">未完成</option>
                                       <option value="已完成">已完成</option>
@@ -369,12 +377,16 @@ const GlobalWorkReport: React.FC<GlobalWorkReportProps> = ({ projects, currentUs
                         const pid = e.target.value;
                         if(!pid) return;
                         setManuallyAddedIds(prev => ({ ...prev, [selectedDate]: [...(prev[selectedDate] || []), pid] }));
+                        e.target.value = ""; // 重置選單
                     }}
                     value=""
-                    className={`w-full text-xs font-bold py-2.5 px-4 bg-white border border-dashed rounded-xl shadow-sm cursor-pointer outline-none transition-all ${type === ProjectType.CONSTRUCTION ? 'border-blue-200 text-blue-600' : type === ProjectType.MODULAR_HOUSE ? 'border-emerald-200 text-emerald-600' : 'border-orange-200 text-orange-600'}`}
+                    className={`w-full text-xs font-bold py-2.5 px-4 bg-white border border-dashed rounded-xl shadow-sm cursor-pointer outline-none transition-all ${type === ProjectType.CONSTRUCTION ? 'border-blue-200 text-blue-600 hover:bg-blue-50' : type === ProjectType.MODULAR_HOUSE ? 'border-emerald-200 text-emerald-600 hover:bg-emerald-50' : 'border-orange-200 text-orange-600 hover:bg-orange-50'}`}
                   >
-                      <option value="">+ 追加{label.split(' ')[0]}案件 (不限狀態)</option>
-                      {projects.filter(p => p.type === type && !activeProjects.some(ap => ap.id === p.id)).map(p => (
+                      <option value="">+ 追加{label.substring(0,3)}案件 (依客戶名稱搜尋)</option>
+                      {projects
+                        .filter(p => p.type === type && !activeProjects.some(ap => ap.id === p.id))
+                        .sort((a,b) => a.name.localeCompare(b.name, 'zh-Hant'))
+                        .map(p => (
                           <option key={p.id} value={p.id}>{p.name} ({p.status})</option>
                       ))}
                   </select>
@@ -398,15 +410,18 @@ const GlobalWorkReport: React.FC<GlobalWorkReportProps> = ({ projects, currentUs
                 <CalendarIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                 <input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-blue-700 outline-none" />
             </div>
+            
+            {/* 匯出 PDF 按鈕 */}
             <button 
                 onClick={handleExportGlobalPDF} 
                 disabled={isGeneratingPDF}
-                className="bg-white border border-slate-200 w-11 h-11 rounded-xl text-indigo-600 flex items-center justify-center shadow-sm active:scale-95 flex-shrink-0 disabled:opacity-50"
-                title="匯出今日 PDF 綜合報告"
+                className="bg-white border border-slate-200 w-11 h-11 rounded-xl text-indigo-600 flex items-center justify-center shadow-sm active:scale-95 flex-shrink-0 disabled:opacity-50 transition-all hover:bg-indigo-50"
+                title="匯出當日案件綜合 PDF (含 JSON 內嵌)"
             >
                 {isGeneratingPDF ? <LoaderIcon className="w-5 h-5 animate-spin" /> : <FileTextIcon className="w-5 h-5" />}
             </button>
-            <button onClick={() => setShowCalendar(true)} className="bg-white border border-slate-200 w-11 h-11 rounded-xl text-blue-600 flex items-center justify-center shadow-sm active:scale-95 flex-shrink-0"><CalendarIcon className="w-5 h-5" /></button>
+            
+            <button onClick={() => setShowCalendar(true)} className="bg-white border border-slate-200 w-11 h-11 rounded-xl text-blue-600 flex items-center justify-center shadow-sm active:scale-95 flex-shrink-0 hover:bg-blue-50"><CalendarIcon className="w-5 h-5" /></button>
         </div>
       </div>
 
@@ -418,11 +433,11 @@ const GlobalWorkReport: React.FC<GlobalWorkReportProps> = ({ projects, currentUs
 
       <div className="bg-white border border-blue-200 rounded-2xl shadow-lg overflow-hidden mt-10">
           <div className={`px-6 py-4 flex items-center justify-between ${mainActiveProject ? 'bg-blue-600' : 'bg-slate-700'}`}>
-              <h3 className="text-white font-bold text-lg flex items-center gap-2">今日施作詳情 (常駐顯示)</h3>
+              <h3 className="text-white font-bold text-lg flex items-center gap-2">今日施作詳情 (連動編輯)</h3>
               {mainActiveProject && (
                   <div className="text-right">
                     <span className="text-[10px] text-blue-100 font-bold uppercase block">
-                        {mainActiveProject.type === ProjectType.MODULAR_HOUSE ? '連動組合屋' : '連動圍籬'}
+                        {mainActiveProject.type === ProjectType.MODULAR_HOUSE ? '組合屋' : '圍籬'}
                     </span>
                     <span className="text-white font-bold text-sm truncate max-w-[150px]">{mainActiveProject.name}</span>
                   </div>
@@ -430,80 +445,89 @@ const GlobalWorkReport: React.FC<GlobalWorkReportProps> = ({ projects, currentUs
           </div>
 
           <div className="p-6 space-y-8">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                    <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">師傅 (Thợ chính)</label>
-                    <input 
-                      type="text" 
-                      list="employee-nicknames-list"
-                      value={formBuffer.worker} 
-                      onChange={(e) => handleFieldChange('worker', e.target.value)} 
-                      placeholder="輸入姓名" 
-                      className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none" 
-                    />
+            {!mainActiveProject ? (
+                <div className="py-12 text-center text-slate-400">
+                    <BoxIcon className="w-12 h-12 mx-auto mb-3 opacity-20" />
+                    <p className="font-bold">請先點選或追加一個圍籬或組合屋案件以啟用詳細編輯</p>
                 </div>
-                <div>
-                    <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">助手清單 (Phụ việc)</label>
-                    <div className="flex flex-wrap gap-1.5 mb-2">
-                        {formBuffer.assistant.split(',').map(s => s.trim()).filter(s => !!s).map(name => (
-                            <span key={name} className="inline-flex items-center gap-1 bg-blue-50 text-blue-700 px-3 py-1.5 rounded-full text-xs font-bold border border-blue-100">
-                                {name}<button onClick={() => removeAssistant(name)}><XCircleIcon className="w-3.5 h-3.5" /></button>
-                            </span>
-                        ))}
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <input 
-                          type="text" 
-                          list="employee-nicknames-list"
-                          value={pendingAssistantName} 
-                          onChange={(e) => setPendingAssistantName(e.target.value)} 
-                          onKeyDown={(e) => e.key === 'Enter' && handleAddAssistant()} 
-                          placeholder="輸入姓名" 
-                          className="flex-1 px-4 py-3 border border-slate-200 rounded-xl text-sm outline-none" 
-                        />
-                        <div className="flex items-center gap-1.5 bg-slate-100 px-3 py-3 rounded-xl border border-slate-200">
-                            <input type="checkbox" id="half-day-global-fixed" checked={isHalfDayChecked} onChange={(e) => setIsHalfDayChecked(e.target.checked)} className="w-4 h-4 text-blue-600 rounded cursor-pointer" />
-                            <label htmlFor="half-day-global-fixed" className="text-xs font-bold text-slate-600 cursor-pointer whitespace-nowrap">半天</label>
+            ) : (
+                <>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">師傅 (Thợ chính)</label>
+                            <input 
+                            type="text" 
+                            list="employee-nicknames-list"
+                            value={formBuffer.worker} 
+                            onChange={(e) => handleFieldChange('worker', e.target.value)} 
+                            placeholder="輸入姓名" 
+                            className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none" 
+                            />
                         </div>
-                        <button onClick={handleAddAssistant} className="w-12 h-12 bg-slate-800 text-white rounded-xl flex items-center justify-center"><PlusIcon className="w-6 h-6" /></button>
+                        <div>
+                            <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">助手清單 (Phụ việc)</label>
+                            <div className="flex flex-wrap gap-1.5 mb-2">
+                                {formBuffer.assistant.split(',').map(s => s.trim()).filter(s => !!s).map(name => (
+                                    <span key={name} className="inline-flex items-center gap-1 bg-blue-50 text-blue-700 px-3 py-1.5 rounded-full text-xs font-bold border border-blue-100">
+                                        {name}<button onClick={() => removeAssistant(name)}><XCircleIcon className="w-3.5 h-3.5" /></button>
+                                    </span>
+                                ))}
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <input 
+                                type="text" 
+                                list="employee-nicknames-list"
+                                value={pendingAssistantName} 
+                                onChange={(e) => setPendingAssistantName(e.target.value)} 
+                                onKeyDown={(e) => e.key === 'Enter' && handleAddAssistant()} 
+                                placeholder="輸入姓名" 
+                                className="flex-1 px-4 py-3 border border-slate-200 rounded-xl text-sm outline-none" 
+                                />
+                                <div className="flex items-center gap-1.5 bg-slate-100 px-3 py-3 rounded-xl border border-slate-200">
+                                    <input type="checkbox" id="half-day-global-fixed" checked={isHalfDayChecked} onChange={(e) => setIsHalfDayChecked(e.target.checked)} className="w-4 h-4 text-blue-600 rounded cursor-pointer" />
+                                    <label htmlFor="half-day-global-fixed" className="text-xs font-bold text-slate-600 cursor-pointer whitespace-nowrap">半天</label>
+                                </div>
+                                <button onClick={handleAddAssistant} className="w-12 h-12 bg-slate-800 text-white rounded-xl flex items-center justify-center transition-transform active:scale-90"><PlusIcon className="w-6 h-6" /></button>
+                            </div>
+                        </div>
                     </div>
-                </div>
-            </div>
 
-            <div className="pt-6 border-t border-slate-100">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div>
-                        <label className="block text-[10px] font-bold text-slate-400 uppercase mb-2">當日天氣</label>
-                        <div className="flex gap-2">
-                            {['sunny', 'cloudy', 'rainy'].map((w) => (
-                                <button key={w} onClick={() => handleFieldChange('weather', w)} className={`flex-1 py-3 rounded-xl border flex justify-center transition-all ${formBuffer.weather === w ? 'bg-blue-50 border-blue-500 text-blue-600' : 'bg-white border-slate-200 text-slate-400'}`}>
-                                    {w === 'sunny' && <SunIcon className="w-6 h-6" />}{w === 'cloudy' && <CloudIcon className="w-6 h-6" />}{w === 'rainy' && <RainIcon className="w-6 h-6" />}
-                                </button>
+                    <div className="pt-6 border-t border-slate-100">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <div>
+                                <label className="block text-[10px] font-bold text-slate-400 uppercase mb-2">當日天氣</label>
+                                <div className="flex gap-2">
+                                    {['sunny', 'cloudy', 'rainy'].map((w) => (
+                                        <button key={w} onClick={() => handleFieldChange('weather', w)} className={`flex-1 py-3 rounded-xl border flex justify-center transition-all ${formBuffer.weather === w ? 'bg-blue-50 border-blue-500 text-blue-600' : 'bg-white border-slate-200 text-slate-400'}`}>
+                                            {w === 'sunny' && <SunIcon className="w-6 h-6" />}{w === 'cloudy' && <CloudIcon className="w-6 h-6" />}{w === 'rainy' && <RainIcon className="w-6 h-6" />}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                            <div className="md:col-span-2">
+                                <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">施工備註 (Ghi chú)</label>
+                                <textarea value={formBuffer.content} onChange={(e) => handleFieldChange('content', e.target.value)} className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm h-24 resize-none outline-none shadow-inner" placeholder="輸入今日重點..." />
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="pt-6 border-t border-slate-100">
+                        <label className="block text-[10px] font-bold text-slate-400 uppercase mb-2">現場照片 (不裁切顯示)</label>
+                        <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-8 gap-3">
+                            <button onClick={() => photoInputRef.current?.click()} disabled={isProcessingPhotos} className="aspect-square border-2 border-dashed border-slate-200 bg-slate-50 text-slate-400 rounded-2xl flex items-center justify-center transition-all group hover:bg-blue-50">
+                                {isProcessingPhotos ? <LoaderIcon className="w-6 h-6 animate-spin" /> : <CameraIcon className="w-8 h-8 group-active:scale-90" />}
+                            </button>
+                            <input type="file" multiple accept="image/*" ref={photoInputRef} className="hidden" onChange={handlePhotoUpload} />
+                            {formBuffer.photos.map(ph => (
+                                <div key={ph.id} className="relative aspect-square rounded-2xl overflow-hidden border border-slate-100 group shadow-sm bg-slate-50 flex items-center justify-center">
+                                    <img src={ph.url} className="max-w-full max-h-full object-contain" alt="site" />
+                                    <button onClick={() => handleFieldChange('photos', formBuffer.photos.filter(p => p.id !== ph.id))} className="absolute top-1.5 right-1.5 bg-black/50 text-white rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-opacity"><XIcon className="w-3.5 h-3.5" /></button>
+                                </div>
                             ))}
                         </div>
                     </div>
-                    <div className="md:col-span-2">
-                        <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">施工備註 (Ghi chú)</label>
-                        <textarea value={formBuffer.content} onChange={(e) => handleFieldChange('content', e.target.value)} className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm h-24 resize-none outline-none shadow-inner" placeholder="輸入今日重點..." />
-                    </div>
-                </div>
-            </div>
-
-            <div className="pt-6 border-t border-slate-100">
-                <label className="block text-[10px] font-bold text-slate-400 uppercase mb-2">現場照片 (不裁切顯示)</label>
-                <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-8 gap-3">
-                    <button onClick={() => photoInputRef.current?.click()} disabled={isProcessingPhotos} className="aspect-square border-2 border-dashed border-slate-200 bg-slate-50 text-slate-400 rounded-2xl flex items-center justify-center transition-all group hover:bg-blue-50">
-                        {isProcessingPhotos ? <LoaderIcon className="w-6 h-6 animate-spin" /> : <CameraIcon className="w-8 h-8 group-active:scale-90" />}
-                    </button>
-                    <input type="file" multiple accept="image/*" ref={photoInputRef} className="hidden" onChange={handlePhotoUpload} />
-                    {formBuffer.photos.map(ph => (
-                        <div key={ph.id} className="relative aspect-square rounded-2xl overflow-hidden border border-slate-100 group shadow-sm bg-slate-50 flex items-center justify-center">
-                            <img src={ph.url} className="max-w-full max-h-full object-contain" alt="site" />
-                            <button onClick={() => handleFieldChange('photos', formBuffer.photos.filter(p => p.id !== ph.id))} className="absolute top-1.5 right-1.5 bg-black/50 text-white rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-opacity"><XIcon className="w-3.5 h-3.5" /></button>
-                        </div>
-                    ))}
-                </div>
-            </div>
+                </>
+            )}
           </div>
       </div>
 
@@ -518,8 +542,8 @@ const GlobalWorkReport: React.FC<GlobalWorkReportProps> = ({ projects, currentUs
                     <div className="flex items-center justify-between mb-6 px-1">
                         <h4 className="font-bold text-xl text-slate-800">{currentViewMonth.getFullYear()}年 {currentViewMonth.getMonth() + 1}月</h4>
                         <div className="flex gap-2">
-                            <button onClick={() => setCurrentViewMonth(new Date(currentViewMonth.getFullYear(), currentViewMonth.getMonth() - 1, 1))} className="p-2.5 bg-slate-100 rounded-xl"><ChevronRightIcon className="w-5 h-5 rotate-180" /></button>
-                            <button onClick={() => setCurrentViewMonth(new Date(currentViewMonth.getFullYear(), currentViewMonth.getMonth() + 1, 1))} className="p-2.5 bg-slate-100 rounded-xl"><ChevronRightIcon className="w-5 h-5" /></button>
+                            <button onClick={() => setCurrentViewMonth(new Date(currentViewMonth.getFullYear(), currentViewMonth.getMonth() - 1, 1))} className="p-2.5 bg-slate-100 rounded-xl"><ChevronRightIcon className="w-4 h-4 rotate-180" /></button>
+                            <button onClick={() => setCurrentViewMonth(new Date(currentViewMonth.getFullYear(), currentViewMonth.getMonth() + 1, 1))} className="p-2.5 bg-slate-100 rounded-xl"><ChevronRightIcon className="w-4 h-4" /></button>
                         </div>
                     </div>
                     <div className="grid grid-cols-7 gap-2">
