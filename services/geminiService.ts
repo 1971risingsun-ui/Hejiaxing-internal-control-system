@@ -35,27 +35,29 @@ export const analyzeConstructionPhoto = async (base64Image: string): Promise<str
 
 /**
  * 將文字翻譯為中越文對照格式 (Bilingual Side-by-Side)
+ * 專為工程描述與備註優化
  */
 export const translateProjectContent = async (text: string): Promise<string> => {
-  // 增加安全性檢查，避免傳入非字串或空值時報錯
   if (typeof text !== 'string' || !text || text.trim().length === 0) return "";
   
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   try {
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
-      contents: `你是一位專業的建築工程翻譯人員。請將下方的中文內容翻譯成「中越文對照」格式。
-規則：
-1. 保留原始中文內容。
-2. 在每一段或每一句中文下方，緊接著提供對應的越南文翻譯。
-3. 保持條列式格式（若原文有條列）。
-4. 請勿輸出任何開場白、結束語或解釋文字。
-5. 若內容已經包含越南文，請優化並保持對照格式。
+      contents: `你現在是一位精通中文與越南文的建築工程專業翻譯。
+請將下方的內容轉換為「中越雙語對照」格式。
 
-待翻譯內容：
+要求：
+1. 逐段對照：每一段原始中文內容下方，必須緊接著對應的越南文翻譯。
+2. 保持專業：使用正確的建築工程術語。
+3. 格式完整：保留原本的編號、清單符號 (如 1., 2. 或 -)。
+4. 嚴禁廢話：直接輸出對照後的文字，不要解釋你做了什麼，也不要開場白或結語。
+5. 備註處理：若內容是備註訊息，請確保翻譯語氣準確。
+
+待處理內容：
 ${text}`,
       config: {
-        systemInstruction: "你專精於建築工程術語的中越對照翻譯，任務是產出清晰、專業的雙語對照文檔。",
+        systemInstruction: "你是一個專業的工程文檔翻譯工具，任務是將輸入文字轉換為高品質的中越雙語對照版本，不添加任何 AI 的自我說明。",
       }
     });
 

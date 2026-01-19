@@ -463,7 +463,7 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
         worksheet.mergeCells('B3:E3');
 
         // Row 4: 天氣 (精準對應匯入規則 B4)
-        // Fix TS1005 & TS1134: Nested ternary condition was malformed.
+        // Fix TS1005 & TS1134: Nested ternary condition was malformed in previous version.
         const weatherText = report 
           ? (report.weather === 'sunny' ? '晴天' : (report.weather === 'cloudy' ? '陰天' : (report.weather === 'rainy' ? '雨天' : '未紀錄'))) 
           : '未紀錄';
@@ -786,7 +786,7 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead className="bg-slate-50 text-slate-500 text-xs uppercase font-semibold"><tr><th className="px-6 py-4">日期 (Ngày)</th><th className="px-6 py-4">師傅 (Thợ chính)</th><th className="px-6 py-4 text-center">簽證 (Ký)</th><th className="px-6 py-4 text-right">操作 (Lệnh)</th></tr></thead>
-            <tbody className="divide-y divide-slate-100">{sortedDates.length > 0 ? sortedDates.map((item) => (
+            <tbody className="divide-y divide-slate-100">{sortedDates.length > 0 ? sortedDates.map((item: any) => (
               <tr key={item.date} onClick={() => { setConstructionDate(item.date); setIsEditing(false); setConstructionMode('entry'); }} className="hover:bg-slate-50 transition-colors cursor-pointer group">
                 <td className="px-6 py-4 font-medium text-slate-800">{item.date}</td>
                 <td className="px-6 py-4 text-slate-600">{item.worker || '-'}</td>
