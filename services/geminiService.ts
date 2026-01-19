@@ -1,4 +1,3 @@
-
 import { GoogleGenAI } from "@google/genai";
 
 export const analyzeConstructionPhoto = async (base64Image: string): Promise<string> => {
@@ -6,13 +5,11 @@ export const analyzeConstructionPhoto = async (base64Image: string): Promise<str
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
   // Fix: Extract pure base64 data and mimeType from Data URL if present.
-  // Standard file readers often include a 'data:image/jpeg;base64,' prefix which must be removed.
   const base64Data = base64Image.includes(',') ? base64Image.split(',')[1] : base64Image;
   const mimeType = base64Image.includes(';') ? base64Image.split(';')[0].split(':')[1] : 'image/jpeg';
   
   try {
     const response = await ai.models.generateContent({
-      // Guideline: Use 'gemini-3-flash-preview' for multimodal analysis and general Q&A tasks.
       model: 'gemini-3-flash-preview', 
       contents: {
         parts: [
@@ -29,7 +26,6 @@ export const analyzeConstructionPhoto = async (base64Image: string): Promise<str
       }
     });
 
-    // Guideline: Access the .text property directly (do not call as a function).
     return response.text || "無法分析圖片";
   } catch (error) {
     console.error("Error analyzing photo:", error);
@@ -37,21 +33,21 @@ export const analyzeConstructionPhoto = async (base64Image: string): Promise<str
   }
 };
 
-// Fix: Added translateProjectContent function to handle Vietnamese translation using Gemini API.
+/**
+ * 將文字翻譯為中越文對照格式
+ */
 export const translateProjectContent = async (text: string): Promise<string> => {
-  if (!text) return "";
-  // Fix: Create a new GoogleGenAI instance right before making an API call to ensure it uses the most up-to-date API key.
+  if (!text || text.trim().length === 0) return "";
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   try {
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
-      contents: `Translate the following project content into Vietnamese. Keep any formatting and lists intact. Text: "${text}"`,
+      contents: `請將下方的建築專案資訊翻譯成「中越文對照」格式。保留原本的中文內容，並在每一段或每一列後方加上對應的越南文翻譯。請勿添加任何解釋性文字或開場白。內容如下：\n\n${text}`,
       config: {
-        systemInstruction: "You are a professional translator for a construction company. Translate project descriptions and remarks into Vietnamese naturally while preserving technical context.",
+        systemInstruction: "你是一位專業的建築工程翻譯人員。你的任務是將工程描述與備註轉換為中越雙語對照格式，確保專有名詞翻譯準確。",
       }
     });
 
-    // Guideline: Access the .text property directly (do not call as a function).
     return response.text || text;
   } catch (error) {
     console.error("Error translating content:", error);

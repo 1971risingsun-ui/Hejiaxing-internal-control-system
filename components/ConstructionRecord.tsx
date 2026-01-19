@@ -463,9 +463,8 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
         worksheet.mergeCells('B3:E3');
 
         // Row 4: 天氣 (精準對應匯入規則 B4)
-        // Fix ternary logic chain: cond ? val : (cond2 ? val2 : val3)
         const weatherText = report 
-          ? (report.weather === 'sunny' ? '晴天' : report.weather === 'cloudy' ? '陰天' : report.weather === 'rainy' ? '雨天' : '未紀錄') 
+          ? (report.weather === 'sunny' ? '晴天' : (report.weather === 'cloudy' ? '陰天' : (report.weather === 'rainy' ? '雨天' : '未紀錄'))) 
           : '未紀錄';
 
         worksheet.getCell('A4').value = '天氣 (T.tiết)';
