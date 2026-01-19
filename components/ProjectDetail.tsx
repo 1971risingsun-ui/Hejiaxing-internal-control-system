@@ -30,7 +30,7 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ project, currentUser, onB
   const [pastedDone, setPastedDone] = useState(false);
   const [isTranslating, setIsTranslating] = useState(false);
 
-  const canEdit = currentUser.role === UserRole.ADMIN || currentUser.role === UserRole.MANAGER;
+  const canEdit = currentUser.role === UserRole.ADMIN || currentUser.role === UserRole.MANAGER || currentUser.role === UserRole.WORKER || currentUser.role === UserRole.WORKER;
   const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(project.address)}`;
 
   const formatDate = (dateStr: string) => {
