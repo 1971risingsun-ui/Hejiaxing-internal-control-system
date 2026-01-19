@@ -34,17 +34,28 @@ export const analyzeConstructionPhoto = async (base64Image: string): Promise<str
 };
 
 /**
- * 將文字翻譯為中越文對照格式
+ * 將文字翻譯為中越文對照格式 (Bilingual Side-by-Side)
  */
 export const translateProjectContent = async (text: string): Promise<string> => {
-  if (!text || text.trim().length === 0) return "";
+  // 增加安全性檢查，避免傳入非字串或空值時報錯
+  if (typeof text !== 'string' || !text || text.trim().length === 0) return "";
+  
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   try {
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
-      contents: `請將下方的建築專案資訊翻譯成「中越文對照」格式。保留原本的中文內容，並在每一段或每一列後方加上對應的越南文翻譯。請勿添加任何解釋性文字或開場白。內容如下：\n\n${text}`,
+      contents: `你是一位專業的建築工程翻譯人員。請將下方的中文內容翻譯成「中越文對照」格式。
+規則：
+1. 保留原始中文內容。
+2. 在每一段或每一句中文下方，緊接著提供對應的越南文翻譯。
+3. 保持條列式格式（若原文有條列）。
+4. 請勿輸出任何開場白、結束語或解釋文字。
+5. 若內容已經包含越南文，請優化並保持對照格式。
+
+待翻譯內容：
+${text}`,
       config: {
-        systemInstruction: "你是一位專業的建築工程翻譯人員。你的任務是將工程描述與備註轉換為中越雙語對照格式，確保專有名詞翻譯準確。",
+        systemInstruction: "你專精於建築工程術語的中越對照翻譯，任務是產出清晰、專業的雙語對照文檔。",
       }
     });
 

@@ -73,6 +73,9 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ project, currentUser, onB
     }
   };
 
+  /**
+   * 改進後的單一案件翻譯：確保 description 與 remarks 同步翻譯為中越對照。
+   */
   const handleTranslateProject = async () => {
     if (!canEdit) return;
     if (confirm('是否使用 AI 將此案件的描述與備註翻譯為中越文對照格式？')) {
@@ -83,8 +86,8 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ project, currentUser, onB
         
         onUpdateProject({
           ...project,
-          description: translatedDesc,
-          remarks: translatedRemarks,
+          description: translatedDesc || project.description,
+          remarks: translatedRemarks || project.remarks,
           lastModifiedAt: Date.now(),
           lastModifiedBy: 'AI 翻譯'
         });

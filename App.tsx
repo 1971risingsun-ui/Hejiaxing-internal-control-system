@@ -33,6 +33,7 @@ import { downloadBlob } from './utils/fileHelpers';
 import { generateId, sortProjects, mergeAppState, computeDiffs, getProjectDiffMessage } from './utils/dataLogic';
 import { DEFAULT_SYSTEM_RULES } from './constants/systemConfig';
 import { useAuditTrail } from './hooks/useAuditTrail';
+import { translateProjectContent } from './services/geminiService';
 
 const LOGO_URL = './logo.png';
 
@@ -278,6 +279,36 @@ const App: React.FC = () => {
     return wasAdded;
   };
 
+  /**
+   * 改進後的全域翻譯處理：採用序列處理避免率限制，並確保備註被翻譯。
+   */
+  const handleTranslateAllProjects = async () => {
+    const newProjects = [...projects];
+    let successCount = 0;
+    
+    // 採用序列處理 (Sequential) 以穩定 API 請求並方便觀察進度
+    for (let i = 0; i < newProjects.length; i++) {
+        const p = newProjects[i];
+        // 僅翻譯有內容的項目
+        if (p.description || p.remarks) {
+            const translatedDesc = await translateProjectContent(p.description);
+            const translatedRemarks = await translateProjectContent(p.remarks);
+            
+            newProjects[i] = { 
+              ...p, 
+              description: translatedDesc || p.description, 
+              remarks: translatedRemarks || p.remarks,
+              lastModifiedAt: Date.now(),
+              lastModifiedBy: 'AI 全域翻譯'
+            };
+            successCount++;
+        }
+    }
+    
+    setProjects(sortProjects(newProjects));
+    updateLastAction('全域翻譯', `使用 AI 將 ${successCount} 件案件的詳細資訊翻譯為中越對照格式`);
+  };
+
   const isViewAllowed = (viewId: string) => {
     if (!currentUser) return false;
     if (currentUser.role === UserRole.ADMIN) return true;
@@ -375,7 +406,7 @@ const App: React.FC = () => {
            view === 'equipment_assets' ? (<AssetManagement assets={assets} onUpdateAssets={(nl) => handleUpdateList(assets, nl, setAssets, '大型設備', '地點檢驗日')} />) :
            view === 'equipment_vehicles' ? (<VehicleManagement vehicles={vehicles} onUpdateVehicles={(nl) => handleUpdateList(vehicles, nl, setVehicles, '車輛', '里程保險')} employees={employees} />) :
            selectedProject ? (<div className="flex-1 overflow-hidden"><ProjectDetail project={selectedProject} currentUser={currentUser} onBack={() => setSelectedProject(null)} onUpdateProject={handleUpdateProject} onEditProject={setEditingProject} onAddToSchedule={handleAddToSchedule} globalTeamConfigs={globalTeamConfigs} systemRules={systemRules} /></div>) : 
-           view === 'engineering' ? (<EngineeringView projects={projects} setProjects={setProjects} currentUser={currentUser} lastUpdateInfo={lastUpdateInfo} updateLastAction={updateLastAction} systemRules={systemRules} employees={employees} setAttendance={handleUpdateAttendance} onSelectProject={setSelectedProject} onAddProject={() => setIsAddModalOpen(true)} onEditProject={setEditingProject} handleDeleteProject={handleDeleteProject} onAddToSchedule={handleAddToSchedule} onOpenDrivingTime={() => setView('driving_time')} globalTeamConfigs={globalTeamConfigs} />) : null}
+           view === 'engineering' ? (<EngineeringView projects={projects} setProjects={setProjects} currentUser={currentUser} lastUpdateInfo={lastUpdateInfo} updateLastAction={updateLastAction} systemRules={systemRules} employees={employees} setAttendance={handleUpdateAttendance} onSelectProject={setSelectedProject} onAddProject={() => setIsAddModalOpen(true)} onEditProject={setEditingProject} handleDeleteProject={handleDeleteProject} onAddToSchedule={handleAddToSchedule} onOpenDrivingTime={() => setView('driving_time')} onTranslateAllProjects={handleTranslateAllProjects} globalTeamConfigs={globalTeamConfigs} />) : null}
         </main>
       </div>
       {syncPending && <SyncDecisionCenter diffs={syncPending.diffs} onConfirm={handleSyncConfirm} onCancel={() => { restoreDataToState(mergeAppState(syncPending.fileData || {}, syncPending.cacheData || {})); setSyncPending(null); }} />}

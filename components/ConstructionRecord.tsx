@@ -66,7 +66,7 @@ const MAINTENANCE_CONSTRUCTION_ITEMS = [
   { name: '一般圍籬立柱 (Trụ hàng rào)', unit: '支/cây' },
   { name: '斜撐 (Chống chéo)', unit: '支/cây' },
   { name: '防颱型立柱 (Cột chống bão)', unit: '支/cây' },
-  { name: '6米角鋼 (Thép góc)', unit: '支/cây' },
+  { name: '6米角鋼 (Thép舉)', unit: '支/cây' },
   { name: '長斜撐 (Dầm chéo dài)', unit: '支/cây' },
   { name: '一般鋼板 (Tấm thép thường)', unit: '片/tấm' },
   { name: '烤漆鋼板 (Thép tấm sơn tĩnh điện)', unit: '片/tấm' },
@@ -463,6 +463,7 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
         worksheet.mergeCells('B3:E3');
 
         // Row 4: 天氣 (精準對應匯入規則 B4)
+        // Fix TS1005 & TS1134: Nested ternary condition was malformed.
         const weatherText = report 
           ? (report.weather === 'sunny' ? '晴天' : (report.weather === 'cloudy' ? '陰天' : (report.weather === 'rainy' ? '雨天' : '未紀錄'))) 
           : '未紀錄';
