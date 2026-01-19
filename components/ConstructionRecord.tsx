@@ -1,5 +1,6 @@
+
 import React, { useState, useEffect, useRef } from 'react';
-import { Project, ConstructionItem, User, UserRole, ConstructionSignature, DailyReport, SitePhoto, ProjectType } from '../types';
+import { Project, ConstructionItem, User, UserRole, ConstructionSignature, DailyReport, SitePhoto, ProjectType, SystemRules } from '../types';
 import { DownloadIcon, PlusIcon, ClipboardListIcon, ArrowLeftIcon, ChevronRightIcon, TrashIcon, CheckCircleIcon as SubmitIcon, PenToolIcon, XIcon, StampIcon, XCircleIcon, SunIcon, CloudIcon, RainIcon, CameraIcon, LoaderIcon, FileTextIcon, BoxIcon, ImageIcon, EditIcon } from './Icons';
 import { downloadBlob, processFile } from '../utils/fileHelpers';
 import JSZip from 'jszip';
@@ -9,10 +10,12 @@ declare const XLSX: any;
 declare const html2canvas: any;
 declare const jspdf: any;
 
+// Fix: Added systemRules to ConstructionRecordProps to match usage in ProjectDetail.tsx
 interface ConstructionRecordProps {
   project: Project;
   currentUser: User;
   onUpdateProject: (updatedProject: Project) => void;
+  systemRules: SystemRules;
   forceEntryMode?: boolean; 
   initialDate?: string; 
 }
@@ -25,15 +28,13 @@ const STANDARD_CONSTRUCTION_ITEMS = [
   { name: '(雙模)螺桿 (Ty ren)', unit: '米/mét' },
   { name: '(雙模)澆置 (Đổ bê tông)', unit: '米/mét' },
   { name: '(雙模)拆模 (Tháo dỡ khuôn)', unit: '米/mét' },
-  { name: '(雙模)清潔 (Vệ sinh)', unit: '' },
-  { name: '(雙模)收模 (Thu dọn khuôn)', unit: '米/mét' },
+  { name: '清潔 (Vệ sinh)', unit: '' },
+  { name: '收模 (Thu dọn khuôn)', unit: '米/mét' },
   { name: '三橫骨架 (Khung xương 3 ngang)', unit: '米/mét' },
   { name: '封板 (Lắp tấm che)', unit: '米/mét' },
   { name: '(單模)組模 (Lắp dựng khuôn)', unit: '米/mét' },
   { name: '(單模)澆置 (Đổ bê tông)', unit: '米/mét' },
   { name: '(單模)拆模 (Tháo dỡ khuôn)', unit: '米/mét' },
-  { name: '(單模)清潔 (Vệ sinh)', unit: '' },
-  { name: '(單模)收模 (Thu dọn khuôn)', unit: '米/mét' },
   { name: '安走骨架 (Khung hành lang)', unit: '米/mét' },
   { name: '安走三橫 (3 ngang hành lang)', unit: '米/mét' },
   { name: '安走封板 (Tấm che hành lang)', unit: '米/mét' },
@@ -84,7 +85,8 @@ const RESOURCE_ITEMS = [
     { name: '怪手 (Máy đào)', unit: '式/chuyến' }
 ];
 
-const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, currentUser, onUpdateProject, forceEntryMode = false, initialDate }) => {
+// Fix: Destructured systemRules in ConstructionRecord component signature.
+const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, currentUser, onUpdateProject, systemRules, forceEntryMode = false, initialDate }) => {
   const isMaintenance = project.type === ProjectType.MAINTENANCE;
   const mainTitle = isMaintenance ? '施工報告 (Báo cáo)' : '施工紀錄 (Nhật ký)';
 
@@ -464,7 +466,7 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
         worksheet.mergeCells('B3:E3');
 
         // Row 4: 天氣 (精準對應匯入規則 B4)
-        const weatherText = report ? (report.weather === 'sunny' ? '晴天' : report.weather === 'cloudy' ? '陰天' : report.weather === 'rainy' ? '雨天' : '未紀錄') : '未紀錄';
+        const weatherText = report ? (report.weather === 'sunny' ? '晴天' : report.weather === '陰天' : report.weather === 'rainy' ? '雨天' : '未紀錄') : '未紀錄';
         worksheet.getCell('A4').value = '天氣 (T.tiết)';
         worksheet.getCell('A4').font = headerFont;
         worksheet.getCell('B4').value = weatherText;

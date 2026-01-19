@@ -1,3 +1,4 @@
+
 import { GoogleGenAI } from "@google/genai";
 
 export const analyzeConstructionPhoto = async (base64Image: string): Promise<string> => {
@@ -33,5 +34,27 @@ export const analyzeConstructionPhoto = async (base64Image: string): Promise<str
   } catch (error) {
     console.error("Error analyzing photo:", error);
     return "分析失敗，請稍後再試。";
+  }
+};
+
+// Fix: Added translateProjectContent function to handle Vietnamese translation using Gemini API.
+export const translateProjectContent = async (text: string): Promise<string> => {
+  if (!text) return "";
+  // Fix: Create a new GoogleGenAI instance right before making an API call to ensure it uses the most up-to-date API key.
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  try {
+    const response = await ai.models.generateContent({
+      model: 'gemini-3-flash-preview',
+      contents: `Translate the following project content into Vietnamese. Keep any formatting and lists intact. Text: "${text}"`,
+      config: {
+        systemInstruction: "You are a professional translator for a construction company. Translate project descriptions and remarks into Vietnamese naturally while preserving technical context.",
+      }
+    });
+
+    // Guideline: Access the .text property directly (do not call as a function).
+    return response.text || text;
+  } catch (error) {
+    console.error("Error translating content:", error);
+    return text;
   }
 };
