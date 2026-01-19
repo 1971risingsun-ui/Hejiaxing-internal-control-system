@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Project, ConstructionItem, User, UserRole, ConstructionSignature, DailyReport, SitePhoto, ProjectType, SystemRules } from '../types';
 import { DownloadIcon, PlusIcon, ClipboardListIcon, ArrowLeftIcon, ChevronRightIcon, TrashIcon, CheckCircleIcon as SubmitIcon, PenToolIcon, XIcon, StampIcon, XCircleIcon, SunIcon, CloudIcon, RainIcon, CameraIcon, LoaderIcon, FileTextIcon, BoxIcon, ImageIcon, EditIcon } from './Icons';
@@ -10,7 +9,6 @@ declare const XLSX: any;
 declare const html2canvas: any;
 declare const jspdf: any;
 
-// Fix: Added systemRules to ConstructionRecordProps to match usage in ProjectDetail.tsx
 interface ConstructionRecordProps {
   project: Project;
   currentUser: User;
@@ -85,7 +83,6 @@ const RESOURCE_ITEMS = [
     { name: '怪手 (Máy đào)', unit: '式/chuyến' }
 ];
 
-// Fix: Destructured systemRules in ConstructionRecord component signature.
 const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, currentUser, onUpdateProject, systemRules, forceEntryMode = false, initialDate }) => {
   const isMaintenance = project.type === ProjectType.MAINTENANCE;
   const mainTitle = isMaintenance ? '施工報告 (Báo cáo)' : '施工紀錄 (Nhật ký)';
@@ -466,7 +463,11 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
         worksheet.mergeCells('B3:E3');
 
         // Row 4: 天氣 (精準對應匯入規則 B4)
-        const weatherText = report ? (report.weather === 'sunny' ? '晴天' : report.weather === '陰天' : report.weather === 'rainy' ? '雨天' : '未紀錄') : '未紀錄';
+        // Fix ternary logic chain: cond ? val : (cond2 ? val2 : val3)
+        const weatherText = report 
+          ? (report.weather === 'sunny' ? '晴天' : report.weather === 'cloudy' ? '陰天' : report.weather === 'rainy' ? '雨天' : '未紀錄') 
+          : '未紀錄';
+
         worksheet.getCell('A4').value = '天氣 (T.tiết)';
         worksheet.getCell('A4').font = headerFont;
         worksheet.getCell('B4').value = weatherText;
@@ -898,7 +899,7 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
         {isSigning && (
             <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm animate-fade-in">
                 <div className="bg-white w-full max-w-md rounded-[32px] shadow-2xl overflow-hidden flex flex-col animate-scale-in">
-                    <div className="px-8 py-5 border-b border-slate-100 flex justify-between items-center bg-slate-50"><h3 className="font-black text-slate-800">簽證簽名 (Ký tên)</h3><button onClick={() => setIsSigning(false)} className="p-2 text-slate-400 hover:text-red-500 rounded-full transition-colors"><XIcon className="w-6 h-6" /></button></div>
+                    <div className="px-8 py-5 border-b border-slate-100 flex justify-between items-center bg-slate-50"><h3 className="font-black text-slate-800">簽證簽名 (Ký tên)</h3><button onClick={() => setIsSigning(false)} className="p-2 text-slate-400 hover:text-red-500 rounded-full transition-colors"><XIcon className="w-5 h-5" /></button></div>
                     <div className="p-6 bg-slate-200 flex items-center justify-center overflow-hidden"><canvas ref={canvasRef} width={340} height={200} className="bg-white shadow-xl cursor-crosshair touch-none rounded-2xl border-4 border-white" onMouseDown={startDrawing} onMouseMove={draw} onMouseUp={stopDrawing} onMouseLeave={stopDrawing} onTouchStart={startDrawing} onTouchMove={draw} onTouchEnd={stopDrawing} /></div>
                     <div className="p-6 border-t border-slate-100 flex justify-between gap-4"><button onClick={clearSignature} className="p-3 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all" title="重寫 (Viết lại)"><TrashIcon className="w-6 h-6" /></button><div className="flex gap-3"><button onClick={() => setIsSigning(false)} className="px-6 py-3 text-slate-500 font-bold hover:bg-slate-100 rounded-xl transition-colors">取消</button><button onClick={saveSignature} className="px-8 py-3 bg-blue-600 text-white rounded-xl font-black shadow-lg shadow-blue-100 active:scale-95 transition-all">確認儲存</button></div></div>
                 </div>

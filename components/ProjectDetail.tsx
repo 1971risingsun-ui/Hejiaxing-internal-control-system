@@ -23,7 +23,7 @@ interface ProjectDetailProps {
 const ProjectDetail: React.FC<ProjectDetailProps> = ({ project, currentUser, onBack, onUpdateProject, onEditProject, onAddToSchedule, globalTeamConfigs, systemRules }) => {
   const [activeTab, setActiveTab] = useState<'overview' | 'materials' | 'construction' | 'completion' | 'preparation' | 'planning'>('overview');
   
-  // 排程相關狀態
+  // 排程與翻譯相關狀態
   const [isScheduling, setIsScheduling] = useState(false);
   const [scheduleDate, setScheduleDate] = useState(new Date().toISOString().split('T')[0]);
   const [scheduleTeam, setScheduleTeam] = useState(1);
@@ -88,7 +88,7 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ project, currentUser, onB
           lastModifiedAt: Date.now(),
           lastModifiedBy: 'AI 翻譯'
         });
-        alert('翻譯完成！');
+        alert('翻譯完成 (Dịch hoàn thành)！');
       } catch (e) {
         alert('翻譯失敗，請檢查網路或 API 金鑰。');
       } finally {
@@ -119,10 +119,12 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ project, currentUser, onB
                    >
                      <EditIcon className="w-3.5 h-3.5" /> 編輯 (Sửa)
                    </button>
+                   {/* 新增的翻譯按鈕 */}
                    <button 
                      onClick={handleTranslateProject}
                      disabled={isTranslating}
                      className="flex items-center gap-1 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 rounded-lg transition-all text-xs font-bold border border-indigo-100 disabled:opacity-50"
+                     title="翻譯資訊 (Dịch thông tin)"
                    >
                      {isTranslating ? <LoaderIcon className="w-3.5 h-3.5 animate-spin" /> : <LanguagesIcon className="w-3.5 h-3.5" />}
                      翻譯 (Dịch)
@@ -277,15 +279,15 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ project, currentUser, onB
       )}
 
       {isTranslating && (
-        <div className="fixed inset-0 z-[200] bg-black/30 backdrop-blur-sm flex items-center justify-center">
+        <div className="fixed inset-0 z-[200] bg-black/40 backdrop-blur-md flex items-center justify-center animate-fade-in">
             <div className="bg-white p-8 rounded-[40px] shadow-2xl flex flex-col items-center gap-4 animate-scale-in">
                 <div className="relative">
                    <LanguagesIcon className="w-12 h-12 text-indigo-600 animate-pulse" />
                    <LoaderIcon className="w-6 h-6 text-indigo-400 animate-spin absolute -top-1 -right-1" />
                 </div>
                 <div className="text-center">
-                  <p className="font-black text-slate-800 text-lg">AI 正在翻譯此案件資訊...</p>
-                  <p className="text-xs text-slate-400 font-bold mt-1 uppercase tracking-widest">Translating details to Vietnamese</p>
+                  <p className="font-black text-slate-800 text-lg">AI 正在翻譯詳細資訊...</p>
+                  <p className="text-xs text-slate-400 font-bold mt-1 uppercase tracking-widest">Translating to Vietnamese</p>
                 </div>
             </div>
         </div>
