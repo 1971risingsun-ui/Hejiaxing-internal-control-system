@@ -1,3 +1,4 @@
+
 export enum ProjectStatus {
   PLANNING = '規劃中',
   IN_PROGRESS = '進行中',
@@ -115,6 +116,20 @@ export interface ConstructionSignature {
   lastModifiedAt?: number;
 }
 
+export type CardType = 'material' | 'outsourcing' | 'subcontractor' | 'production';
+
+export interface PlanningCard {
+  id: string;
+  type: CardType;
+  name: string; // 共用欄位：施工項目(備料)、外包項目(外包)、協力項目(協力)、品名(生產)
+  spec?: string; // 共用欄位：規格
+  quantity?: string; // 共用欄位：數量
+  unit?: string; // 共用欄位：單位
+  vendor?: string; // 共用欄位：外包廠商(外包)、協力廠商(協力)
+  materialName?: string; // 專用欄位：材料名稱(備料)
+  note?: string; // 專用欄位：備註(生產)
+}
+
 export interface CompletionItem {
   name: string;
   action: 'install' | 'dismantle' | 'none';
@@ -127,6 +142,7 @@ export interface CompletionItem {
   isProduced?: boolean; 
   supplierId?: string;
   isPoCreated?: boolean; 
+  cards?: PlanningCard[]; // 新增卡片陣列
   lastModifiedBy?: string;
   lastModifiedAt?: number;
 }

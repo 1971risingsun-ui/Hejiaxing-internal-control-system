@@ -1,6 +1,7 @@
+
 import React, { useState, useRef, useEffect } from 'react';
-import { Project, User, CompletionReport as CompletionReportType, CompletionItem } from '../types';
-import { PlusIcon, FileTextIcon, TrashIcon, XIcon, CheckCircleIcon, EditIcon, LoaderIcon, ClockIcon, DownloadIcon, UploadIcon, CopyIcon } from './Icons';
+import { Project, User, CompletionReport as CompletionReportType, CompletionItem, PlanningCard, CardType } from '../types';
+import { PlusIcon, FileTextIcon, TrashIcon, XIcon, CheckCircleIcon, EditIcon, LoaderIcon, ClockIcon, DownloadIcon, UploadIcon, CopyIcon, LayoutGridIcon, BoxIcon, UsersIcon, PenToolIcon, BriefcaseIcon } from './Icons';
 import { downloadBlob } from '../utils/fileHelpers';
 import ExcelJS from 'exceljs';
 
@@ -67,6 +68,201 @@ const CATEGORY_GROUPS = {
     }
 };
 
+interface CardManagementModalProps {
+  item: CompletionItem;
+  onSave: (updatedItem: CompletionItem) => void;
+  onClose: () => void;
+}
+
+const CardManagementModal: React.FC<CardManagementModalProps> = ({ item, onSave, onClose }) => {
+  const [cards, setCards] = useState<PlanningCard[]>(item.cards || []);
+  const [newCardType, setNewCardType] = useState<CardType>('material');
+
+  const handleAddCard = (type: CardType) => {
+    const newCard: PlanningCard = {
+      id: crypto.randomUUID(),
+      type,
+      name: '',
+      quantity: '',
+      unit: '',
+      spec: '',
+      vendor: '',
+      materialName: '',
+      note: ''
+    };
+    // 預設值填充
+    if (type === 'material') {
+        newCard.name = item.name; // 預設帶入施工項目名稱
+        newCard.quantity = item.quantity;
+        newCard.unit = item.unit;
+    }
+    setCards([...cards, newCard]);
+  };
+
+  const handleUpdateCard = (id: string, field: keyof PlanningCard, value: string) => {
+    setCards(cards.map(c => c.id === id ? { ...c, [field]: value } : c));
+  };
+
+  const handleDeleteCard = (id: string) => {
+    if(confirm('確定刪除此卡片?')) {
+        setCards(cards.filter(c => c.id !== id));
+    }
+  };
+
+  const handleConfirm = () => {
+    onSave({ ...item, cards });
+    onClose();
+  };
+
+  const getCardStyle = (type: CardType) => {
+    switch(type) {
+        case 'material': return 'bg-blue-50 border-blue-200';
+        case 'outsourcing': return 'bg-orange-50 border-orange-200';
+        case 'subcontractor': return 'bg-purple-50 border-purple-200';
+        case 'production': return 'bg-emerald-50 border-emerald-200';
+        default: return 'bg-slate-50 border-slate-200';
+    }
+  };
+
+  const getCardLabel = (type: CardType) => {
+    switch(type) {
+        case 'material': return { text: '備料卡片', icon: <BoxIcon className="w-4 h-4 text-blue-600" />, color: 'text-blue-700' };
+        case 'outsourcing': return { text: '外包卡片', icon: <BriefcaseIcon className="w-4 h-4 text-orange-600" />, color: 'text-orange-700' };
+        case 'subcontractor': return { text: '協力卡片', icon: <UsersIcon className="w-4 h-4 text-purple-600" />, color: 'text-purple-700' };
+        case 'production': return { text: '生產卡片', icon: <PenToolIcon className="w-4 h-4 text-emerald-600" />, color: 'text-emerald-700' };
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in" onClick={onClose}>
+      <div className="bg-white w-full max-w-4xl max-h-[90vh] rounded-[32px] shadow-2xl overflow-hidden flex flex-col animate-scale-in" onClick={e => e.stopPropagation()}>
+        <header className="px-8 py-5 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+            <div>
+                <h3 className="font-black text-slate-800 text-lg">項目細節卡片管理</h3>
+                <p className="text-sm font-bold text-slate-500 mt-1">{item.name} {item.spec ? `(${item.spec})` : ''}</p>
+            </div>
+            <button onClick={onClose} className="p-2 text-slate-400 hover:bg-red-50 hover:text-red-500 rounded-full transition-colors"><XIcon className="w-6 h-6" /></button>
+        </header>
+        
+        <div className="p-6 bg-white border-b border-slate-100 flex gap-3 overflow-x-auto no-scrollbar">
+            <button onClick={() => handleAddCard('material')} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-100 text-blue-700 font-bold text-xs hover:bg-blue-200 transition-all shadow-sm active:scale-95 whitespace-nowrap"><BoxIcon className="w-4 h-4" /> + 新增備料卡片</button>
+            <button onClick={() => handleAddCard('outsourcing')} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-orange-100 text-orange-700 font-bold text-xs hover:bg-orange-200 transition-all shadow-sm active:scale-95 whitespace-nowrap"><BriefcaseIcon className="w-4 h-4" /> + 新增外包卡片</button>
+            <button onClick={() => handleAddCard('subcontractor')} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-purple-100 text-purple-700 font-bold text-xs hover:bg-purple-200 transition-all shadow-sm active:scale-95 whitespace-nowrap"><UsersIcon className="w-4 h-4" /> + 新增協力卡片</button>
+            <button onClick={() => handleAddCard('production')} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-100 text-emerald-700 font-bold text-xs hover:bg-emerald-200 transition-all shadow-sm active:scale-95 whitespace-nowrap"><PenToolIcon className="w-4 h-4" /> + 新增生產卡片</button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar bg-slate-50/50">
+            {cards.length === 0 ? (
+                <div className="py-20 text-center text-slate-400">
+                    <LayoutGridIcon className="w-16 h-16 mx-auto mb-4 opacity-20" />
+                    <p className="font-bold text-sm">尚未建立任何卡片</p>
+                    <p className="text-xs mt-1">請點擊上方按鈕依需求新增</p>
+                </div>
+            ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {cards.map((card, idx) => {
+                        const style = getCardStyle(card.type);
+                        const label = getCardLabel(card.type);
+                        return (
+                            <div key={card.id} className={`p-4 rounded-2xl border-2 ${style} relative group shadow-sm hover:shadow-md transition-all`}>
+                                <div className="flex justify-between items-center mb-3 pb-2 border-b border-black/5">
+                                    <div className={`flex items-center gap-2 text-xs font-black uppercase tracking-wider ${label.color}`}>
+                                        {label.icon} {label.text}
+                                    </div>
+                                    <button onClick={() => handleDeleteCard(card.id)} className="text-slate-400 hover:text-red-500 p-1 rounded transition-colors"><TrashIcon className="w-4 h-4" /></button>
+                                </div>
+                                
+                                <div className="space-y-3">
+                                    {/* 根據卡片類型顯示不同欄位 */}
+                                    {card.type === 'material' && (
+                                        <>
+                                            <div className="grid grid-cols-2 gap-3">
+                                                <div>
+                                                    <label className="text-[10px] font-bold text-slate-500 block mb-1">施工項目</label>
+                                                    <input type="text" value={card.name} onChange={e => handleUpdateCard(card.id, 'name', e.target.value)} className="w-full text-xs font-bold bg-white border border-slate-200 rounded px-2 py-1.5 outline-none focus:ring-1 focus:ring-blue-400" />
+                                                </div>
+                                                <div>
+                                                    <label className="text-[10px] font-bold text-slate-500 block mb-1">材料名稱</label>
+                                                    <input type="text" value={card.materialName || ''} onChange={e => handleUpdateCard(card.id, 'materialName', e.target.value)} className="w-full text-xs font-bold bg-white border border-slate-200 rounded px-2 py-1.5 outline-none focus:ring-1 focus:ring-blue-400" />
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <label className="text-[10px] font-bold text-slate-500 block mb-1">規格</label>
+                                                <input type="text" value={card.spec || ''} onChange={e => handleUpdateCard(card.id, 'spec', e.target.value)} className="w-full text-xs font-bold bg-white border border-slate-200 rounded px-2 py-1.5 outline-none focus:ring-1 focus:ring-blue-400" />
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-3">
+                                                <div>
+                                                    <label className="text-[10px] font-bold text-slate-500 block mb-1">數量</label>
+                                                    <input type="text" value={card.quantity || ''} onChange={e => handleUpdateCard(card.id, 'quantity', e.target.value)} className="w-full text-xs font-bold bg-white border border-slate-200 rounded px-2 py-1.5 outline-none focus:ring-1 focus:ring-blue-400" />
+                                                </div>
+                                                <div>
+                                                    <label className="text-[10px] font-bold text-slate-500 block mb-1">單位</label>
+                                                    <input type="text" value={card.unit || ''} onChange={e => handleUpdateCard(card.id, 'unit', e.target.value)} className="w-full text-xs font-bold bg-white border border-slate-200 rounded px-2 py-1.5 outline-none focus:ring-1 focus:ring-blue-400" />
+                                                </div>
+                                            </div>
+                                        </>
+                                    )}
+
+                                    {(card.type === 'outsourcing' || card.type === 'subcontractor') && (
+                                        <>
+                                            <div>
+                                                <label className="text-[10px] font-bold text-slate-500 block mb-1">{card.type === 'outsourcing' ? '外包項目' : '協力項目'}</label>
+                                                <input type="text" value={card.name} onChange={e => handleUpdateCard(card.id, 'name', e.target.value)} className="w-full text-xs font-bold bg-white border border-slate-200 rounded px-2 py-1.5 outline-none focus:ring-1 focus:ring-orange-400" />
+                                            </div>
+                                            <div>
+                                                <label className="text-[10px] font-bold text-slate-500 block mb-1">{card.type === 'outsourcing' ? '外包廠商' : '協力廠商'}</label>
+                                                <input type="text" value={card.vendor || ''} onChange={e => handleUpdateCard(card.id, 'vendor', e.target.value)} className="w-full text-xs font-bold bg-white border border-slate-200 rounded px-2 py-1.5 outline-none focus:ring-1 focus:ring-orange-400" />
+                                            </div>
+                                            <div>
+                                                <label className="text-[10px] font-bold text-slate-500 block mb-1">規格</label>
+                                                <textarea rows={2} value={card.spec || ''} onChange={e => handleUpdateCard(card.id, 'spec', e.target.value)} className="w-full text-xs font-bold bg-white border border-slate-200 rounded px-2 py-1.5 outline-none focus:ring-1 focus:ring-orange-400 resize-none" />
+                                            </div>
+                                        </>
+                                    )}
+
+                                    {card.type === 'production' && (
+                                        <>
+                                            <div>
+                                                <label className="text-[10px] font-bold text-slate-500 block mb-1">品名</label>
+                                                <input type="text" value={card.name} onChange={e => handleUpdateCard(card.id, 'name', e.target.value)} className="w-full text-xs font-bold bg-white border border-slate-200 rounded px-2 py-1.5 outline-none focus:ring-1 focus:ring-emerald-400" />
+                                            </div>
+                                            <div>
+                                                <label className="text-[10px] font-bold text-slate-500 block mb-1">規格</label>
+                                                <textarea rows={2} value={card.spec || ''} onChange={e => handleUpdateCard(card.id, 'spec', e.target.value)} className="w-full text-xs font-bold bg-white border border-slate-200 rounded px-2 py-1.5 outline-none focus:ring-1 focus:ring-emerald-400 resize-none" />
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-3">
+                                                <div>
+                                                    <label className="text-[10px] font-bold text-slate-500 block mb-1">數量</label>
+                                                    <input type="text" value={card.quantity || ''} onChange={e => handleUpdateCard(card.id, 'quantity', e.target.value)} className="w-full text-xs font-bold bg-white border border-slate-200 rounded px-2 py-1.5 outline-none focus:ring-1 focus:ring-emerald-400" />
+                                                </div>
+                                                <div>
+                                                    <label className="text-[10px] font-bold text-slate-500 block mb-1">單位</label>
+                                                    <input type="text" value={card.unit || ''} onChange={e => handleUpdateCard(card.id, 'unit', e.target.value)} className="w-full text-xs font-bold bg-white border border-slate-200 rounded px-2 py-1.5 outline-none focus:ring-1 focus:ring-emerald-400" />
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <label className="text-[10px] font-bold text-slate-500 block mb-1">備註</label>
+                                                <input type="text" value={card.note || ''} onChange={e => handleUpdateCard(card.id, 'note', e.target.value)} className="w-full text-xs font-bold bg-white border border-slate-200 rounded px-2 py-1.5 outline-none focus:ring-1 focus:ring-emerald-400" />
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+            )}
+        </div>
+
+        <footer className="p-6 bg-slate-50 border-t border-slate-100 flex justify-end gap-3">
+            <button onClick={onClose} className="px-6 py-3 rounded-2xl text-slate-600 bg-white border border-slate-200 hover:bg-slate-100 shadow-sm font-bold transition-all active:scale-95">取消</button>
+            <button onClick={handleConfirm} className="px-8 py-3 rounded-2xl bg-slate-900 text-white hover:bg-black shadow-lg shadow-slate-300 font-black flex items-center gap-2 transition-all active:scale-95"><CheckCircleIcon className="w-5 h-5" /> 儲存卡片變更</button>
+        </footer>
+      </div>
+    </div>
+  );
+};
+
 const EngineeringPlanning: React.FC<EngineeringPlanningProps> = ({ project, currentUser, onUpdateProject }) => {
   const [reportDate, setReportDate] = useState(new Date().toISOString().split('T')[0]);
   const [isEditing, setIsEditing] = useState(true);
@@ -82,6 +278,8 @@ const EngineeringPlanning: React.FC<EngineeringPlanningProps> = ({ project, curr
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const [modalTarget, setModalTarget] = useState<{ index: number, item: CompletionItem } | null>(null);
 
   const hasReport = (project.planningReports || []).some(r => r.date === reportDate);
 
@@ -150,6 +348,34 @@ const EngineeringPlanning: React.FC<EngineeringPlanningProps> = ({ project, curr
       });
       
       setIsEditing(false);
+  };
+
+  // 卡片更新回調
+  const handleCardUpdate = (updatedItem: CompletionItem) => {
+      if (modalTarget) {
+          const newItems = [...items];
+          newItems[modalTarget.index] = updatedItem;
+          setItems(newItems);
+          
+          // 實時儲存以確保資料不遺失 (如果不在編輯模式下也應該可以更新卡片)
+          if (!isEditing) {
+             const combinedNotes = `【預估工期】圍籬：${estDaysFence} 日 / 組合屋：${estDaysModular} 日\n\n${notes}`;
+             const newReport: CompletionReportType = {
+                id: (project.planningReports || []).find(r => r.date === reportDate)?.id || crypto.randomUUID(),
+                date: reportDate,
+                worker: '', 
+                items: newItems,
+                notes: combinedNotes,
+                signature: '', 
+                timestamp: Date.now()
+             };
+             const otherReports = (project.planningReports || []).filter(r => r.date !== reportDate);
+             onUpdateProject({
+                ...project,
+                planningReports: [...otherReports, newReport]
+             });
+          }
+      }
   };
 
   const handleDeleteReport = () => {
@@ -555,7 +781,15 @@ const EngineeringPlanning: React.FC<EngineeringPlanningProps> = ({ project, curr
                                             </thead>
                                             <tbody className="divide-y divide-slate-100 text-sm">
                                                 {subItems.map(({ item, index }) => (
-                                                    <tr key={index} className="hover:bg-slate-50 transition-colors">
+                                                    <tr 
+                                                      key={index} 
+                                                      onClick={() => {
+                                                          if (!isEditing) {
+                                                              setModalTarget({ index: item.index, item });
+                                                          }
+                                                      }}
+                                                      className={`transition-colors ${!isEditing ? 'cursor-pointer hover:bg-indigo-50/30' : 'hover:bg-slate-50'}`}
+                                                    >
                                                         <td className="px-3 py-2">
                                                             {isEditing ? (
                                                                 <select 
@@ -566,7 +800,27 @@ const EngineeringPlanning: React.FC<EngineeringPlanningProps> = ({ project, curr
                                                                     {subCat.items.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                                                                     {!subCat.items.includes(item.name) && <option value={item.name}>{item.name}</option>}
                                                                 </select>
-                                                            ) : <span className="font-bold text-slate-800">{item.name}</span>}
+                                                            ) : (
+                                                                <div className="flex flex-col">
+                                                                    <span className="font-bold text-slate-800">{item.name}</span>
+                                                                    {item.cards && item.cards.length > 0 && (
+                                                                        <div className="flex gap-1 mt-1 flex-wrap">
+                                                                            {item.cards.map(c => {
+                                                                                let color = 'bg-slate-100 text-slate-500';
+                                                                                if(c.type === 'material') color = 'bg-blue-100 text-blue-600';
+                                                                                if(c.type === 'outsourcing') color = 'bg-orange-100 text-orange-600';
+                                                                                if(c.type === 'subcontractor') color = 'bg-purple-100 text-purple-600';
+                                                                                if(c.type === 'production') color = 'bg-emerald-100 text-emerald-600';
+                                                                                return (
+                                                                                    <span key={c.id} className={`text-[9px] px-1.5 py-0.5 rounded font-black ${color}`}>
+                                                                                        {c.type === 'material' ? '備' : c.type === 'outsourcing' ? '外' : c.type === 'subcontractor' ? '協' : '生'}
+                                                                                    </span>
+                                                                                );
+                                                                            })}
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            )}
                                                         </td>
                                                         <td className="px-3 py-2">
                                                             {isEditing ? (
@@ -702,6 +956,14 @@ const EngineeringPlanning: React.FC<EngineeringPlanningProps> = ({ project, curr
                   </>
               ) : <button onClick={() => setIsEditing(true)} className="px-8 py-2 rounded-xl bg-slate-900 text-white hover:bg-black shadow-lg shadow-slate-200 font-black flex items-center gap-2 transition-all active:scale-95"><EditIcon className="w-5 h-5" /> 編輯報價單</button>}
           </div>
+
+          {modalTarget && (
+              <CardManagementModal 
+                  item={modalTarget.item} 
+                  onSave={handleCardUpdate} 
+                  onClose={() => setModalTarget(null)} 
+              />
+          )}
       </div>
   );
 };
