@@ -76,8 +76,7 @@ interface CardManagementModalProps {
 
 const CardManagementModal: React.FC<CardManagementModalProps> = ({ item, onSave, onClose }) => {
   const [cards, setCards] = useState<PlanningCard[]>(item.cards || []);
-  const [newCardType, setNewCardType] = useState<CardType>('material');
-
+  
   const handleAddCard = (type: CardType) => {
     const newCard: PlanningCard = {
       id: crypto.randomUUID(),
@@ -785,7 +784,7 @@ const EngineeringPlanning: React.FC<EngineeringPlanningProps> = ({ project, curr
                                                       key={index} 
                                                       onClick={() => {
                                                           if (!isEditing) {
-                                                              setModalTarget({ index: item.index, item });
+                                                              setModalTarget({ index: index, item });
                                                           }
                                                       }}
                                                       className={`transition-colors ${!isEditing ? 'cursor-pointer hover:bg-indigo-50/30' : 'hover:bg-slate-50'}`}
