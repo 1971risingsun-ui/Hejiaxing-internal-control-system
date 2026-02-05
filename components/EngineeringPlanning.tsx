@@ -1,6 +1,6 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Project, User, CompletionReport as CompletionReportType, CompletionItem, PlanningCard, CardType } from '../types';
+import { Project, User, CompletionReport as CompletionReportType, CompletionItem, PlanningCard, CardType, PlanningMaterialDetail } from '../types';
 import { PlusIcon, FileTextIcon, TrashIcon, XIcon, CheckCircleIcon, EditIcon, LoaderIcon, ClockIcon, DownloadIcon, UploadIcon, CopyIcon, LayoutGridIcon, BoxIcon, UsersIcon, PenToolIcon, BriefcaseIcon } from './Icons';
 import { downloadBlob } from '../utils/fileHelpers';
 import ExcelJS from 'exceljs';
@@ -75,7 +75,29 @@ interface CardManagementModalProps {
 }
 
 const CardManagementModal: React.FC<CardManagementModalProps> = ({ item, onSave, onClose }) => {
-  const [cards, setCards] = useState<PlanningCard[]>(item.cards || []);
+  // 初始化時檢查是否有舊資料需要遷移到 materialDetails
+  const [cards, setCards] = useState<PlanningCard[]>(() => {
+      return (item.cards || []).map(c => {
+          if (c.type === 'material' && (!c.materialDetails || c.materialDetails.length === 0)) {
+              // 兼容舊資料：若無 details 但有 top-level fields，則建立一筆 detail
+              if (c.materialName || c.spec) {
+                  return {
+                      ...c,
+                      materialDetails: [{
+                          id: crypto.randomUUID(),
+                          name: c.materialName || '',
+                          spec: c.spec || '',
+                          quantity: c.quantity || '',
+                          unit: c.unit || ''
+                      }]
+                  };
+              }
+              // 若完全無資料，初始化一個空陣列或預設一筆空資料
+              return { ...c, materialDetails: [] };
+          }
+          return c;
+      });
+  });
   
   const handleAddCard = (type: CardType) => {
     const newCard: PlanningCard = {
@@ -87,13 +109,20 @@ const CardManagementModal: React.FC<CardManagementModalProps> = ({ item, onSave,
       spec: '',
       vendor: '',
       materialName: '',
-      note: ''
+      note: '',
+      materialDetails: []
     };
     // 預設值填充
     if (type === 'material') {
         newCard.name = item.name; // 預設帶入施工項目名稱
-        newCard.quantity = item.quantity;
-        newCard.unit = item.unit;
+        // 備料卡片預設新增一筆空白明細
+        newCard.materialDetails = [{
+            id: crypto.randomUUID(),
+            name: '',
+            spec: '',
+            quantity: item.quantity,
+            unit: item.unit
+        }];
     }
     setCards([...cards, newCard]);
   };
@@ -111,6 +140,42 @@ const CardManagementModal: React.FC<CardManagementModalProps> = ({ item, onSave,
   const handleConfirm = () => {
     onSave({ ...item, cards });
     onClose();
+  };
+
+  // --- Material Details Handlers ---
+  const handleAddMaterialDetail = (cardId: string) => {
+    setCards(cards.map(c => {
+        if (c.id === cardId) {
+            const newDetail: PlanningMaterialDetail = { 
+                id: crypto.randomUUID(), 
+                name: '', 
+                spec: '', 
+                quantity: '', 
+                unit: '' 
+            };
+            return { ...c, materialDetails: [...(c.materialDetails || []), newDetail] };
+        }
+        return c;
+    }));
+  };
+
+  const handleUpdateMaterialDetail = (cardId: string, detailId: string, field: keyof PlanningMaterialDetail, value: string) => {
+    setCards(cards.map(c => {
+        if (c.id === cardId) {
+            const newDetails = (c.materialDetails || []).map(d => d.id === detailId ? { ...d, [field]: value } : d);
+            return { ...c, materialDetails: newDetails };
+        }
+        return c;
+    }));
+  };
+
+  const handleDeleteMaterialDetail = (cardId: string, detailId: string) => {
+    setCards(cards.map(c => {
+        if (c.id === cardId) {
+            return { ...c, materialDetails: (c.materialDetails || []).filter(d => d.id !== detailId) };
+        }
+        return c;
+    }));
   };
 
   const getCardStyle = (type: CardType) => {
@@ -172,31 +237,73 @@ const CardManagementModal: React.FC<CardManagementModalProps> = ({ item, onSave,
                                 </div>
                                 
                                 <div className="space-y-3">
-                                    {/* 根據卡片類型顯示不同欄位 */}
+                                    {/* 備料卡片 (Material) - 支援多筆明細 */}
                                     {card.type === 'material' && (
                                         <>
-                                            <div className="grid grid-cols-2 gap-3">
-                                                <div>
-                                                    <label className="text-[10px] font-bold text-slate-500 block mb-1">施工項目</label>
-                                                    <input type="text" value={card.name} onChange={e => handleUpdateCard(card.id, 'name', e.target.value)} className="w-full text-xs font-bold bg-white border border-slate-200 rounded px-2 py-1.5 outline-none focus:ring-1 focus:ring-blue-400" />
-                                                </div>
-                                                <div>
-                                                    <label className="text-[10px] font-bold text-slate-500 block mb-1">材料名稱</label>
-                                                    <input type="text" value={card.materialName || ''} onChange={e => handleUpdateCard(card.id, 'materialName', e.target.value)} className="w-full text-xs font-bold bg-white border border-slate-200 rounded px-2 py-1.5 outline-none focus:ring-1 focus:ring-blue-400" />
-                                                </div>
-                                            </div>
                                             <div>
-                                                <label className="text-[10px] font-bold text-slate-500 block mb-1">規格</label>
-                                                <input type="text" value={card.spec || ''} onChange={e => handleUpdateCard(card.id, 'spec', e.target.value)} className="w-full text-xs font-bold bg-white border border-slate-200 rounded px-2 py-1.5 outline-none focus:ring-1 focus:ring-blue-400" />
+                                                <label className="text-[10px] font-bold text-slate-500 block mb-1">施工項目</label>
+                                                <input type="text" value={card.name} onChange={e => handleUpdateCard(card.id, 'name', e.target.value)} className="w-full text-xs font-bold bg-white border border-slate-200 rounded px-2 py-1.5 outline-none focus:ring-1 focus:ring-blue-400" />
                                             </div>
-                                            <div className="grid grid-cols-2 gap-3">
-                                                <div>
-                                                    <label className="text-[10px] font-bold text-slate-500 block mb-1">數量</label>
-                                                    <input type="text" value={card.quantity || ''} onChange={e => handleUpdateCard(card.id, 'quantity', e.target.value)} className="w-full text-xs font-bold bg-white border border-slate-200 rounded px-2 py-1.5 outline-none focus:ring-1 focus:ring-blue-400" />
+                                            
+                                            <div className="mt-2">
+                                                <div className="flex justify-between items-center mb-1">
+                                                    <label className="text-[10px] font-bold text-slate-500 block">材料明細</label>
+                                                    <button onClick={() => handleAddMaterialDetail(card.id)} className="text-[9px] bg-blue-100 text-blue-600 px-2 py-0.5 rounded font-bold hover:bg-blue-200 transition-colors flex items-center gap-1">
+                                                        <PlusIcon className="w-3 h-3" /> 新增規格
+                                                    </button>
                                                 </div>
-                                                <div>
-                                                    <label className="text-[10px] font-bold text-slate-500 block mb-1">單位</label>
-                                                    <input type="text" value={card.unit || ''} onChange={e => handleUpdateCard(card.id, 'unit', e.target.value)} className="w-full text-xs font-bold bg-white border border-slate-200 rounded px-2 py-1.5 outline-none focus:ring-1 focus:ring-blue-400" />
+                                                <div className="space-y-2 max-h-[200px] overflow-y-auto pr-1 custom-scrollbar">
+                                                    {(card.materialDetails || []).map((detail, dIdx) => (
+                                                        <div key={detail.id} className="bg-white/60 p-2 rounded-lg border border-slate-200 shadow-sm relative group/detail">
+                                                            <div className="grid grid-cols-12 gap-2 mb-1">
+                                                                <div className="col-span-12">
+                                                                    <input 
+                                                                        type="text" 
+                                                                        placeholder="材料名稱" 
+                                                                        value={detail.name} 
+                                                                        onChange={e => handleUpdateMaterialDetail(card.id, detail.id, 'name', e.target.value)} 
+                                                                        className="w-full text-xs font-bold bg-white border border-slate-200 rounded px-1.5 py-1 outline-none focus:border-blue-400 placeholder:text-slate-300" 
+                                                                    />
+                                                                </div>
+                                                                <div className="col-span-12">
+                                                                    <input 
+                                                                        type="text" 
+                                                                        placeholder="規格" 
+                                                                        value={detail.spec} 
+                                                                        onChange={e => handleUpdateMaterialDetail(card.id, detail.id, 'spec', e.target.value)} 
+                                                                        className="w-full text-xs bg-white border border-slate-200 rounded px-1.5 py-1 outline-none focus:border-blue-400 placeholder:text-slate-300" 
+                                                                    />
+                                                                </div>
+                                                                <div className="col-span-6">
+                                                                    <input 
+                                                                        type="text" 
+                                                                        placeholder="數量" 
+                                                                        value={detail.quantity} 
+                                                                        onChange={e => handleUpdateMaterialDetail(card.id, detail.id, 'quantity', e.target.value)} 
+                                                                        className="w-full text-xs font-black text-blue-600 bg-white border border-slate-200 rounded px-1.5 py-1 outline-none focus:border-blue-400 text-center placeholder:text-slate-300" 
+                                                                    />
+                                                                </div>
+                                                                <div className="col-span-6">
+                                                                    <input 
+                                                                        type="text" 
+                                                                        placeholder="單位" 
+                                                                        value={detail.unit} 
+                                                                        onChange={e => handleUpdateMaterialDetail(card.id, detail.id, 'unit', e.target.value)} 
+                                                                        className="w-full text-xs text-slate-500 bg-white border border-slate-200 rounded px-1.5 py-1 outline-none focus:border-blue-400 text-center placeholder:text-slate-300" 
+                                                                    />
+                                                                </div>
+                                                            </div>
+                                                            <button 
+                                                                onClick={() => handleDeleteMaterialDetail(card.id, detail.id)} 
+                                                                className="absolute -top-1 -right-1 bg-red-100 text-red-500 rounded-full p-0.5 opacity-0 group-hover/detail:opacity-100 transition-opacity hover:bg-red-200"
+                                                            >
+                                                                <XIcon className="w-3 h-3" />
+                                                            </button>
+                                                        </div>
+                                                    ))}
+                                                    {(card.materialDetails || []).length === 0 && (
+                                                        <div className="text-center py-2 text-[10px] text-slate-400 italic">尚無明細</div>
+                                                    )}
                                                 </div>
                                             </div>
                                         </>

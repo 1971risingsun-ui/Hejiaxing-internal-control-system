@@ -118,6 +118,14 @@ export interface ConstructionSignature {
 
 export type CardType = 'material' | 'outsourcing' | 'subcontractor' | 'production';
 
+export interface PlanningMaterialDetail {
+  id: string;
+  name: string;
+  spec: string;
+  quantity: string;
+  unit: string;
+}
+
 export interface PlanningCard {
   id: string;
   type: CardType;
@@ -126,7 +134,8 @@ export interface PlanningCard {
   quantity?: string; // 共用欄位：數量
   unit?: string; // 共用欄位：單位
   vendor?: string; // 共用欄位：外包廠商(外包)、協力廠商(協力)
-  materialName?: string; // 專用欄位：材料名稱(備料)
+  materialName?: string; // 專用欄位：材料名稱(備料) (舊資料相容)
+  materialDetails?: PlanningMaterialDetail[]; // 新增欄位：備料多筆明細
   note?: string; // 專用欄位：備註(生產)
 }
 

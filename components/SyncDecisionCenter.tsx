@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo } from 'react';
 import { BoxIcon, CheckCircleIcon, HistoryIcon, XIcon, AlertIcon, ChevronRightIcon, SaveIcon, RefreshIcon } from './Icons';
 
@@ -67,6 +68,25 @@ const SyncDecisionCenter: React.FC<SyncDecisionCenterProps> = ({ diffs, onConfir
     setSelections(next);
   };
 
+  const selectAllFile = () => {
+    const next: Record<string, Set<string>> = {};
+    Object.keys(diffs).forEach(cat => {
+      next[cat] = new Set();
+      diffs[cat].forEach(item => {
+        next[cat].add(item.id);
+      });
+    });
+    setSelections(next);
+  };
+
+  const selectAllCache = () => {
+    const next: Record<string, Set<string>> = {};
+    Object.keys(diffs).forEach(cat => {
+      next[cat] = new Set();
+    });
+    setSelections(next);
+  };
+
   const handleApply = () => {
     const finalSelections: Record<string, { id: string, side: 'file' | 'cache' }[]> = {};
     Object.keys(selections).forEach(cat => {
@@ -94,11 +114,17 @@ const SyncDecisionCenter: React.FC<SyncDecisionCenterProps> = ({ diffs, onConfir
               <p className="text-xs text-blue-600 font-bold uppercase tracking-widest">Selective Data Synchronization</p>
             </div>
           </div>
-          <div className="flex items-center gap-3">
-            <button onClick={selectAllNewest} className="px-4 py-2 bg-white border border-blue-200 text-blue-600 rounded-xl text-xs font-black hover:bg-blue-50 transition-all shadow-sm">
+          <div className="flex items-center gap-2">
+            <button onClick={selectAllNewest} className="px-3 py-2 bg-white border border-blue-200 text-blue-600 rounded-xl text-xs font-black hover:bg-blue-50 transition-all shadow-sm">
               保留全部最新版
             </button>
-            <button onClick={onCancel} className="p-2 bg-white hover:bg-red-50 hover:text-red-500 text-slate-400 rounded-full transition-all shadow-sm border border-slate-100">
+            <button onClick={selectAllFile} className="px-3 py-2 bg-white border border-emerald-200 text-emerald-600 rounded-xl text-xs font-black hover:bg-emerald-50 transition-all shadow-sm">
+              全選電腦檔案
+            </button>
+            <button onClick={selectAllCache} className="px-3 py-2 bg-white border border-orange-200 text-orange-600 rounded-xl text-xs font-black hover:bg-orange-50 transition-all shadow-sm">
+              全選瀏覽器暫存
+            </button>
+            <button onClick={onCancel} className="ml-2 p-2 bg-white hover:bg-red-50 hover:text-red-500 text-slate-400 rounded-full transition-all shadow-sm border border-slate-100">
               <XIcon className="w-5 h-5" />
             </button>
           </div>
