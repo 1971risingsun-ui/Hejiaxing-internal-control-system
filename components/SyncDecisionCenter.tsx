@@ -90,10 +90,12 @@ const SyncDecisionCenter: React.FC<SyncDecisionCenterProps> = ({ diffs, onConfir
   const handleApply = () => {
     const finalSelections: Record<string, { id: string, side: 'file' | 'cache' }[]> = {};
     Object.keys(selections).forEach(cat => {
-      finalSelections[cat] = diffs[cat].map(item => ({
-        id: item.id,
-        side: selections[cat].has(item.id) ? 'file' : 'cache'
-      }));
+      if (diffs[cat]) { // Safety check
+        finalSelections[cat] = diffs[cat].map(item => ({
+          id: item.id,
+          side: selections[cat].has(item.id) ? 'file' : 'cache'
+        }));
+      }
     });
     onConfirm(finalSelections);
   };

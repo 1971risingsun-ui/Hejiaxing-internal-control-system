@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Project, ProjectStatus, User, UserRole, ProjectType, WeeklySchedule as WeeklyScheduleType, DailyDispatch as DailyDispatchType, GlobalTeamConfigs, Employee, AttendanceRecord, OvertimeRecord, MonthSummaryRemark, Supplier, PurchaseOrder, SystemRules, StockAlertItem, Tool, Asset, Vehicle } from './types';
 import EngineeringView from './components/EngineeringView';
@@ -227,16 +228,21 @@ const App: React.FC = () => {
   const handleSyncConfirm = (selections: Record<string, { id: string, side: 'file' | 'cache' }[]>) => {
     if (!syncPending) return;
     const { fileData, cacheData } = syncPending;
-    const finalData = { ...mergeAppState(fileData || {}, cacheData || {}) }; 
+    
+    // Fix: Ensure safe access to fileData/cacheData even if they are null (e.g. fresh start)
+    const safeFileData = fileData || {};
+    const safeCacheData = cacheData || {};
+
+    const finalData = { ...mergeAppState(safeFileData, safeCacheData) }; 
     Object.entries(selections).forEach(([cat, list]) => {
       const catList: any[] = [];
       list.forEach(({ id, side }) => {
-        const source = side === 'file' ? fileData[cat] : cacheData[cat];
+        const source = side === 'file' ? safeFileData[cat] : safeCacheData[cat];
         const item = source?.find((i: any) => i.id === id);
         if (item) catList.push(item);
       });
       const allIdsInSelections = new Set(list.map(l => l.id));
-      const identicalItems = (fileData[cat] || []).filter((i: any) => !allIdsInSelections.has(i.id));
+      const identicalItems = (safeFileData[cat] || []).filter((i: any) => !allIdsInSelections.has(i.id));
       finalData[cat] = [...catList, ...identicalItems];
       if (cat === 'projects') finalData[cat] = sortProjects(finalData[cat]);
     });
