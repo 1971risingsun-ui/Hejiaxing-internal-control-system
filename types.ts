@@ -124,6 +124,7 @@ export interface PlanningMaterialDetail {
   spec: string;
   quantity: string;
   unit: string;
+  formula?: string;
 }
 
 export interface PlanningCard {

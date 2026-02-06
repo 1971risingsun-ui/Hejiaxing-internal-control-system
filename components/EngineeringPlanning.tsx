@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Project, User, CompletionReport as CompletionReportType, CompletionItem, PlanningCard, CardType, PlanningMaterialDetail, SystemRules, CardGenerationRule, PlanningMaterialDetailTemplate } from '../types';
 import { PlusIcon, FileTextIcon, TrashIcon, XIcon, CheckCircleIcon, EditIcon, LoaderIcon, ClockIcon, DownloadIcon, UploadIcon, CopyIcon, LayoutGridIcon, BoxIcon, UsersIcon, PenToolIcon, BriefcaseIcon, SettingsIcon } from './Icons';
@@ -73,9 +74,10 @@ interface CardManagementModalProps {
   item: CompletionItem;
   onSave: (updatedItem: CompletionItem) => void;
   onClose: () => void;
+  systemRules: SystemRules;
 }
 
-const CardManagementModal: React.FC<CardManagementModalProps> = ({ item, onSave, onClose }) => {
+const CardManagementModal: React.FC<CardManagementModalProps> = ({ item, onSave, onClose, systemRules }) => {
   // 初始化時檢查是否有舊資料需要遷移到 materialDetails
   const [cards, setCards] = useState<PlanningCard[]>(() => {
       return (item.cards || []).map(c => {
@@ -89,7 +91,8 @@ const CardManagementModal: React.FC<CardManagementModalProps> = ({ item, onSave,
                           name: c.materialName || '',
                           spec: c.spec || '',
                           quantity: c.quantity || '',
-                          unit: c.unit || ''
+                          unit: c.unit || '',
+                          formula: 'baseQty' // Assuming 1:1 if migrating old data
                       }]
                   };
               }
@@ -99,6 +102,16 @@ const CardManagementModal: React.FC<CardManagementModalProps> = ({ item, onSave,
           return c;
       });
   });
+
+  const calculateQty = (formula: string, baseQty: number) => {
+    try {
+        const func = new Function('baseQty', 'Math', `return ${formula}`);
+        const result = func(baseQty, Math);
+        return isNaN(result) ? 0 : Number(result.toFixed(2));
+    } catch (e) {
+        return 0;
+    }
+  };
   
   const handleAddCard = (type: CardType) => {
     const newCard: PlanningCard = {
@@ -118,20 +131,54 @@ const CardManagementModal: React.FC<CardManagementModalProps> = ({ item, onSave,
         newCard.name = item.name; // 預設帶入施工項目名稱
         newCard.quantity = item.quantity; // 預設帶入數量
         newCard.unit = item.unit; // 預設帶入單位
-        // 備料卡片預設新增一筆明細，並代入施工項目數量和單位
-        newCard.materialDetails = [{
-            id: crypto.randomUUID(),
-            name: '',
-            spec: '',
-            quantity: item.quantity,
-            unit: item.unit
-        }];
+        
+        // 查找匹配的自動生成規則
+        const rule = (systemRules.cardGenerationRules || []).find(r => r.targetType === 'material' && item.name.includes(r.keyword));
+        const baseQty = parseFloat(item.quantity) || 0;
+
+        if (rule && rule.materialTemplates && rule.materialTemplates.length > 0) {
+            newCard.materialDetails = rule.materialTemplates.map(tpl => ({
+                id: crypto.randomUUID(),
+                name: tpl.name,
+                spec: tpl.spec,
+                quantity: String(calculateQty(tpl.quantityFormula || 'baseQty', baseQty)),
+                unit: tpl.unit,
+                formula: tpl.quantityFormula || 'baseQty'
+            }));
+        } else {
+            // 備料卡片預設新增一筆明細，並代入施工項目數量和單位
+            newCard.materialDetails = [{
+                id: crypto.randomUUID(),
+                name: '',
+                spec: '',
+                quantity: item.quantity,
+                unit: item.unit,
+                formula: 'baseQty'
+            }];
+        }
     }
     setCards([...cards, newCard]);
   };
 
   const handleUpdateCard = (id: string, field: keyof PlanningCard, value: string) => {
-    setCards(cards.map(c => c.id === id ? { ...c, [field]: value } : c));
+    setCards(cards.map(c => {
+        if (c.id === id) {
+            const updatedCard = { ...c, [field]: value };
+            
+            // 如果修改的是數量，且卡片有詳細資料，嘗試重新計算
+            if (field === 'quantity' && c.type === 'material' && c.materialDetails) {
+                const baseQty = parseFloat(value) || 0;
+                updatedCard.materialDetails = c.materialDetails.map(d => {
+                    if (d.formula) {
+                        return { ...d, quantity: String(calculateQty(d.formula, baseQty)) };
+                    }
+                    return d;
+                });
+            }
+            return updatedCard;
+        }
+        return c;
+    }));
   };
 
   const handleDeleteCard = (id: string) => {
@@ -154,7 +201,8 @@ const CardManagementModal: React.FC<CardManagementModalProps> = ({ item, onSave,
                 name: '', 
                 spec: '', 
                 quantity: '', 
-                unit: '' 
+                unit: '',
+                formula: 'baseQty' 
             };
             return { ...c, materialDetails: [...(c.materialDetails || []), newDetail] };
         }
@@ -390,155 +438,142 @@ interface CardRulesModalProps {
 }
 
 const CardRulesModal: React.FC<CardRulesModalProps> = ({ systemRules, onUpdateSystemRules, onClose }) => {
-  const [activeTab, setActiveTab] = useState<CardType>('material');
-  const [newRule, setNewRule] = useState<CardGenerationRule>({ id: '', keyword: '', targetType: 'material', materialTemplates: [] });
-  const [editingId, setEditingId] = useState<string | null>(null);
+  const [rules, setRules] = useState<CardGenerationRule[]>(systemRules.cardGenerationRules || []);
 
-  const filteredRules = (systemRules.cardGenerationRules || []).filter(r => r.targetType === activeTab);
-
-  const handleSaveRule = () => {
-    if (!newRule.keyword) return;
-    const ruleToSave = { ...newRule, id: editingId || crypto.randomUUID(), targetType: activeTab };
-    const currentRules = systemRules.cardGenerationRules || [];
-    let nextRules;
-    if (editingId) {
-      nextRules = currentRules.map(r => r.id === editingId ? ruleToSave : r);
-    } else {
-      nextRules = [...currentRules, ruleToSave];
-    }
-    onUpdateSystemRules({ ...systemRules, cardGenerationRules: nextRules });
-    setNewRule({ id: '', keyword: '', targetType: activeTab, materialTemplates: [] });
-    setEditingId(null);
+  const handleSave = () => {
+    onUpdateSystemRules({ ...systemRules, cardGenerationRules: rules });
+    onClose();
   };
 
-  const handleEditRule = (rule: CardGenerationRule) => {
-    setNewRule({ ...rule });
-    setEditingId(rule.id);
+  const addRule = () => {
+    const newRule: CardGenerationRule = {
+      id: crypto.randomUUID(),
+      keyword: '',
+      targetType: 'material', // Default
+      materialTemplates: []
+    };
+    setRules([...rules, newRule]);
   };
 
-  const handleDeleteRule = (id: string) => {
-    if (confirm('確定刪除此規則？')) {
-      const nextRules = (systemRules.cardGenerationRules || []).filter(r => r.id !== id);
-      onUpdateSystemRules({ ...systemRules, cardGenerationRules: nextRules });
+  const updateRule = (id: string, field: keyof CardGenerationRule, value: any) => {
+    setRules(rules.map(r => r.id === id ? { ...r, [field]: value } : r));
+  };
+
+  const deleteRule = (id: string) => {
+    if(confirm('確定刪除此規則？')) {
+        setRules(rules.filter(r => r.id !== id));
     }
   };
 
-  const handleAddTemplate = () => {
-    setNewRule(prev => ({
-      ...prev,
-      materialTemplates: [...(prev.materialTemplates || []), { id: crypto.randomUUID(), name: '', spec: '', quantityFormula: 'baseQty', unit: '' }]
-    }));
+  // Template management for 'material' type cards
+  const addTemplate = (ruleId: string) => {
+      setRules(rules.map(r => {
+          if(r.id === ruleId) {
+              return {
+                  ...r,
+                  materialTemplates: [...(r.materialTemplates || []), {
+                      id: crypto.randomUUID(),
+                      name: '',
+                      spec: '',
+                      quantityFormula: 'baseQty', // Default 1:1
+                      unit: ''
+                  }]
+              };
+          }
+          return r;
+      }));
   };
 
-  const handleUpdateTemplate = (id: string, field: keyof PlanningMaterialDetailTemplate, value: string) => {
-    setNewRule(prev => ({
-      ...prev,
-      materialTemplates: (prev.materialTemplates || []).map(t => t.id === id ? { ...t, [field]: value } : t)
-    }));
+  const updateTemplate = (ruleId: string, tplId: string, field: keyof PlanningMaterialDetailTemplate, value: string) => {
+      setRules(rules.map(r => {
+          if(r.id === ruleId) {
+              const newTpls = (r.materialTemplates || []).map(t => t.id === tplId ? { ...t, [field]: value } : t);
+              return { ...r, materialTemplates: newTpls };
+          }
+          return r;
+      }));
   };
 
-  const handleDeleteTemplate = (id: string) => {
-    setNewRule(prev => ({
-      ...prev,
-      materialTemplates: (prev.materialTemplates || []).filter(t => t.id !== id)
-    }));
-  };
-
-  const getTabLabel = (type: CardType) => {
-    switch (type) {
-      case 'material': return '備料卡片';
-      case 'outsourcing': return '外包卡片';
-      case 'subcontractor': return '協力卡片';
-      case 'production': return '生產卡片';
-    }
+  const removeTemplate = (ruleId: string, tplId: string) => {
+      setRules(rules.map(r => {
+          if(r.id === ruleId) {
+              return { ...r, materialTemplates: (r.materialTemplates || []).filter(t => t.id !== tplId) };
+          }
+          return r;
+      }));
   };
 
   return (
-    <div className="fixed inset-0 z-[250] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
-      <div className="bg-white w-full max-w-4xl max-h-[90vh] rounded-[32px] shadow-2xl overflow-hidden flex flex-col animate-scale-in">
+    <div className="fixed inset-0 z-[250] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in" onClick={onClose}>
+      <div className="bg-white w-full max-w-3xl max-h-[85vh] rounded-[32px] shadow-2xl overflow-hidden flex flex-col animate-scale-in" onClick={e => e.stopPropagation()}>
         <header className="px-8 py-5 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-          <div>
-            <h3 className="font-black text-slate-800 text-lg">自動卡片生成設定</h3>
-            <p className="text-sm font-bold text-slate-500 mt-1">匯入估價單時自動新增卡片</p>
-          </div>
-          <button onClick={onClose} className="p-2 text-slate-400 hover:bg-red-50 hover:text-red-500 rounded-full transition-colors"><XIcon className="w-6 h-6" /></button>
-        </header>
-
-        <div className="p-4 bg-white border-b border-slate-100 flex gap-3 overflow-x-auto no-scrollbar">
-          {['material', 'outsourcing', 'subcontractor', 'production'].map((type) => (
-            <button
-              key={type}
-              onClick={() => { setActiveTab(type as CardType); setNewRule({ id: '', keyword: '', targetType: type as CardType, materialTemplates: [] }); setEditingId(null); }}
-              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${activeTab === type ? 'bg-slate-800 text-white shadow-md' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
-            >
-              {getTabLabel(type as CardType)}
-            </button>
-          ))}
-        </div>
-
-        <div className="flex-1 overflow-y-auto p-6 bg-slate-50 custom-scrollbar">
-          <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm mb-6">
-            <h4 className="text-sm font-bold text-slate-800 mb-3">{editingId ? '編輯規則' : '新增規則'}</h4>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">關鍵字 (Keyword)</label>
-                <input
-                  type="text"
-                  placeholder="輸入項目名稱關鍵字..."
-                  value={newRule.keyword}
-                  onChange={(e) => setNewRule({ ...newRule, keyword: e.target.value })}
-                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-slate-400"
-                />
-              </div>
-
-              {activeTab === 'material' && (
-                <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
-                  <div className="flex justify-between items-center mb-2">
-                    <label className="text-[10px] font-bold text-slate-500 uppercase">材料明細模板</label>
-                    <button onClick={handleAddTemplate} className="text-[10px] bg-blue-100 text-blue-600 px-2 py-1 rounded font-bold hover:bg-blue-200 flex items-center gap-1"><PlusIcon className="w-3 h-3" /> 新增明細</button>
-                  </div>
-                  {newRule.materialTemplates?.map((tpl, idx) => (
-                    <div key={tpl.id} className="grid grid-cols-12 gap-2 mb-2 items-center bg-white p-2 rounded border border-slate-100">
-                      <div className="col-span-3"><input type="text" placeholder="名稱" value={tpl.name} onChange={(e) => handleUpdateTemplate(tpl.id, 'name', e.target.value)} className="w-full text-xs border rounded px-1 py-1" /></div>
-                      <div className="col-span-3"><input type="text" placeholder="規格" value={tpl.spec} onChange={(e) => handleUpdateTemplate(tpl.id, 'spec', e.target.value)} className="w-full text-xs border rounded px-1 py-1" /></div>
-                      <div className="col-span-3"><input type="text" placeholder="數量公式 (如 baseQty*2)" value={tpl.quantityFormula} onChange={(e) => handleUpdateTemplate(tpl.id, 'quantityFormula', e.target.value)} className="w-full text-xs border rounded px-1 py-1 font-mono text-blue-600" /></div>
-                      <div className="col-span-2"><input type="text" placeholder="單位" value={tpl.unit} onChange={(e) => handleUpdateTemplate(tpl.id, 'unit', e.target.value)} className="w-full text-xs border rounded px-1 py-1" /></div>
-                      <div className="col-span-1 text-center"><button onClick={() => handleDeleteTemplate(tpl.id)} className="text-red-400 hover:text-red-600"><XIcon className="w-3 h-3" /></button></div>
-                    </div>
-                  ))}
-                  {(!newRule.materialTemplates || newRule.materialTemplates.length === 0) && <div className="text-center text-[10px] text-slate-400 py-2">無明細模板</div>}
-                </div>
-              )}
-
-              <div className="flex justify-end gap-2">
-                {editingId && <button onClick={() => { setEditingId(null); setNewRule({ id: '', keyword: '', targetType: activeTab, materialTemplates: [] }); }} className="px-4 py-2 text-xs font-bold text-slate-500 hover:bg-slate-100 rounded-lg">取消</button>}
-                <button onClick={handleSaveRule} disabled={!newRule.keyword} className="px-6 py-2 bg-slate-800 text-white rounded-lg text-xs font-bold shadow hover:bg-slate-900 disabled:opacity-50">儲存規則</button>
-              </div>
+            <div>
+                <h3 className="font-black text-slate-800 text-lg">自動卡片生成規則</h3>
+                <p className="text-sm font-bold text-slate-500 mt-1">設定關鍵字自動產生對應卡片與明細</p>
             </div>
-          </div>
-
-          <div className="space-y-2">
-            {filteredRules.map(rule => (
-              <div key={rule.id} className="bg-white p-3 rounded-xl border border-slate-200 shadow-sm flex justify-between items-center">
-                <div>
-                  <div className="text-sm font-bold text-slate-700">關鍵字: <span className="text-indigo-600">{rule.keyword}</span></div>
-                  {rule.targetType === 'material' && (
-                    <div className="text-[10px] text-slate-400 mt-1">
-                      包含 {rule.materialTemplates?.length || 0} 個材料明細模板
+            <button onClick={onClose} className="p-2 text-slate-400 hover:bg-red-50 hover:text-red-500 rounded-full transition-colors"><XIcon className="w-6 h-6" /></button>
+        </header>
+        
+        <div className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar bg-slate-50/50">
+            {rules.map((rule, idx) => (
+                <div key={rule.id} className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm hover:border-indigo-200 transition-all">
+                    <div className="flex gap-4 items-start mb-3">
+                        <div className="flex-1">
+                            <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">關鍵字 (包含即觸發)</label>
+                            <input 
+                                type="text" 
+                                value={rule.keyword} 
+                                onChange={e => updateRule(rule.id, 'keyword', e.target.value)} 
+                                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-indigo-500 outline-none"
+                                placeholder="例如: 大門"
+                            />
+                        </div>
+                        <div className="w-40">
+                            <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">卡片類型</label>
+                            <select 
+                                value={rule.targetType} 
+                                onChange={e => updateRule(rule.id, 'targetType', e.target.value)} 
+                                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-indigo-500 outline-none"
+                            >
+                                <option value="material">備料卡片</option>
+                                <option value="outsourcing">外包卡片</option>
+                                <option value="subcontractor">協力卡片</option>
+                                <option value="production">生產卡片</option>
+                            </select>
+                        </div>
+                        <button onClick={() => deleteRule(rule.id)} className="mt-6 p-2 text-slate-300 hover:text-red-500 transition-colors"><TrashIcon className="w-5 h-5" /></button>
                     </div>
-                  )}
+
+                    {rule.targetType === 'material' && (
+                        <div className="pl-4 border-l-2 border-indigo-100 mt-2 space-y-2">
+                            <label className="block text-[10px] font-bold text-indigo-400 uppercase">自動生成材料明細</label>
+                            {(rule.materialTemplates || []).map(tpl => (
+                                <div key={tpl.id} className="flex gap-2 items-center bg-slate-50 p-2 rounded-lg border border-slate-100">
+                                    <input type="text" placeholder="材料名稱" value={tpl.name} onChange={e => updateTemplate(rule.id, tpl.id, 'name', e.target.value)} className="flex-[2] px-2 py-1 text-xs border rounded outline-none focus:border-indigo-400 font-bold" />
+                                    <input type="text" placeholder="規格" value={tpl.spec} onChange={e => updateTemplate(rule.id, tpl.id, 'spec', e.target.value)} className="flex-[2] px-2 py-1 text-xs border rounded outline-none focus:border-indigo-400" />
+                                    <div className="flex-1 flex items-center gap-1">
+                                        <span className="text-[10px] text-slate-400">Qty=</span>
+                                        <input type="text" placeholder="baseQty" value={tpl.quantityFormula} onChange={e => updateTemplate(rule.id, tpl.id, 'quantityFormula', e.target.value)} className="w-full px-2 py-1 text-xs border rounded outline-none focus:border-indigo-400 font-mono text-blue-600" title="可用變數: baseQty (項目數量)" />
+                                    </div>
+                                    <input type="text" placeholder="單位" value={tpl.unit} onChange={e => updateTemplate(rule.id, tpl.id, 'unit', e.target.value)} className="w-16 px-2 py-1 text-xs border rounded outline-none focus:border-indigo-400 text-center" />
+                                    <button onClick={() => removeTemplate(rule.id, tpl.id)} className="text-slate-300 hover:text-red-500"><XIcon className="w-4 h-4" /></button>
+                                </div>
+                            ))}
+                            <button onClick={() => addTemplate(rule.id)} className="text-xs text-indigo-600 font-bold flex items-center gap-1 hover:underline px-2"><PlusIcon className="w-3 h-3" /> 加入明細模板</button>
+                        </div>
+                    )}
                 </div>
-                <div className="flex gap-1">
-                  <button onClick={() => handleEditRule(rule)} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg"><EditIcon className="w-4 h-4" /></button>
-                  <button onClick={() => handleDeleteRule(rule.id)} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg"><TrashIcon className="w-4 h-4" /></button>
-                </div>
-              </div>
             ))}
-            {filteredRules.length === 0 && (
-              <div className="text-center py-8 text-slate-400 text-xs italic">此分類尚無規則</div>
-            )}
-          </div>
+            
+            <button onClick={addRule} className="w-full py-4 border-2 border-dashed border-slate-300 rounded-2xl text-slate-500 font-bold hover:bg-slate-50 hover:border-indigo-300 hover:text-indigo-600 transition-all flex items-center justify-center gap-2">
+                <PlusIcon className="w-5 h-5" /> 新增生成規則
+            </button>
         </div>
+
+        <footer className="p-6 bg-slate-50 border-t border-slate-100 flex justify-end gap-3">
+            <button onClick={onClose} className="px-6 py-3 rounded-2xl text-slate-600 bg-white border border-slate-200 hover:bg-slate-100 shadow-sm font-bold transition-all active:scale-95">取消</button>
+            <button onClick={handleSave} className="px-8 py-3 rounded-2xl bg-slate-900 text-white hover:bg-black shadow-lg shadow-slate-300 font-black flex items-center gap-2 transition-all active:scale-95"><CheckCircleIcon className="w-5 h-5" /> 儲存設定</button>
+        </footer>
       </div>
     </div>
   );
@@ -699,7 +734,8 @@ const EngineeringPlanning: React.FC<EngineeringPlanningProps> = ({ project, curr
               name: tpl.name,
               spec: tpl.spec,
               quantity: String(isNaN(calcQty) ? 0 : Number(calcQty.toFixed(2))),
-              unit: tpl.unit
+              unit: tpl.unit,
+              formula: tpl.quantityFormula || 'baseQty'
             };
           });
         }
@@ -1302,6 +1338,7 @@ const EngineeringPlanning: React.FC<EngineeringPlanningProps> = ({ project, curr
                   item={modalTarget.item} 
                   onSave={handleCardUpdate} 
                   onClose={() => setModalTarget(null)} 
+                  systemRules={systemRules}
               />
           )}
 
