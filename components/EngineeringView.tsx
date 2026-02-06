@@ -1,3 +1,4 @@
+
 import React, { useRef, useState } from 'react';
 import { Project, User, ProjectStatus, ProjectType, GlobalTeamConfigs, SystemRules, Employee, AttendanceRecord, CompletionReport, DailyReport, ConstructionItem } from '../types';
 import ProjectList from './ProjectList';
@@ -342,6 +343,16 @@ const EngineeringView: React.FC<EngineeringViewProps> = ({
     }
   };
 
+  const handleExportJson = () => {
+    try {
+      const jsonStr = JSON.stringify(projects, null, 2);
+      const blob = new Blob([jsonStr], { type: 'application/json' });
+      downloadBlob(blob, 'projects.json');
+    } catch (e) {
+      alert('匯出 JSON 失敗');
+    }
+  };
+
   return (
     <>
       <ProjectList 
@@ -356,6 +367,7 @@ const EngineeringView: React.FC<EngineeringViewProps> = ({
         onEditProject={onEditProject} 
         onImportExcel={() => excelInputRef.current?.click()} 
         onExportExcel={handleExportExcel}
+        onExportJson={handleExportJson}
         onOpenDrivingTime={onOpenDrivingTime}
         onAddToSchedule={onAddToSchedule} 
         onImportConstructionRecords={() => recordInputRef.current?.click()}

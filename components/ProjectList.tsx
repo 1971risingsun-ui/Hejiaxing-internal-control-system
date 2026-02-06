@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { Project, ProjectStatus, User, UserRole, ProjectType, GlobalTeamConfigs } from '../types';
 import { CalendarIcon, MapPinIcon, SearchIcon, MoreVerticalIcon, EditIcon, CopyIcon, TrashIcon, LayoutGridIcon, ListIcon, PlusIcon, NavigationIcon, CheckCircleIcon, XIcon, UsersIcon, ClipboardListIcon, PaperclipIcon, BoxIcon, FileTextIcon, DownloadIcon, StampIcon, UploadIcon } from './Icons';
@@ -15,6 +16,7 @@ interface ProjectListProps {
   onOpenDrivingTime?: () => void;
   onImportExcel?: () => void;
   onExportExcel?: () => void;
+  onExportJson?: () => void;
   onImportConstructionRecords?: () => void;
   onImportConstructionReports?: () => void;
   onImportCompletionReports?: () => void;
@@ -25,7 +27,7 @@ interface ProjectListProps {
 const ProjectList: React.FC<ProjectListProps> = ({ 
   title, projects, currentUser, lastUpdateInfo, onSelectProject, onAddProject, 
   onDeleteProject, onDuplicateProject, onEditProject, onOpenDrivingTime,
-  onImportExcel, onExportExcel, onImportConstructionRecords, onImportConstructionReports, onImportCompletionReports,
+  onImportExcel, onExportExcel, onExportJson, onImportConstructionRecords, onImportConstructionReports, onImportCompletionReports,
   onAddToSchedule, globalTeamConfigs
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -224,16 +226,25 @@ const ProjectList: React.FC<ProjectListProps> = ({
             <button
               onClick={onExportExcel}
               className="bg-emerald-100 hover:bg-emerald-200 text-emerald-700 w-10 h-10 rounded-full shadow-sm flex items-center justify-center transition-all active:scale-95"
-              title="匯出排程表"
+              title="匯出排程表 (Excel)"
             >
               <DownloadIcon className="w-5 h-5" />
+            </button>
+          )}
+          {onExportJson && (
+            <button
+              onClick={onExportJson}
+              className="bg-slate-100 hover:bg-slate-200 text-slate-600 w-10 h-10 rounded-full shadow-sm flex items-center justify-center transition-all active:scale-95"
+              title="匯出所有案件 (JSON)"
+            >
+              <FileTextIcon className="w-5 h-5" />
             </button>
           )}
           {onImportExcel && (
             <button
               onClick={onImportExcel}
               className="bg-indigo-100 hover:bg-indigo-200 text-indigo-700 w-10 h-10 rounded-full shadow-sm flex items-center justify-center transition-all active:scale-95"
-              title="匯入排程表"
+              title="匯入排程表 (Excel)"
             >
               <FileTextIcon className="w-5 h-5" />
             </button>
