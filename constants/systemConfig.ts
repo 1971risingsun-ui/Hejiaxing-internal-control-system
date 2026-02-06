@@ -1,3 +1,4 @@
+
 import { SystemRules, UserRole } from '../types';
 
 export const ROC_HOLIDAYS = ['01-01', '02-28', '04-04', '04-05', '05-01', '10-10'];
@@ -36,6 +37,7 @@ export const DEFAULT_SYSTEM_RULES: SystemRules = {
   subcontractorKeywords: ['怪手', '告示牌', '安衛貼紙', '美化帆布', '噪音管制看板', '監測告示牌', '寫字'],
   modularProductionKeywords: [],
   modularSubcontractorKeywords: [],
+  cardGenerationRules: [],
   rolePermissions: {
     [UserRole.ADMIN]: { 
       displayName: '管理員', 

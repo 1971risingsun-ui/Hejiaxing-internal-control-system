@@ -239,6 +239,21 @@ export interface MaterialFormulaConfig {
   items: MaterialFormulaItem[];
 }
 
+export interface PlanningMaterialDetailTemplate {
+  id: string;
+  name: string;
+  spec: string;
+  quantityFormula: string; // formula string, e.g. "baseQty * 2"
+  unit: string;
+}
+
+export interface CardGenerationRule {
+  id: string;
+  keyword: string;
+  targetType: CardType;
+  materialTemplates?: PlanningMaterialDetailTemplate[];
+}
+
 export interface ImportConfig {
   projectKeywords: {
     maintenance: string;
@@ -267,6 +282,7 @@ export interface SystemRules {
   modularProductionKeywords: string[];
   modularSubcontractorKeywords: string[];
   materialFormulas: MaterialFormulaConfig[];
+  cardGenerationRules?: CardGenerationRule[];
   rolePermissions?: Record<UserRole, RolePermission>;
   importConfig?: ImportConfig;
 }

@@ -17,7 +17,8 @@ interface EngineeringViewProps {
   currentUser: User; 
   lastUpdateInfo: { name: string; time: string; user?: string } | null; 
   updateLastAction: (name: string, details?: string) => void; 
-  systemRules: SystemRules; 
+  systemRules: SystemRules;
+  onUpdateSystemRules: (rules: SystemRules) => void; 
   employees: Employee[]; 
   setAttendance: (records: AttendanceRecord[]) => void; 
   onSelectProject: (project: Project) => void; 
@@ -26,12 +27,12 @@ interface EngineeringViewProps {
   handleDeleteProject: (id: string) => void; 
   onAddToSchedule: (date: string, teamId: number, taskName: string) => boolean; 
   onOpenDrivingTime?: () => void;
-  onTranslateAllProjects: () => Promise<void>; // 新增此行以修正 TS 錯誤
+  onTranslateAllProjects: () => Promise<void>;
   globalTeamConfigs: GlobalTeamConfigs;
 }
 
 const EngineeringView: React.FC<EngineeringViewProps> = ({ 
-  projects, setProjects, currentUser, lastUpdateInfo, updateLastAction, systemRules, 
+  projects, setProjects, currentUser, lastUpdateInfo, updateLastAction, systemRules, onUpdateSystemRules,
   employees, setAttendance, onSelectProject, onAddProject, onEditProject, 
   handleDeleteProject, onAddToSchedule, onOpenDrivingTime, onTranslateAllProjects, globalTeamConfigs 
 }) => {

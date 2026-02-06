@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Project, ProjectStatus, User, UserRole, ProjectType, GlobalTeamConfigs, SystemRules } from '../types';
 import { ArrowLeftIcon, CalendarIcon, MapPinIcon, ExternalLinkIcon, ClipboardListIcon, BoxIcon, EditIcon, FileTextIcon, PlusIcon, XIcon, UsersIcon, CheckCircleIcon, TruckIcon, LanguagesIcon, LoaderIcon } from './Icons';
@@ -18,9 +19,10 @@ interface ProjectDetailProps {
   onAddToSchedule?: (date: string, teamId: number, taskName: string) => boolean;
   globalTeamConfigs?: GlobalTeamConfigs;
   systemRules: SystemRules;
+  onUpdateSystemRules: (rules: SystemRules) => void;
 }
 
-const ProjectDetail: React.FC<ProjectDetailProps> = ({ project, currentUser, onBack, onUpdateProject, onEditProject, onAddToSchedule, globalTeamConfigs, systemRules }) => {
+const ProjectDetail: React.FC<ProjectDetailProps> = ({ project, currentUser, onBack, onUpdateProject, onEditProject, onAddToSchedule, globalTeamConfigs, systemRules, onUpdateSystemRules }) => {
   const [activeTab, setActiveTab] = useState<'overview' | 'materials' | 'construction' | 'completion' | 'preparation' | 'planning'>('overview');
   
   // 排程與翻譯相關狀態
@@ -200,7 +202,7 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ project, currentUser, onB
             <TruckIcon className="w-4 h-4" /> 材料清單 (Danh sách VT)
           </button>
           <button className={`pb-3 text-sm font-bold border-b-2 transition-colors whitespace-nowrap flex items-center gap-2 ${activeTab === 'planning' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`} onClick={() => setActiveTab('planning')}>
-            <FileTextIcon className="w-4 h-4" /> 報價單 (Báo價) ({(project.planningReports || []).length})
+            <FileTextIcon className="w-4 h-4" /> 報價單 (Báo giá) ({(project.planningReports || []).length})
           </button>
         </div>
       </div>
@@ -211,7 +213,7 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ project, currentUser, onB
         {activeTab === 'completion' && supportsCompletionReport && <CompletionReport project={project} currentUser={currentUser} onUpdateProject={onUpdateProject} systemRules={systemRules} />}
         {activeTab === 'materials' && <ProjectMaterials project={project} currentUser={currentUser} onUpdateProject={onUpdateProject} />}
         {activeTab === 'preparation' && <MaterialPreparation project={project} currentUser={currentUser} onUpdateProject={onUpdateProject} systemRules={systemRules} />}
-        {activeTab === 'planning' && <EngineeringPlanning project={project} currentUser={currentUser} onUpdateProject={onUpdateProject} />}
+        {activeTab === 'planning' && <EngineeringPlanning project={project} currentUser={currentUser} onUpdateProject={onUpdateProject} systemRules={systemRules} onUpdateSystemRules={onUpdateSystemRules} />}
       </div>
       
       {/* Join Schedule Dialog */}

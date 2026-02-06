@@ -1,7 +1,7 @@
 
-import React, { useState, useRef, useEffect } from 'react';
-import { Project, User, CompletionReport as CompletionReportType, CompletionItem, PlanningCard, CardType, PlanningMaterialDetail } from '../types';
-import { PlusIcon, FileTextIcon, TrashIcon, XIcon, CheckCircleIcon, EditIcon, LoaderIcon, ClockIcon, DownloadIcon, UploadIcon, CopyIcon, LayoutGridIcon, BoxIcon, UsersIcon, PenToolIcon, BriefcaseIcon } from './Icons';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
+import { Project, User, CompletionReport as CompletionReportType, CompletionItem, PlanningCard, CardType, PlanningMaterialDetail, SystemRules, CardGenerationRule, PlanningMaterialDetailTemplate } from '../types';
+import { PlusIcon, FileTextIcon, TrashIcon, XIcon, CheckCircleIcon, EditIcon, LoaderIcon, ClockIcon, DownloadIcon, UploadIcon, CopyIcon, LayoutGridIcon, BoxIcon, UsersIcon, PenToolIcon, BriefcaseIcon, SettingsIcon } from './Icons';
 import { downloadBlob } from '../utils/fileHelpers';
 import ExcelJS from 'exceljs';
 
@@ -12,6 +12,8 @@ interface EngineeringPlanningProps {
   project: Project;
   currentUser: User;
   onUpdateProject: (updatedProject: Project) => void;
+  systemRules: SystemRules;
+  onUpdateSystemRules: (rules: SystemRules) => void;
 }
 
 // 定義大分類及其下的子分類
@@ -369,7 +371,168 @@ const CardManagementModal: React.FC<CardManagementModalProps> = ({ item, onSave,
   );
 };
 
-const EngineeringPlanning: React.FC<EngineeringPlanningProps> = ({ project, currentUser, onUpdateProject }) => {
+interface CardRulesModalProps {
+  systemRules: SystemRules;
+  onUpdateSystemRules: (rules: SystemRules) => void;
+  onClose: () => void;
+}
+
+const CardRulesModal: React.FC<CardRulesModalProps> = ({ systemRules, onUpdateSystemRules, onClose }) => {
+  const [activeTab, setActiveTab] = useState<CardType>('material');
+  const [newRule, setNewRule] = useState<CardGenerationRule>({ id: '', keyword: '', targetType: 'material', materialTemplates: [] });
+  const [editingId, setEditingId] = useState<string | null>(null);
+
+  const filteredRules = (systemRules.cardGenerationRules || []).filter(r => r.targetType === activeTab);
+
+  const handleSaveRule = () => {
+    if (!newRule.keyword) return;
+    const ruleToSave = { ...newRule, id: editingId || crypto.randomUUID(), targetType: activeTab };
+    const currentRules = systemRules.cardGenerationRules || [];
+    let nextRules;
+    if (editingId) {
+      nextRules = currentRules.map(r => r.id === editingId ? ruleToSave : r);
+    } else {
+      nextRules = [...currentRules, ruleToSave];
+    }
+    onUpdateSystemRules({ ...systemRules, cardGenerationRules: nextRules });
+    setNewRule({ id: '', keyword: '', targetType: activeTab, materialTemplates: [] });
+    setEditingId(null);
+  };
+
+  const handleEditRule = (rule: CardGenerationRule) => {
+    setNewRule({ ...rule });
+    setEditingId(rule.id);
+  };
+
+  const handleDeleteRule = (id: string) => {
+    if (confirm('確定刪除此規則？')) {
+      const nextRules = (systemRules.cardGenerationRules || []).filter(r => r.id !== id);
+      onUpdateSystemRules({ ...systemRules, cardGenerationRules: nextRules });
+    }
+  };
+
+  const handleAddTemplate = () => {
+    setNewRule(prev => ({
+      ...prev,
+      materialTemplates: [...(prev.materialTemplates || []), { id: crypto.randomUUID(), name: '', spec: '', quantityFormula: 'baseQty', unit: '' }]
+    }));
+  };
+
+  const handleUpdateTemplate = (id: string, field: keyof PlanningMaterialDetailTemplate, value: string) => {
+    setNewRule(prev => ({
+      ...prev,
+      materialTemplates: (prev.materialTemplates || []).map(t => t.id === id ? { ...t, [field]: value } : t)
+    }));
+  };
+
+  const handleDeleteTemplate = (id: string) => {
+    setNewRule(prev => ({
+      ...prev,
+      materialTemplates: (prev.materialTemplates || []).filter(t => t.id !== id)
+    }));
+  };
+
+  const getTabLabel = (type: CardType) => {
+    switch (type) {
+      case 'material': return '備料卡片';
+      case 'outsourcing': return '外包卡片';
+      case 'subcontractor': return '協力卡片';
+      case 'production': return '生產卡片';
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[250] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
+      <div className="bg-white w-full max-w-4xl max-h-[90vh] rounded-[32px] shadow-2xl overflow-hidden flex flex-col animate-scale-in">
+        <header className="px-8 py-5 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+          <div>
+            <h3 className="font-black text-slate-800 text-lg">自動卡片生成設定</h3>
+            <p className="text-sm font-bold text-slate-500 mt-1">匯入估價單時自動新增卡片</p>
+          </div>
+          <button onClick={onClose} className="p-2 text-slate-400 hover:bg-red-50 hover:text-red-500 rounded-full transition-colors"><XIcon className="w-6 h-6" /></button>
+        </header>
+
+        <div className="p-4 bg-white border-b border-slate-100 flex gap-3 overflow-x-auto no-scrollbar">
+          {['material', 'outsourcing', 'subcontractor', 'production'].map((type) => (
+            <button
+              key={type}
+              onClick={() => { setActiveTab(type as CardType); setNewRule({ id: '', keyword: '', targetType: type as CardType, materialTemplates: [] }); setEditingId(null); }}
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${activeTab === type ? 'bg-slate-800 text-white shadow-md' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+            >
+              {getTabLabel(type as CardType)}
+            </button>
+          ))}
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-6 bg-slate-50 custom-scrollbar">
+          <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm mb-6">
+            <h4 className="text-sm font-bold text-slate-800 mb-3">{editingId ? '編輯規則' : '新增規則'}</h4>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">關鍵字 (Keyword)</label>
+                <input
+                  type="text"
+                  placeholder="輸入項目名稱關鍵字..."
+                  value={newRule.keyword}
+                  onChange={(e) => setNewRule({ ...newRule, keyword: e.target.value })}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-slate-400"
+                />
+              </div>
+
+              {activeTab === 'material' && (
+                <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
+                  <div className="flex justify-between items-center mb-2">
+                    <label className="text-[10px] font-bold text-slate-500 uppercase">材料明細模板</label>
+                    <button onClick={handleAddTemplate} className="text-[10px] bg-blue-100 text-blue-600 px-2 py-1 rounded font-bold hover:bg-blue-200 flex items-center gap-1"><PlusIcon className="w-3 h-3" /> 新增明細</button>
+                  </div>
+                  {newRule.materialTemplates?.map((tpl, idx) => (
+                    <div key={tpl.id} className="grid grid-cols-12 gap-2 mb-2 items-center bg-white p-2 rounded border border-slate-100">
+                      <div className="col-span-3"><input type="text" placeholder="名稱" value={tpl.name} onChange={(e) => handleUpdateTemplate(tpl.id, 'name', e.target.value)} className="w-full text-xs border rounded px-1 py-1" /></div>
+                      <div className="col-span-3"><input type="text" placeholder="規格" value={tpl.spec} onChange={(e) => handleUpdateTemplate(tpl.id, 'spec', e.target.value)} className="w-full text-xs border rounded px-1 py-1" /></div>
+                      <div className="col-span-3"><input type="text" placeholder="數量公式 (如 baseQty*2)" value={tpl.quantityFormula} onChange={(e) => handleUpdateTemplate(tpl.id, 'quantityFormula', e.target.value)} className="w-full text-xs border rounded px-1 py-1 font-mono text-blue-600" /></div>
+                      <div className="col-span-2"><input type="text" placeholder="單位" value={tpl.unit} onChange={(e) => handleUpdateTemplate(tpl.id, 'unit', e.target.value)} className="w-full text-xs border rounded px-1 py-1" /></div>
+                      <div className="col-span-1 text-center"><button onClick={() => handleDeleteTemplate(tpl.id)} className="text-red-400 hover:text-red-600"><XIcon className="w-3 h-3" /></button></div>
+                    </div>
+                  ))}
+                  {(!newRule.materialTemplates || newRule.materialTemplates.length === 0) && <div className="text-center text-[10px] text-slate-400 py-2">無明細模板</div>}
+                </div>
+              )}
+
+              <div className="flex justify-end gap-2">
+                {editingId && <button onClick={() => { setEditingId(null); setNewRule({ id: '', keyword: '', targetType: activeTab, materialTemplates: [] }); }} className="px-4 py-2 text-xs font-bold text-slate-500 hover:bg-slate-100 rounded-lg">取消</button>}
+                <button onClick={handleSaveRule} disabled={!newRule.keyword} className="px-6 py-2 bg-slate-800 text-white rounded-lg text-xs font-bold shadow hover:bg-slate-900 disabled:opacity-50">儲存規則</button>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            {filteredRules.map(rule => (
+              <div key={rule.id} className="bg-white p-3 rounded-xl border border-slate-200 shadow-sm flex justify-between items-center">
+                <div>
+                  <div className="text-sm font-bold text-slate-700">關鍵字: <span className="text-indigo-600">{rule.keyword}</span></div>
+                  {rule.targetType === 'material' && (
+                    <div className="text-[10px] text-slate-400 mt-1">
+                      包含 {rule.materialTemplates?.length || 0} 個材料明細模板
+                    </div>
+                  )}
+                </div>
+                <div className="flex gap-1">
+                  <button onClick={() => handleEditRule(rule)} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg"><EditIcon className="w-4 h-4" /></button>
+                  <button onClick={() => handleDeleteRule(rule.id)} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg"><TrashIcon className="w-4 h-4" /></button>
+                </div>
+              </div>
+            ))}
+            {filteredRules.length === 0 && (
+              <div className="text-center py-8 text-slate-400 text-xs italic">此分類尚無規則</div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const EngineeringPlanning: React.FC<EngineeringPlanningProps> = ({ project, currentUser, onUpdateProject, systemRules, onUpdateSystemRules }) => {
   const [reportDate, setReportDate] = useState(new Date().toISOString().split('T')[0]);
   const [isEditing, setIsEditing] = useState(true);
   
@@ -383,6 +546,7 @@ const EngineeringPlanning: React.FC<EngineeringPlanningProps> = ({ project, curr
 
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
+  const [isRulesModalOpen, setIsRulesModalOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [modalTarget, setModalTarget] = useState<{ index: number, item: CompletionItem } | null>(null);
@@ -490,6 +654,50 @@ const EngineeringPlanning: React.FC<EngineeringPlanningProps> = ({ project, curr
     onUpdateProject({ ...project, planningReports: updatedReports });
   };
 
+  const applyCardRules = (item: CompletionItem, rules: CardGenerationRule[]): PlanningCard[] => {
+    const generatedCards: PlanningCard[] = [];
+    const baseQty = parseFloat(item.quantity) || 0;
+
+    rules.forEach(rule => {
+      if (item.name.includes(rule.keyword)) {
+        const newCard: PlanningCard = {
+          id: crypto.randomUUID(),
+          type: rule.targetType,
+          name: item.name,
+          quantity: item.quantity,
+          unit: item.unit,
+          spec: item.spec,
+          vendor: '',
+          materialName: '',
+          note: '',
+          materialDetails: []
+        };
+
+        if (rule.targetType === 'material' && rule.materialTemplates) {
+          newCard.materialDetails = rule.materialTemplates.map(tpl => {
+            let calcQty = 0;
+            try {
+               const func = new Function('baseQty', 'Math', `return ${tpl.quantityFormula || 'baseQty'}`);
+               calcQty = func(baseQty, Math);
+            } catch(e) {
+               calcQty = baseQty;
+            }
+            return {
+              id: crypto.randomUUID(),
+              name: tpl.name,
+              spec: tpl.spec,
+              quantity: String(isNaN(calcQty) ? 0 : Number(calcQty.toFixed(2))),
+              unit: tpl.unit
+            };
+          });
+        }
+
+        generatedCards.push(newCard);
+      }
+    });
+    return generatedCards;
+  };
+
   const handleImportExcel = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -589,12 +797,19 @@ const EngineeringPlanning: React.FC<EngineeringPlanningProps> = ({ project, curr
             importedItems.forEach(newItem => {
                 // 檢查重複（同分類同品名同規格）
                 if (!combined.some(i => i.name === newItem.name && i.category === newItem.category && i.spec === newItem.spec)) {
+                    // 應用自動卡片生成規則
+                    if (systemRules.cardGenerationRules) {
+                        const generatedCards = applyCardRules(newItem, systemRules.cardGenerationRules);
+                        if (generatedCards.length > 0) {
+                            newItem.cards = generatedCards;
+                        }
+                    }
                     combined.push(newItem);
                 }
             });
             return combined;
         });
-        alert(`成功從「${worksheet.name}」匯入 ${importedItems.length} 個規劃項目`);
+        alert(`成功從「${worksheet.name}」匯入 ${importedItems.length} 個規劃項目，並已自動應用卡片生成規則。`);
       } else {
         alert('未偵測到有效項目。請確認第 8 列為欄位標題，且第 9 列起的第一欄包含數字項次。');
       }
@@ -801,6 +1016,13 @@ const EngineeringPlanning: React.FC<EngineeringPlanningProps> = ({ project, curr
                             <TrashIcon className="w-5 h-5" />
                           </button>
                        )}
+                       <button 
+                            onClick={() => setIsRulesModalOpen(true)}
+                            className="p-2 rounded-full transition-colors text-slate-500 hover:text-indigo-600 hover:bg-indigo-50"
+                            title="自動卡片生成設定"
+                        >
+                            <SettingsIcon className="w-5 h-5" />
+                        </button>
                        <input type="file" accept=".xlsx, .xls" ref={fileInputRef} className="hidden" onChange={handleImportExcel} />
                        <button 
                             onClick={() => fileInputRef.current?.click()}
@@ -1068,6 +1290,14 @@ const EngineeringPlanning: React.FC<EngineeringPlanningProps> = ({ project, curr
                   item={modalTarget.item} 
                   onSave={handleCardUpdate} 
                   onClose={() => setModalTarget(null)} 
+              />
+          )}
+
+          {isRulesModalOpen && (
+              <CardRulesModal 
+                  systemRules={systemRules}
+                  onUpdateSystemRules={onUpdateSystemRules}
+                  onClose={() => setIsRulesModalOpen(false)}
               />
           )}
       </div>
