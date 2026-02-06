@@ -462,6 +462,7 @@ interface CardRulesModalProps {
 
 const CardRulesModal: React.FC<CardRulesModalProps> = ({ systemRules, onUpdateSystemRules, onClose }) => {
   const [rules, setRules] = useState<CardGenerationRule[]>(systemRules.cardGenerationRules || []);
+  const [activeTab, setActiveTab] = useState<CardType>('material');
 
   const handleSave = () => {
     onUpdateSystemRules({ ...systemRules, cardGenerationRules: rules });
@@ -472,7 +473,7 @@ const CardRulesModal: React.FC<CardRulesModalProps> = ({ systemRules, onUpdateSy
     const newRule: CardGenerationRule = {
       id: crypto.randomUUID(),
       keyword: '',
-      targetType: 'material', // Default
+      targetType: activeTab, // Use active tab type
       materialTemplates: []
     };
     setRules([...rules, newRule]);
@@ -526,6 +527,15 @@ const CardRulesModal: React.FC<CardRulesModalProps> = ({ systemRules, onUpdateSy
       }));
   };
 
+  const tabs: { id: CardType; label: string; icon: React.ReactNode; color: string }[] = [
+      { id: 'material', label: '備料卡片規則', icon: <BoxIcon className="w-4 h-4" />, color: 'text-blue-600' },
+      { id: 'outsourcing', label: '外包卡片規則', icon: <BriefcaseIcon className="w-4 h-4" />, color: 'text-orange-600' },
+      { id: 'subcontractor', label: '協力卡片規則', icon: <UsersIcon className="w-4 h-4" />, color: 'text-purple-600' },
+      { id: 'production', label: '生產卡片規則', icon: <PenToolIcon className="w-4 h-4" />, color: 'text-emerald-600' },
+  ];
+
+  const filteredRules = rules.filter(r => r.targetType === activeTab);
+
   return (
     <div className="fixed inset-0 z-[250] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in" onClick={onClose}>
       <div className="bg-white w-full max-w-3xl max-h-[85vh] rounded-[32px] shadow-2xl overflow-hidden flex flex-col animate-scale-in" onClick={e => e.stopPropagation()}>
@@ -537,10 +547,29 @@ const CardRulesModal: React.FC<CardRulesModalProps> = ({ systemRules, onUpdateSy
             <button onClick={onClose} className="p-2 text-slate-400 hover:bg-red-50 hover:text-red-500 rounded-full transition-colors"><XIcon className="w-6 h-6" /></button>
         </header>
         
+        {/* Tabs */}
+        <div className="flex px-6 pt-4 border-b border-slate-100 bg-white gap-2 overflow-x-auto no-scrollbar">
+            {tabs.map(tab => (
+                <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`flex items-center gap-2 px-4 py-3 rounded-t-xl text-sm font-bold transition-all border-b-2 ${activeTab === tab.id ? `border-${tab.color.split('-')[1]}-500 ${tab.color} bg-slate-50` : 'border-transparent text-slate-400 hover:text-slate-600 hover:bg-slate-50'}`}
+                >
+                    {tab.icon} {tab.label}
+                </button>
+            ))}
+        </div>
+
         <div className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar bg-slate-50/50">
-            {rules.map((rule, idx) => (
+            {filteredRules.length === 0 && (
+                <div className="text-center py-12 text-slate-400 italic text-sm">
+                    此分類尚無規則，請點擊下方按鈕新增
+                </div>
+            )}
+
+            {filteredRules.map((rule, idx) => (
                 <div key={rule.id} className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm hover:border-indigo-200 transition-all">
-                    <div className="flex gap-4 items-start mb-3">
+                    <div className="flex gap-4 items-center mb-3">
                         <div className="flex-1">
                             <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">關鍵字 (包含即觸發)</label>
                             <input 
@@ -551,20 +580,13 @@ const CardRulesModal: React.FC<CardRulesModalProps> = ({ systemRules, onUpdateSy
                                 placeholder="例如: 大門"
                             />
                         </div>
-                        <div className="w-40">
-                            <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">卡片類型</label>
-                            <select 
-                                value={rule.targetType} 
-                                onChange={e => updateRule(rule.id, 'targetType', e.target.value)} 
-                                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-indigo-500 outline-none"
-                            >
-                                <option value="material">備料卡片</option>
-                                <option value="outsourcing">外包卡片</option>
-                                <option value="subcontractor">協力卡片</option>
-                                <option value="production">生產卡片</option>
-                            </select>
+                        <div className="w-40 opacity-50 pointer-events-none">
+                             <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">卡片類型</label>
+                             <div className="px-3 py-2 bg-slate-100 border border-slate-200 rounded-xl text-sm font-bold text-slate-500">
+                                {tabs.find(t => t.id === rule.targetType)?.label.replace('規則', '')}
+                             </div>
                         </div>
-                        <button onClick={() => deleteRule(rule.id)} className="mt-6 p-2 text-slate-300 hover:text-red-500 transition-colors"><TrashIcon className="w-5 h-5" /></button>
+                        <button onClick={() => deleteRule(rule.id)} className="mt-5 p-2 text-slate-300 hover:text-red-500 transition-colors"><TrashIcon className="w-5 h-5" /></button>
                     </div>
 
                     {rule.targetType === 'material' && (
@@ -589,7 +611,7 @@ const CardRulesModal: React.FC<CardRulesModalProps> = ({ systemRules, onUpdateSy
             ))}
             
             <button onClick={addRule} className="w-full py-4 border-2 border-dashed border-slate-300 rounded-2xl text-slate-500 font-bold hover:bg-slate-50 hover:border-indigo-300 hover:text-indigo-600 transition-all flex items-center justify-center gap-2">
-                <PlusIcon className="w-5 h-5" /> 新增生成規則
+                <PlusIcon className="w-5 h-5" /> 新增{tabs.find(t => t.id === activeTab)?.label}
             </button>
         </div>
 
