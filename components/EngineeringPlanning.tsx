@@ -117,7 +117,7 @@ const CardManagementModal: React.FC<CardManagementModalProps> = ({ item, onSave,
     // 預設值填充
     if (type === 'material') {
         newCard.name = item.name; // 預設帶入施工項目名稱
-        // 備料卡片預設新增一筆空白明細
+        // 備料卡片預設新增一筆明細，並代入施工項目數量和單位
         newCard.materialDetails = [{
             id: crypto.randomUUID(),
             name: '',
