@@ -6,6 +6,7 @@ import ExcelJS from 'exceljs';
 import { downloadBlob } from '../utils/fileHelpers';
 import { generateId } from '../utils/dataLogic';
 import { LoaderIcon } from './Icons';
+import ExportProjectModal from './ExportProjectModal';
 
 declare const XLSX: any;
 declare const pdfjsLib: any;
@@ -39,6 +40,7 @@ const EngineeringView: React.FC<EngineeringViewProps> = ({
   const reportInputRef = useRef<HTMLInputElement>(null); // PDF 施工報告
   const completionInputRef = useRef<HTMLInputElement>(null); // PDF 完工報告
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
 
   // 安全取得 Excel 儲存格字串
   const getSafeText = (cell: ExcelJS.Cell): string => {
@@ -344,10 +346,17 @@ const EngineeringView: React.FC<EngineeringViewProps> = ({
   };
 
   const handleExportJson = () => {
+    setIsExportModalOpen(true);
+  };
+
+  const performExportJson = (selectedProjects: Project[]) => {
     try {
-      const jsonStr = JSON.stringify(projects, null, 2);
+      // 輸出格式包含 projects 鍵，以符合系統還原格式
+      const exportData = { projects: selectedProjects };
+      const jsonStr = JSON.stringify(exportData, null, 2);
       const blob = new Blob([jsonStr], { type: 'application/json' });
       downloadBlob(blob, 'projects.json');
+      setIsExportModalOpen(false);
     } catch (e) {
       alert('匯出 JSON 失敗');
     }
@@ -387,6 +396,14 @@ const EngineeringView: React.FC<EngineeringViewProps> = ({
                 <p className="font-bold text-slate-700 text-sm">正在處理檔案，請稍候...</p>
             </div>
         </div>
+      )}
+
+      {isExportModalOpen && (
+        <ExportProjectModal 
+          projects={projects} 
+          onClose={() => setIsExportModalOpen(false)} 
+          onExport={performExportJson} 
+        />
       )}
     </>
   );
