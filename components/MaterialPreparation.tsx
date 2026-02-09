@@ -94,39 +94,6 @@ const MaterialPreparation: React.FC<MaterialPreparationProps> = ({ project, onUp
 
   const getItemKey = (item: CompletionItem) => `${item.name}_${item.category}_${item.spec || 'no-spec'}`;
 
-  // 動態換算材料項目 (公式)
-  const getDefaultMaterialItems = (itemName: string, quantity: string): { category: string; items: FenceMaterialItem[] } | null => {
-    const baseQty = parseFloat(quantity) || 0;
-    if (baseQty <= 0) return null;
-
-    const formulaConfig = systemRules.materialFormulas.find(f => itemName.includes(f.keyword));
-    if (!formulaConfig) return null;
-
-    const generatedItems: FenceMaterialItem[] = formulaConfig.items.map(formulaItem => {
-      let calcQty = 0;
-      try {
-        const func = new Function('baseQty', 'Math', `return ${formulaItem.formula}`);
-        calcQty = func(baseQty, Math);
-      } catch (e) {
-        console.error(`公式解析失敗: ${formulaItem.formula}`, e);
-        calcQty = baseQty;
-      }
-
-      return {
-        id: crypto.randomUUID(),
-        name: formulaItem.name,
-        spec: '',
-        quantity: isNaN(calcQty) ? 0 : calcQty,
-        unit: formulaItem.unit
-      };
-    });
-
-    return {
-      category: formulaConfig.category,
-      items: generatedItems
-    };
-  };
-
   // 從卡片生成材料
   const getMaterialItemsFromCards = (item: CompletionItem): { category: string; items: FenceMaterialItem[] } | null => {
     if (!item.cards || item.cards.length === 0) return null;
@@ -214,12 +181,11 @@ const MaterialPreparation: React.FC<MaterialPreparationProps> = ({ project, onUp
                   const itemKey = getItemKey(item);
                   const existingSheet = project.fenceMaterialSheets?.[itemKey];
                   
-                  // Priority: Existing -> Cards -> Formula
+                  // Priority: Existing -> Cards
                   const cardData = showDetails ? getMaterialItemsFromCards(item) : null;
-                  const autoData = showDetails && !cardData ? getDefaultMaterialItems(item.name, item.quantity) : null;
                   
-                  const activeItems = existingSheet?.items || cardData?.items || autoData?.items || [];
-                  const activeCategory = existingSheet?.category || cardData?.category || autoData?.category || '';
+                  const activeItems = existingSheet?.items || cardData?.items || [];
+                  const activeCategory = existingSheet?.category || cardData?.category || '';
 
                   return (
                     <React.Fragment key={itemKey}>
@@ -249,7 +215,7 @@ const MaterialPreparation: React.FC<MaterialPreparationProps> = ({ project, onUp
                                     <th className="px-4 py-2 w-20">規格填寫</th>
                                     <th className="px-4 py-2 w-24 text-center">數量 (自動)</th>
                                     <th className="px-4 py-2 w-16 text-center">單位</th>
-                                    <th className="px-4 py-2 w-24">備註</th>
+                                    <th className="px-4 py-2 w-24">備註 (施工項目)</th>
                                     <th className="px-4 py-2 w-10 text-center">刪除</th>
                                   </tr>
                                 </thead>
@@ -316,10 +282,10 @@ const MaterialPreparation: React.FC<MaterialPreparationProps> = ({ project, onUp
                                     <td colSpan={6} className="p-1">
                                       <button 
                                         onClick={() => {
-                                          const m: FenceMaterialItem = { id: crypto.randomUUID(), name: '新材料', spec: '', quantity: 0, unit: '項' };
+                                          const m: FenceMaterialItem = { id: crypto.randomUUID(), name: '新材料', spec: '', quantity: 0, unit: '項', notes: item.name };
                                           updateMaterialSheet(itemKey, { category: activeCategory || '其他', items: [...activeItems, m] });
                                         }}
-                                        className="w-full py-1 text-[10px] font-black text-indigo-400 hover:text-indigo-600 flex items-center justify-center gap-1"
+                                        className="w-full py-1 text-[10px] font-black text-indigo-400 hover:text-indigo-600 flex items-center justify-center gap-1 uppercase tracking-widest"
                                       >
                                         <PlusIcon className="w-3 h-3" /> 手動追加備料
                                       </button>
