@@ -95,6 +95,7 @@ const MaterialPreparation: React.FC<MaterialPreparationProps> = ({ project, onUp
   const getItemKey = (item: CompletionItem) => `${item.name}_${item.category}_${item.spec || 'no-spec'}`;
 
   // 從卡片生成材料
+  // 修正：施工項目寫在備註欄 (使用 card.name)
   const getMaterialItemsFromCards = (item: CompletionItem): { category: string; items: FenceMaterialItem[] } | null => {
     if (!item.cards || item.cards.length === 0) return null;
     
@@ -113,7 +114,7 @@ const MaterialPreparation: React.FC<MaterialPreparationProps> = ({ project, onUp
                     spec: detail.spec,
                     quantity: parseFloat(detail.quantity) || 0,
                     unit: detail.unit,
-                    notes: item.name // 施工項目寫在備註欄
+                    notes: card.name // 使用卡片上的施工項目名稱作為備註
                 });
             });
         }
@@ -145,15 +146,26 @@ const MaterialPreparation: React.FC<MaterialPreparationProps> = ({ project, onUp
   };
 
   const renderTable = (items: CompletionItem[], title?: string, icon?: React.ReactNode, showDetails: boolean = false) => {
-    if (items.length === 0 && !title) {
-      return (
-        <div className="py-20 text-center text-slate-400 bg-white rounded-xl border border-dashed border-slate-200">
-          <BoxIcon className="w-12 h-12 mx-auto mb-3 opacity-20" />
-          <p className="font-bold">目前報價單內容為空</p>
-        </div>
-      );
+    // 預先過濾：只顯示有材料內容的項目 (來自卡片或已存檔)
+    const validItems = items.filter(item => {
+        const itemKey = getItemKey(item);
+        const existingSheet = project.fenceMaterialSheets?.[itemKey];
+        const cardData = getMaterialItemsFromCards(item);
+        return (existingSheet?.items && existingSheet.items.length > 0) || (cardData?.items && cardData.items.length > 0);
+    });
+
+    if (validItems.length === 0) {
+      if (!title) {
+        return (
+            <div className="py-20 text-center text-slate-400 bg-white rounded-xl border border-dashed border-slate-200">
+            <BoxIcon className="w-12 h-12 mx-auto mb-3 opacity-20" />
+            <p className="font-bold">目前無備料清單</p>
+            <p className="text-xs mt-1 text-slate-400">請確認報價單項目已建立「備料卡片」</p>
+            </div>
+        );
+      }
+      return null;
     }
-    if (items.length === 0 && title) return null;
 
     return (
       <div className="space-y-3">
@@ -168,16 +180,14 @@ const MaterialPreparation: React.FC<MaterialPreparationProps> = ({ project, onUp
             <table className="w-full text-left border-collapse">
               <thead className="bg-slate-50 text-slate-500 text-[10px] uppercase font-black tracking-widest border-b border-slate-200">
                 <tr>
-                  <th className="px-6 py-4 min-w-[200px]">品名</th>
-                  <th className="px-6 py-4 min-w-[150px]">規格</th>
-                  <th className="px-6 py-4 w-24 text-center">數量</th>
-                  <th className="px-6 py-4 w-20">單位</th>
-                  <th className="px-6 py-4">備註</th>
+                  <th className="px-6 py-4 w-12 text-center">#</th>
+                  <th className="px-6 py-4 min-w-[200px]">報價單項目</th>
+                  <th className="px-6 py-4 w-full">材料明細內容</th>
                   <th className="px-6 py-4 w-12 text-center text-slate-300">刪除</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {items.map((item, idx) => {
+                {validItems.map((item, idx) => {
                   const itemKey = getItemKey(item);
                   const existingSheet = project.fenceMaterialSheets?.[itemKey];
                   
@@ -188,38 +198,31 @@ const MaterialPreparation: React.FC<MaterialPreparationProps> = ({ project, onUp
                   const activeCategory = existingSheet?.category || cardData?.category || '';
 
                   return (
-                    <React.Fragment key={itemKey}>
-                      <tr className="hover:bg-slate-50 transition-colors group bg-white">
-                        <td className="px-6 py-4">
-                          <div className="font-bold text-slate-800 flex items-center gap-2">
-                            {item.name}
-                            {activeCategory && <span className="bg-indigo-100 text-indigo-600 text-[9px] px-1.5 py-0.5 rounded font-black tracking-tighter">自動備料: {activeCategory}</span>}
+                    <tr key={itemKey} className="hover:bg-slate-50 transition-colors group bg-white">
+                        <td className="px-6 py-4 text-center text-slate-400 font-bold align-top pt-6">{idx + 1}</td>
+                        <td className="px-6 py-4 align-top pt-6">
+                          <div className="font-black text-slate-800 text-sm mb-1">{item.name}</div>
+                          <div className="text-xs text-slate-500 mb-2">{item.spec || '-'}</div>
+                          <div className="flex items-center gap-2 text-xs font-bold text-slate-600 bg-slate-100 px-2 py-1 rounded w-fit">
+                             <span>數量: {item.quantity}</span>
+                             <span>{item.unit}</span>
                           </div>
+                          {activeCategory && <div className="mt-2 text-[9px] text-indigo-400 font-bold">{activeCategory}</div>}
                         </td>
-                        <td className="px-6 py-4 text-slate-600 text-xs whitespace-pre-wrap">{item.spec || '-'}</td>
-                        <td className="px-6 py-4 text-center font-black text-blue-600">{item.quantity}</td>
-                        <td className="px-6 py-4 text-slate-500 text-xs">{item.unit}</td>
-                        <td className="px-6 py-4 text-slate-500 text-xs">{item.itemNote || '-'}</td>
-                        <td className="px-6 py-4 text-center">
-                          <button onClick={() => handleDeleteMainItem(item)} className="text-slate-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"><TrashIcon className="w-4 h-4" /></button>
-                        </td>
-                      </tr>
-                      {showDetails && activeItems.length > 0 && (
-                        <tr className="bg-slate-50/50">
-                          <td colSpan={6} className="px-8 py-0">
-                            <div className="border-l-4 border-indigo-200 ml-4 my-2 overflow-hidden rounded-r-lg border border-slate-100 shadow-inner">
+                        <td className="px-6 py-4">
+                            <div className="bg-slate-50/50 rounded-xl border border-slate-200 overflow-hidden">
                               <table className="w-full text-xs">
-                                <thead className="bg-slate-100 text-slate-400 font-bold uppercase tracking-widest text-[9px]">
+                                <thead className="bg-slate-100 text-slate-500 font-bold uppercase tracking-widest text-[9px] border-b border-slate-200">
                                   <tr>
-                                    <th className="px-4 py-2 w-16">材料名稱</th>
-                                    <th className="px-4 py-2 w-20">規格填寫</th>
-                                    <th className="px-4 py-2 w-24 text-center">數量 (自動)</th>
+                                    <th className="px-4 py-2 w-1/4">材料名稱</th>
+                                    <th className="px-4 py-2 w-1/4">規格</th>
+                                    <th className="px-4 py-2 w-20 text-center">數量</th>
                                     <th className="px-4 py-2 w-16 text-center">單位</th>
-                                    <th className="px-4 py-2 w-24">備註 (施工項目)</th>
-                                    <th className="px-4 py-2 w-10 text-center">刪除</th>
+                                    <th className="px-4 py-2">施工項目 (備註)</th>
+                                    <th className="px-2 py-2 w-10 text-center"></th>
                                   </tr>
                                 </thead>
-                                <tbody className="divide-y divide-slate-100 bg-white/50">
+                                <tbody className="divide-y divide-slate-100 bg-white">
                                   {activeItems.map((mItem, mIdx) => (
                                     <tr key={mItem.id} className="hover:bg-indigo-50/30 transition-colors">
                                       <td className="px-4 py-2">
@@ -235,13 +238,13 @@ const MaterialPreparation: React.FC<MaterialPreparationProps> = ({ project, onUp
                                       </td>
                                       <td className="px-4 py-2">
                                         <input 
-                                          type="text" value={mItem.spec} placeholder="填寫規格..."
+                                          type="text" value={mItem.spec} placeholder="規格"
                                           onChange={(e) => {
                                             const newItems = [...activeItems];
                                             newItems[mIdx].spec = e.target.value;
                                             updateMaterialSheet(itemKey, { category: activeCategory, items: newItems });
                                           }}
-                                          className="w-full bg-transparent border-b border-transparent focus:border-indigo-300 outline-none text-slate-500 italic"
+                                          className="w-full bg-transparent border-b border-transparent focus:border-indigo-300 outline-none text-slate-500"
                                         />
                                       </td>
                                       <td className="px-4 py-2 text-center">
@@ -252,13 +255,13 @@ const MaterialPreparation: React.FC<MaterialPreparationProps> = ({ project, onUp
                                             newItems[mIdx].quantity = parseFloat(e.target.value) || 0;
                                             updateMaterialSheet(itemKey, { category: activeCategory, items: newItems });
                                           }}
-                                          className="w-16 bg-slate-100/50 border border-slate-200 rounded text-center outline-none focus:ring-1 focus:ring-indigo-400 font-black text-indigo-600"
+                                          className="w-full bg-transparent border-b border-transparent focus:border-indigo-300 outline-none text-center font-black text-blue-600"
                                         />
                                       </td>
                                       <td className="px-4 py-2 text-center font-bold text-slate-400">{mItem.unit}</td>
                                       <td className="px-4 py-2">
                                         <input 
-                                          type="text" value={mItem.notes || ''} placeholder="備註..."
+                                          type="text" value={mItem.notes || ''} placeholder="施工項目"
                                           onChange={(e) => {
                                             const newItems = [...activeItems];
                                             newItems[mIdx].notes = e.target.value;
@@ -267,7 +270,7 @@ const MaterialPreparation: React.FC<MaterialPreparationProps> = ({ project, onUp
                                           className="w-full bg-transparent border-b border-transparent focus:border-indigo-300 outline-none text-slate-500"
                                         />
                                       </td>
-                                      <td className="px-4 py-2 text-center">
+                                      <td className="px-2 py-2 text-center">
                                         <button 
                                           onClick={() => {
                                             const newItems = activeItems.filter((_, i) => i !== mIdx);
@@ -278,14 +281,15 @@ const MaterialPreparation: React.FC<MaterialPreparationProps> = ({ project, onUp
                                       </td>
                                     </tr>
                                   ))}
-                                  <tr className="bg-slate-50/30">
+                                  <tr className="bg-slate-50/20">
                                     <td colSpan={6} className="p-1">
                                       <button 
                                         onClick={() => {
+                                          // 新增時預設帶入施工項目名稱到備註
                                           const m: FenceMaterialItem = { id: crypto.randomUUID(), name: '新材料', spec: '', quantity: 0, unit: '項', notes: item.name };
                                           updateMaterialSheet(itemKey, { category: activeCategory || '其他', items: [...activeItems, m] });
                                         }}
-                                        className="w-full py-1 text-[10px] font-black text-indigo-400 hover:text-indigo-600 flex items-center justify-center gap-1 uppercase tracking-widest"
+                                        className="w-full py-1 text-[10px] font-black text-indigo-400 hover:text-indigo-600 flex items-center justify-center gap-1 uppercase tracking-widest hover:bg-white transition-colors"
                                       >
                                         <PlusIcon className="w-3 h-3" /> 手動追加備料
                                       </button>
@@ -294,10 +298,11 @@ const MaterialPreparation: React.FC<MaterialPreparationProps> = ({ project, onUp
                                 </tbody>
                               </table>
                             </div>
-                          </td>
-                        </tr>
-                      )}
-                    </React.Fragment>
+                        </td>
+                        <td className="px-6 py-4 text-center align-top pt-6">
+                          <button onClick={() => handleDeleteMainItem(item)} className="text-slate-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"><TrashIcon className="w-4 h-4" /></button>
+                        </td>
+                    </tr>
                   );
                 })}
               </tbody>
