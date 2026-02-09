@@ -643,7 +643,15 @@ const EngineeringPlanning: React.FC<EngineeringPlanningProps> = ({ project, curr
 
   const [modalTarget, setModalTarget] = useState<{ index: number, item: CompletionItem } | null>(null);
 
-  const hasReport = (project.planningReports || []).some(r => r.date === reportDate);
+  // 直接獲取第一份報價單作為當前活動報價單
+  const activeReport = useMemo(() => {
+      return (project.planningReports && project.planningReports.length > 0) 
+        ? project.planningReports[0] 
+        : null;
+  }, [project.planningReports]);
+
+  // 修改：判斷是否有報價單不再依賴日期
+  const hasReport = !!activeReport;
 
   // 安全取得 Excel 儲存格字串
   const getSafeText = (cell: ExcelJS.Cell): string => {
@@ -669,9 +677,11 @@ const EngineeringPlanning: React.FC<EngineeringPlanningProps> = ({ project, curr
   };
 
   useEffect(() => {
-    const existingReport = (project.planningReports || []).find(r => r.date === reportDate);
+    // 監聽 activeReport 變更
+    const existingReport = activeReport;
     
     if (existingReport) {
+        setReportDate(existingReport.date); // 同步日期
         const noteContent = existingReport.notes || '';
         const fenceMatch = noteContent.match(/圍籬：(\d+)\s*日/);
         const modularMatch = noteContent.match(/組合屋：(\d+)\s*日/);
@@ -682,17 +692,19 @@ const EngineeringPlanning: React.FC<EngineeringPlanningProps> = ({ project, curr
         setItems(existingReport.items || []);
         setIsEditing(false);
     } else {
+        // 若完全無報價單，保持預設狀態
+        setReportDate(new Date().toISOString().split('T')[0]);
         setNotes('');
         setItems([]);
         setIsEditing(true);
     }
-  }, [reportDate, project.planningReports]);
+  }, [activeReport]); // 依賴 activeReport 變化
 
   const handleSave = () => {
       const combinedNotes = `【預估工期】圍籬：${estDaysFence} 日 / 組合屋：${estDaysModular} 日\n\n${notes}`;
 
       const newReport: CompletionReportType = {
-          id: (project.planningReports || []).find(r => r.date === reportDate)?.id || crypto.randomUUID(),
+          id: activeReport?.id || crypto.randomUUID(),
           date: reportDate,
           worker: '', 
           items,
@@ -701,8 +713,14 @@ const EngineeringPlanning: React.FC<EngineeringPlanningProps> = ({ project, curr
           timestamp: Date.now()
       };
 
-      const otherReports = (project.planningReports || []).filter(r => r.date !== reportDate);
-      const updatedReports = [...otherReports, newReport];
+      // 若有 activeReport，則取代之；否則新增
+      let updatedReports = [];
+      if (activeReport) {
+          const otherReports = project.planningReports.filter(r => r.id !== activeReport.id);
+          updatedReports = [newReport, ...otherReports]; // 將更新的放最前面
+      } else {
+          updatedReports = [newReport, ...(project.planningReports || [])];
+      }
 
       onUpdateProject({
           ...project,
@@ -710,6 +728,34 @@ const EngineeringPlanning: React.FC<EngineeringPlanningProps> = ({ project, curr
       });
       
       setIsEditing(false);
+  };
+
+  const handleCreateReport = () => {
+      // 總是建立一份新的，並放在最前面
+      const newReport: CompletionReportType = {
+          id: crypto.randomUUID(),
+          date: new Date().toISOString().split('T')[0],
+          worker: currentUser.name,
+          items: [],
+          notes: '',
+          signature: '',
+          timestamp: Date.now()
+      };
+      onUpdateProject({
+          ...project,
+          planningReports: [newReport, ...(project.planningReports || [])]
+      });
+      // 自動切換到編輯模式
+      setIsEditing(true);
+  };
+
+  const handleDeleteReport = () => {
+    if (!activeReport) return;
+    if (!window.confirm(`確定要刪除此份報價單嗎？`)) return;
+    
+    // 移除第一份
+    const updatedReports = project.planningReports.filter(r => r.id !== activeReport.id);
+    onUpdateProject({ ...project, planningReports: updatedReports });
   };
 
   // 卡片更新回調
@@ -720,30 +766,21 @@ const EngineeringPlanning: React.FC<EngineeringPlanningProps> = ({ project, curr
           setItems(newItems);
           
           // 實時儲存以確保資料不遺失 (如果不在編輯模式下也應該可以更新卡片)
-          if (!isEditing) {
+          if (!isEditing && activeReport) {
              const combinedNotes = `【預估工期】圍籬：${estDaysFence} 日 / 組合屋：${estDaysModular} 日\n\n${notes}`;
-             const newReport: CompletionReportType = {
-                id: (project.planningReports || []).find(r => r.date === reportDate)?.id || crypto.randomUUID(),
-                date: reportDate,
-                worker: '', 
+             const updatedReport = {
+                ...activeReport,
                 items: newItems,
                 notes: combinedNotes,
-                signature: '', 
                 timestamp: Date.now()
              };
-             const otherReports = (project.planningReports || []).filter(r => r.date !== reportDate);
+             const otherReports = project.planningReports.filter(r => r.id !== activeReport.id);
              onUpdateProject({
                 ...project,
-                planningReports: [...otherReports, newReport]
+                planningReports: [updatedReport, ...otherReports]
              });
           }
       }
-  };
-
-  const handleDeleteReport = () => {
-    if (!window.confirm(`確定要刪除 ${reportDate} 的整份報價單嗎？`)) return;
-    const updatedReports = (project.planningReports || []).filter(r => r.date !== reportDate);
-    onUpdateProject({ ...project, planningReports: updatedReports });
   };
 
   const applyCardRules = (item: CompletionItem, rules: CardGenerationRule[]): PlanningCard[] => {
@@ -1100,15 +1137,6 @@ const EngineeringPlanning: React.FC<EngineeringPlanningProps> = ({ project, curr
                     <FileTextIcon className="w-5 h-5 text-indigo-600" /> 報價單 (Quotation / Engineering Planning)
                   </h3>
                   <div className="flex gap-2">
-                       {hasReport && (
-                          <button 
-                            onClick={handleDeleteReport}
-                            className="p-2 rounded-full text-slate-500 hover:text-red-600 hover:bg-red-50 transition-colors"
-                            title="刪除整份報價單"
-                          >
-                            <TrashIcon className="w-5 h-5" />
-                          </button>
-                       )}
                        <button 
                             onClick={() => setIsRulesModalOpen(true)}
                             className="p-2 rounded-full transition-colors text-slate-500 hover:text-indigo-600 hover:bg-indigo-50"
@@ -1137,14 +1165,49 @@ const EngineeringPlanning: React.FC<EngineeringPlanningProps> = ({ project, curr
               </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-sm">
-                      <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wider">日期</label>
-                      <input 
-                        type="date" 
-                        value={reportDate}
-                        disabled={isEditing && hasReport}
-                        onChange={e => setReportDate(e.target.value)}
-                        className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white disabled:bg-slate-50"
-                      />
+                      <div className="flex items-center justify-between">
+                          <div>
+                              <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wider">日期</label>
+                              <input 
+                                type="date" 
+                                value={reportDate}
+                                disabled={isEditing && hasReport}
+                                onChange={e => setReportDate(e.target.value)}
+                                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white font-bold disabled:bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500"
+                              />
+                          </div>
+                          
+                          <div className="flex gap-2">
+                              {activeReport ? (
+                                  <div className="flex items-center gap-2 px-3 py-1.5 bg-green-50 text-green-700 rounded-lg text-[10px] font-bold border border-green-200">
+                                      <CheckCircleIcon className="w-3.5 h-3.5" />
+                                      {activeReport.date} 版
+                                  </div>
+                              ) : (
+                                  <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 text-slate-500 rounded-lg text-[10px] font-bold border border-slate-200">
+                                      尚無報價單
+                                  </div>
+                              )}
+                              
+                              <button 
+                                  onClick={handleCreateReport} 
+                                  className="bg-indigo-600 hover:bg-indigo-700 text-white w-9 h-9 rounded-lg shadow-sm flex items-center justify-center transition-all active:scale-95" 
+                                  title="建立新版"
+                              >
+                                  <PlusIcon className="w-5 h-5" />
+                              </button>
+                              
+                              {activeReport && (
+                                  <button 
+                                      onClick={handleDeleteReport} 
+                                      className="bg-white border border-slate-200 text-slate-400 hover:text-red-500 hover:border-red-200 w-9 h-9 rounded-lg shadow-sm flex items-center justify-center transition-all active:scale-95" 
+                                      title="刪除此版"
+                                  >
+                                      <TrashIcon className="w-4 h-4" />
+                                  </button>
+                              )}
+                          </div>
+                      </div>
                   </div>
                   <div className="bg-amber-50 p-3 rounded-lg border border-amber-200 shadow-sm flex flex-col justify-center">
                       <label className="block text-xs font-bold text-amber-700 mb-1 flex items-center gap-1"><ClockIcon className="w-3 h-3" /> 圍籬預估工期</label>
