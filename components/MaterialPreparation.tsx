@@ -181,7 +181,6 @@ const MaterialPreparation: React.FC<MaterialPreparationProps> = ({ project, onUp
               <thead className="bg-slate-50 text-slate-500 text-[10px] uppercase font-black tracking-widest border-b border-slate-200">
                 <tr>
                   <th className="px-6 py-4 w-12 text-center">#</th>
-                  <th className="px-6 py-4 min-w-[200px]">報價單項目</th>
                   <th className="px-6 py-4 w-full">材料明細內容</th>
                   <th className="px-6 py-4 w-12 text-center text-slate-300">刪除</th>
                 </tr>
@@ -200,15 +199,6 @@ const MaterialPreparation: React.FC<MaterialPreparationProps> = ({ project, onUp
                   return (
                     <tr key={itemKey} className="hover:bg-slate-50 transition-colors group bg-white">
                         <td className="px-6 py-4 text-center text-slate-400 font-bold align-top pt-6">{idx + 1}</td>
-                        <td className="px-6 py-4 align-top pt-6">
-                          <div className="font-black text-slate-800 text-sm mb-1">{item.name}</div>
-                          <div className="text-xs text-slate-500 mb-2">{item.spec || '-'}</div>
-                          <div className="flex items-center gap-2 text-xs font-bold text-slate-600 bg-slate-100 px-2 py-1 rounded w-fit">
-                             <span>數量: {item.quantity}</span>
-                             <span>{item.unit}</span>
-                          </div>
-                          {activeCategory && <div className="mt-2 text-[9px] text-indigo-400 font-bold">{activeCategory}</div>}
-                        </td>
                         <td className="px-6 py-4">
                             <div className="bg-slate-50/50 rounded-xl border border-slate-200 overflow-hidden">
                               <table className="w-full text-xs">
