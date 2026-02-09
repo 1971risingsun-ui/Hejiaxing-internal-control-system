@@ -631,8 +631,8 @@ const EngineeringPlanning: React.FC<EngineeringPlanningProps> = ({ project, curr
   const [notes, setNotes] = useState('');
   const [items, setItems] = useState<CompletionItem[]>([]);
 
-  const [estDaysFence, setEstDaysFence] = useState('12');
-  const [estDaysModular, setEstDaysModular] = useState('20');
+  const [estDaysFence, setEstDaysFence] = useState('');
+  const [estDaysModular, setEstDaysModular] = useState('');
 
   const [customItem, setCustomItem] = useState({ name: '', spec: '', quantity: '', unit: '', itemNote: '' });
 
@@ -683,10 +683,15 @@ const EngineeringPlanning: React.FC<EngineeringPlanningProps> = ({ project, curr
     if (existingReport) {
         setReportDate(existingReport.date); // 同步日期
         const noteContent = existingReport.notes || '';
-        const fenceMatch = noteContent.match(/圍籬：(\d+)\s*日/);
-        const modularMatch = noteContent.match(/組合屋：(\d+)\s*日/);
-        if (fenceMatch) setEstDaysFence(fenceMatch[1]);
-        if (modularMatch) setEstDaysModular(modularMatch[1]);
+        
+        // 正則表達式：匹配「圍籬：」與「組合屋：」後方的日期內容
+        // 允許格式為：YYYY-MM-DD 或 舊有的數字天數(後接或不接"日")
+        // 匹配直到遇到 " /" 分隔符或行尾
+        const fenceMatch = noteContent.match(/圍籬：(.*?)(?:\s*日)?(?:\s*\/|$)/);
+        const modularMatch = noteContent.match(/組合屋：(.*?)(?:\s*日)?(?:\s*\/|$)/);
+        
+        if (fenceMatch) setEstDaysFence(fenceMatch[1].trim().replace(/日$/, '').trim());
+        if (modularMatch) setEstDaysModular(modularMatch[1].trim().replace(/日$/, '').trim());
         
         setNotes(noteContent.replace(/【預估工期】.*?\n\n/s, ''));
         setItems(existingReport.items || []);
@@ -696,12 +701,15 @@ const EngineeringPlanning: React.FC<EngineeringPlanningProps> = ({ project, curr
         setReportDate(new Date().toISOString().split('T')[0]);
         setNotes('');
         setItems([]);
+        setEstDaysFence('');
+        setEstDaysModular('');
         setIsEditing(true);
     }
   }, [activeReport]); // 依賴 activeReport 變化
 
   const handleSave = () => {
-      const combinedNotes = `【預估工期】圍籬：${estDaysFence} 日 / 組合屋：${estDaysModular} 日\n\n${notes}`;
+      // 移除原本的「日」單位後綴
+      const combinedNotes = `【預估工期】圍籬：${estDaysFence} / 組合屋：${estDaysModular}\n\n${notes}`;
 
       const newReport: CompletionReportType = {
           id: activeReport?.id || crypto.randomUUID(),
@@ -748,7 +756,7 @@ const EngineeringPlanning: React.FC<EngineeringPlanningProps> = ({ project, curr
           
           // 實時儲存以確保資料不遺失 (如果不在編輯模式下也應該可以更新卡片)
           if (!isEditing && activeReport) {
-             const combinedNotes = `【預估工期】圍籬：${estDaysFence} 日 / 組合屋：${estDaysModular} 日\n\n${notes}`;
+             const combinedNotes = `【預估工期】圍籬：${estDaysFence} / 組合屋：${estDaysModular}\n\n${notes}`;
              const updatedReport = {
                 ...activeReport,
                 items: newItems,
@@ -1069,7 +1077,7 @@ const EngineeringPlanning: React.FC<EngineeringPlanningProps> = ({ project, curr
                 <div><span style="font-weight: bold;">案場名稱：</span> ${project.name}</div>
             </div>
             <div style="border: 2px solid #000; padding: 15px; margin-bottom: 25px; font-size: 15px; background-color: #fffbeb;">
-                <span style="font-weight: bold;">工期預估：</span> 圍籬 ${estDaysFence} 日 / 組合屋 ${estDaysModular} 日 (請於施工前 7 日通知安排)
+                <span style="font-weight: bold;">工期預估：</span> 圍籬 ${estDaysFence} / 組合屋 ${estDaysModular} (請於施工前 7 日通知安排)
             </div>
             ${items.length > 0 ? groupsHtml : '<div style="text-align: center; padding: 50px; border: 1px solid #ccc;">尚未加入任何規劃項目</div>'}
             <div style="border: 1px solid #000; padding: 15px; min-height: 120px; margin-bottom: 30px; margin-top: 20px;">
@@ -1179,15 +1187,25 @@ const EngineeringPlanning: React.FC<EngineeringPlanningProps> = ({ project, curr
                   <div className="bg-amber-50 p-3 rounded-lg border border-amber-200 shadow-sm flex flex-col justify-center">
                       <label className="block text-xs font-bold text-amber-700 mb-1 flex items-center gap-1"><ClockIcon className="w-3 h-3" /> 圍籬預估工期</label>
                       <div className="flex items-center gap-2">
-                        <input type="number" value={estDaysFence} onChange={e => setEstDaysFence(e.target.value)} disabled={!isEditing} className="w-full bg-white px-2 py-1 border border-amber-300 rounded font-bold text-sm outline-none" />
-                        <span className="text-xs font-bold text-amber-700">日</span>
+                        <input 
+                            type="date" 
+                            value={estDaysFence} 
+                            onChange={e => setEstDaysFence(e.target.value)} 
+                            disabled={!isEditing} 
+                            className="w-full bg-white px-2 py-1 border border-amber-300 rounded font-bold text-sm outline-none" 
+                        />
                       </div>
                   </div>
                   <div className="bg-blue-50 p-3 rounded-lg border border-blue-200 shadow-sm flex flex-col justify-center">
                       <label className="block text-xs font-bold text-blue-700 mb-1 flex items-center gap-1"><ClockIcon className="w-3 h-3" /> 組合屋預估工期</label>
                       <div className="flex items-center gap-2">
-                        <input type="number" value={estDaysModular} onChange={e => setEstDaysModular(e.target.value)} disabled={!isEditing} className="w-full bg-white px-2 py-1 border border-blue-300 rounded font-bold text-sm outline-none" />
-                        <span className="text-xs font-bold text-blue-700">日</span>
+                        <input 
+                            type="date" 
+                            value={estDaysModular} 
+                            onChange={e => setEstDaysModular(e.target.value)} 
+                            disabled={!isEditing} 
+                            className="w-full bg-white px-2 py-1 border border-blue-300 rounded font-bold text-sm outline-none" 
+                        />
                       </div>
                   </div>
               </div>
