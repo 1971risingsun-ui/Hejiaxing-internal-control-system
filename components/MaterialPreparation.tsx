@@ -1,3 +1,4 @@
+
 import React, { useMemo, useState, useEffect } from 'react';
 import { Project, User, CompletionItem, FenceMaterialItem, FenceMaterialSheet, SystemRules } from '../types';
 import { BoxIcon, TruckIcon, ClipboardListIcon, TrashIcon, UsersIcon, PlusIcon, PenToolIcon, CalendarIcon, FileTextIcon } from './Icons';
@@ -93,7 +94,7 @@ const MaterialPreparation: React.FC<MaterialPreparationProps> = ({ project, onUp
 
   const getItemKey = (item: CompletionItem) => `${item.name}_${item.category}_${item.spec || 'no-spec'}`;
 
-  // 動態換算材料項目
+  // 動態換算材料項目 (公式)
   const getDefaultMaterialItems = (itemName: string, quantity: string): { category: string; items: FenceMaterialItem[] } | null => {
     const baseQty = parseFloat(quantity) || 0;
     if (baseQty <= 0) return null;
@@ -123,6 +124,39 @@ const MaterialPreparation: React.FC<MaterialPreparationProps> = ({ project, onUp
     return {
       category: formulaConfig.category,
       items: generatedItems
+    };
+  };
+
+  // 從卡片生成材料
+  const getMaterialItemsFromCards = (item: CompletionItem): { category: string; items: FenceMaterialItem[] } | null => {
+    if (!item.cards || item.cards.length === 0) return null;
+    
+    // 優先處理 material 類型的卡片
+    const materialCards = item.cards.filter(c => c.type === 'material');
+    if (materialCards.length === 0) return null;
+
+    const generatedItems: FenceMaterialItem[] = [];
+    
+    materialCards.forEach(card => {
+        if (card.materialDetails) {
+            card.materialDetails.forEach(detail => {
+                generatedItems.push({
+                    id: crypto.randomUUID(),
+                    name: detail.name,
+                    spec: detail.spec,
+                    quantity: parseFloat(detail.quantity) || 0,
+                    unit: detail.unit,
+                    notes: item.name // 施工項目寫在備註欄
+                });
+            });
+        }
+    });
+
+    if (generatedItems.length === 0) return null;
+
+    return {
+        category: '卡片生成',
+        items: generatedItems
     };
   };
 
@@ -179,10 +213,13 @@ const MaterialPreparation: React.FC<MaterialPreparationProps> = ({ project, onUp
                 {items.map((item, idx) => {
                   const itemKey = getItemKey(item);
                   const existingSheet = project.fenceMaterialSheets?.[itemKey];
-                  const autoData = showDetails ? getDefaultMaterialItems(item.name, item.quantity) : null;
                   
-                  const activeItems = existingSheet?.items || autoData?.items || [];
-                  const activeCategory = existingSheet?.category || autoData?.category || '';
+                  // Priority: Existing -> Cards -> Formula
+                  const cardData = showDetails ? getMaterialItemsFromCards(item) : null;
+                  const autoData = showDetails && !cardData ? getDefaultMaterialItems(item.name, item.quantity) : null;
+                  
+                  const activeItems = existingSheet?.items || cardData?.items || autoData?.items || [];
+                  const activeCategory = existingSheet?.category || cardData?.category || autoData?.category || '';
 
                   return (
                     <React.Fragment key={itemKey}>
@@ -212,6 +249,7 @@ const MaterialPreparation: React.FC<MaterialPreparationProps> = ({ project, onUp
                                     <th className="px-4 py-2 w-20">規格填寫</th>
                                     <th className="px-4 py-2 w-24 text-center">數量 (自動)</th>
                                     <th className="px-4 py-2 w-16 text-center">單位</th>
+                                    <th className="px-4 py-2 w-24">備註</th>
                                     <th className="px-4 py-2 w-10 text-center">刪除</th>
                                   </tr>
                                 </thead>
@@ -252,6 +290,17 @@ const MaterialPreparation: React.FC<MaterialPreparationProps> = ({ project, onUp
                                         />
                                       </td>
                                       <td className="px-4 py-2 text-center font-bold text-slate-400">{mItem.unit}</td>
+                                      <td className="px-4 py-2">
+                                        <input 
+                                          type="text" value={mItem.notes || ''} placeholder="備註..."
+                                          onChange={(e) => {
+                                            const newItems = [...activeItems];
+                                            newItems[mIdx].notes = e.target.value;
+                                            updateMaterialSheet(itemKey, { category: activeCategory, items: newItems });
+                                          }}
+                                          className="w-full bg-transparent border-b border-transparent focus:border-indigo-300 outline-none text-slate-500"
+                                        />
+                                      </td>
                                       <td className="px-4 py-2 text-center">
                                         <button 
                                           onClick={() => {
@@ -264,7 +313,7 @@ const MaterialPreparation: React.FC<MaterialPreparationProps> = ({ project, onUp
                                     </tr>
                                   ))}
                                   <tr className="bg-slate-50/30">
-                                    <td colSpan={5} className="p-1">
+                                    <td colSpan={6} className="p-1">
                                       <button 
                                         onClick={() => {
                                           const m: FenceMaterialItem = { id: crypto.randomUUID(), name: '新材料', spec: '', quantity: 0, unit: '項' };

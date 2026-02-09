@@ -1,4 +1,5 @@
 
+
 export enum ProjectStatus {
   PLANNING = '規劃中',
   IN_PROGRESS = '進行中',
@@ -219,6 +220,7 @@ export interface FenceMaterialItem {
   isPoCreated?: boolean; 
   lastModifiedBy?: string;
   lastModifiedAt?: number;
+  notes?: string;
 }
 
 export interface FenceMaterialSheet {
