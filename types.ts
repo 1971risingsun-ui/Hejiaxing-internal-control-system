@@ -1,5 +1,4 @@
 
-
 export enum ProjectStatus {
   PLANNING = '規劃中',
   IN_PROGRESS = '進行中',
@@ -139,6 +138,17 @@ export interface PlanningCard {
   materialName?: string; // 專用欄位：材料名稱(備料) (舊資料相容)
   materialDetails?: PlanningMaterialDetail[]; // 新增欄位：備料多筆明細
   note?: string; // 專用欄位：備註(生產)
+}
+
+export interface TaskSchedule {
+  date: string;
+  master?: string; // Legacy: 單一師傅
+  masterCards?: PlanningCard[]; // Legacy: 單一師傅卡片
+  masterAssignments?: Record<string, PlanningCard[]>; // New: 多師傅指派 { "師傅A": [Cards], "師傅B": [Cards] }
+  collabCards: PlanningCard[]; // 第三排：協同作業卡片
+  cards?: PlanningCard[]; // Legacy: 舊欄位保留 (相容性)
+  lastModifiedBy?: string;
+  lastModifiedAt?: number;
 }
 
 export interface CompletionItem {

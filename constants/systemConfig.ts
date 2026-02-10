@@ -5,6 +5,7 @@ export const ROC_HOLIDAYS = ['01-01', '02-28', '04-04', '04-05', '05-01', '10-10
 
 export const PERMISSION_STRUCTURE = [
   { id: 'engineering', label: '工務總覽', type: 'main' },
+  { id: 'task_planning', label: '任務規劃', type: 'main' },
   { id: 'engineering_hub', label: '工作排程', type: 'main', children: [
     { id: 'daily_dispatch', label: '明日工作排程' },
     { id: 'driving_time', label: '估計行車時間' },
@@ -41,15 +42,15 @@ export const DEFAULT_SYSTEM_RULES: SystemRules = {
   rolePermissions: {
     [UserRole.ADMIN]: { 
       displayName: '管理員', 
-      allowedViews: ['update_log', 'engineering', 'engineering_hub', 'daily_dispatch', 'driving_time', 'weekly_schedule', 'report_tracking', 'outsourcing', 'engineering_groups', 'purchasing_hub', 'purchasing_items', 'stock_alert', 'purchasing_suppliers', 'purchasing_subcontractors', 'purchasing_orders', 'purchasing_inbounds', 'hr', 'production', 'equipment', 'report', 'users'] 
+      allowedViews: ['update_log', 'engineering', 'task_planning', 'engineering_hub', 'daily_dispatch', 'driving_time', 'weekly_schedule', 'report_tracking', 'outsourcing', 'engineering_groups', 'purchasing_hub', 'purchasing_items', 'stock_alert', 'purchasing_suppliers', 'purchasing_subcontractors', 'purchasing_orders', 'purchasing_inbounds', 'hr', 'production', 'equipment', 'report', 'users'] 
     },
     [UserRole.MANAGER]: { 
       displayName: '專案經理', 
-      allowedViews: ['update_log', 'engineering', 'engineering_hub', 'daily_dispatch', 'driving_time', 'weekly_schedule', 'report_tracking', 'outsourcing', 'purchasing_hub', 'purchasing_items', 'stock_alert', 'purchasing_suppliers', 'purchasing_subcontractors', 'purchasing_orders', 'purchasing_inbounds', 'hr', 'production', 'equipment', 'report'] 
+      allowedViews: ['update_log', 'engineering', 'task_planning', 'engineering_hub', 'daily_dispatch', 'driving_time', 'weekly_schedule', 'report_tracking', 'outsourcing', 'purchasing_hub', 'purchasing_items', 'stock_alert', 'purchasing_suppliers', 'purchasing_subcontractors', 'purchasing_orders', 'purchasing_inbounds', 'hr', 'production', 'equipment', 'report'] 
     },
     [UserRole.ENGINEERING]: { 
       displayName: '工務人員', 
-      allowedViews: ['update_log', 'engineering', 'engineering_hub', 'daily_dispatch', 'driving_time', 'weekly_schedule', 'report', 'report_tracking'] 
+      allowedViews: ['update_log', 'engineering', 'task_planning', 'engineering_hub', 'daily_dispatch', 'driving_time', 'weekly_schedule', 'report', 'report_tracking'] 
     },
     [UserRole.FACTORY]: { 
       displayName: '廠務人員', 

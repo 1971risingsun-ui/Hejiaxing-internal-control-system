@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Project, ProjectStatus, User, UserRole, ProjectType, WeeklySchedule as WeeklyScheduleType, DailyDispatch as DailyDispatchType, GlobalTeamConfigs, Employee, AttendanceRecord, OvertimeRecord, MonthSummaryRemark, Supplier, PurchaseOrder, SystemRules, StockAlertItem, Tool, Asset, Vehicle } from './types';
+import { Project, ProjectStatus, User, UserRole, ProjectType, WeeklySchedule as WeeklyScheduleType, DailyDispatch as DailyDispatchType, GlobalTeamConfigs, Employee, AttendanceRecord, OvertimeRecord, MonthSummaryRemark, Supplier, PurchaseOrder, SystemRules, StockAlertItem, Tool, Asset, Vehicle, TaskSchedule } from './types';
 import EngineeringView from './components/EngineeringView';
 import ProjectDetail from './components/ProjectDetail';
 import UserManagement from './components/UserManagement';
@@ -28,6 +28,7 @@ import SyncDecisionCenter from './components/SyncDecisionCenter';
 import AuditLogList from './components/AuditLogList';
 import DrivingTimeEstimator from './components/DrivingTimeEstimator';
 import ReportTrackingView from './components/ReportTrackingView';
+import TaskPlanning from './components/TaskPlanning';
 import { HomeIcon, UserIcon, LogOutIcon, ShieldIcon, MenuIcon, XIcon, WrenchIcon, UploadIcon, LoaderIcon, ClipboardListIcon, LayoutGridIcon, BoxIcon, DownloadIcon, FileTextIcon, CheckCircleIcon, AlertIcon, UsersIcon, BriefcaseIcon, ArrowLeftIcon, CalendarIcon, NavigationIcon, SaveIcon, ExternalLinkIcon, RefreshIcon, PenToolIcon, HistoryIcon } from './components/Icons';
 import { getDirectoryHandle, saveDbToLocal, loadDbFromLocal, getHandleFromIdb, saveAppStateToIdb, loadAppStateFromIdb, saveHandleToIdb } from './utils/fileSystem';
 import { downloadBlob } from './utils/fileHelpers';
@@ -58,6 +59,7 @@ const App: React.FC = () => {
   const [tools, setTools] = useState<Tool[]>([]);
   const [assets, setAssets] = useState<Asset[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [taskSchedules, setTaskSchedules] = useState<Record<string, TaskSchedule>>({});
 
   // --- 持久化與同步 ---
   const [dirHandle, setDirHandle] = useState<FileSystemDirectoryHandle | null>(null);
@@ -76,7 +78,7 @@ const App: React.FC = () => {
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [view, setView] = useState<'update_log' | 'engineering' | 'engineering_hub' | 'purchasing_hub' | 'purchasing_items' | 'stock_alert' | 'purchasing_suppliers' | 'purchasing_subcontractors' | 'purchasing_orders' | 'purchasing_inbounds' | 'production' | 'hr' | 'equipment' | 'equipment_tools' | 'equipment_assets' | 'equipment_vehicles' | 'report' | 'users' | 'driving_time' | 'weekly_schedule' | 'daily_dispatch' | 'engineering_groups' | 'outsourcing' | 'report_tracking'>('update_log');
+  const [view, setView] = useState<'update_log' | 'engineering' | 'task_planning' | 'engineering_hub' | 'purchasing_hub' | 'purchasing_items' | 'stock_alert' | 'purchasing_suppliers' | 'purchasing_subcontractors' | 'purchasing_orders' | 'purchasing_inbounds' | 'production' | 'hr' | 'equipment' | 'equipment_tools' | 'equipment_assets' | 'equipment_vehicles' | 'report' | 'users' | 'driving_time' | 'weekly_schedule' | 'daily_dispatch' | 'engineering_groups' | 'outsourcing' | 'report_tracking'>('update_log');
 
   const employeeNicknames = useMemo(() => employees.map(e => e.nickname || e.name).filter(Boolean), [employees]);
 
@@ -125,13 +127,14 @@ const App: React.FC = () => {
     if (Array.isArray(data.tools)) setTools(data.tools);
     if (Array.isArray(data.assets)) setAssets(data.assets);
     if (Array.isArray(data.vehicles)) setVehicles(data.vehicles);
+    if (data.taskSchedules) setTaskSchedules(data.taskSchedules);
     if (data.lastUpdateInfo) setLastUpdateInfo(data.lastUpdateInfo);
   };
 
   useEffect(() => {
     if (!isInitialized) return;
     const save = async () => {
-      const state = { projects, users: allUsers, auditLogs, weeklySchedules, dailyDispatches, globalTeamConfigs, systemRules, employees, attendance, overtime, monthRemarks, suppliers, subcontractors, purchaseOrders, stockAlertItems, tools, assets, vehicles, lastUpdateInfo, lastSaved: new Date().toISOString() };
+      const state = { projects, users: allUsers, auditLogs, weeklySchedules, dailyDispatches, globalTeamConfigs, systemRules, employees, attendance, overtime, monthRemarks, suppliers, subcontractors, purchaseOrders, stockAlertItems, tools, assets, vehicles, taskSchedules, lastUpdateInfo, lastSaved: new Date().toISOString() };
       await saveAppStateToIdb(state);
       if (dirHandle && dirPermission === 'granted') {
         await saveDbToLocal(dirHandle, state);
@@ -140,7 +143,7 @@ const App: React.FC = () => {
     };
     const timer = setTimeout(save, 500);
     return () => clearTimeout(timer);
-  }, [projects, allUsers, auditLogs, weeklySchedules, dailyDispatches, globalTeamConfigs, systemRules, employees, attendance, overtime, monthRemarks, suppliers, subcontractors, purchaseOrders, stockAlertItems, tools, assets, vehicles, dirHandle, dirPermission, isInitialized, lastUpdateInfo]);
+  }, [projects, allUsers, auditLogs, weeklySchedules, dailyDispatches, globalTeamConfigs, systemRules, employees, attendance, overtime, monthRemarks, suppliers, subcontractors, purchaseOrders, stockAlertItems, tools, assets, vehicles, taskSchedules, dirHandle, dirPermission, isInitialized, lastUpdateInfo]);
 
   // --- 精確更新攔截器 ---
   const handleUpdateList = <T extends object>(
@@ -204,7 +207,7 @@ const App: React.FC = () => {
 
   const handleManualSaveAs = async () => {
     try {
-      const appState = { projects, users: allUsers, auditLogs, weeklySchedules, dailyDispatches, globalTeamConfigs, systemRules, employees, attendance, overtime, monthRemarks, suppliers, subcontractors, purchaseOrders, stockAlertItems, tools, assets, vehicles, lastUpdateInfo, lastSaved: new Date().toISOString() };
+      const appState = { projects, users: allUsers, auditLogs, weeklySchedules, dailyDispatches, globalTeamConfigs, systemRules, employees, attendance, overtime, monthRemarks, suppliers, subcontractors, purchaseOrders, stockAlertItems, tools, assets, vehicles, taskSchedules, lastUpdateInfo, lastSaved: new Date().toISOString() };
       const blob = new Blob([JSON.stringify(appState, null, 2)], { type: 'application/json' });
       await downloadBlob(blob, `db_${new Date().toISOString().replace(/[:.]/g, '-')}.json`);
     } catch (e) { alert('存檔失敗'); }
@@ -343,6 +346,7 @@ const App: React.FC = () => {
         <nav className="flex-1 px-4 space-y-2 overflow-y-auto no-scrollbar pb-10">
           <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-2 mt-4 px-4">工務工程</div>
           {isViewAllowed('engineering') && <button onClick={() => { setSelectedProject(null); setView('engineering'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'engineering' && !selectedProject ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:bg-slate-800'}`}><LayoutGridIcon className="w-5 h-5" /> <span className="font-medium">工務總覽</span></button>}
+          {isViewAllowed('task_planning') && <button onClick={() => { setSelectedProject(null); setView('task_planning'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'task_planning' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:bg-slate-800'}`}><LayoutGridIcon className="w-5 h-5" /> <span className="font-medium">任務規劃</span></button>}
           {isViewAllowed('engineering_hub') && <button onClick={() => { setSelectedProject(null); setView('engineering_hub'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'engineering_hub' || ['weekly_schedule','daily_dispatch','engineering_groups','driving_time','outsourcing','report_tracking'].includes(view) ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:bg-slate-800'}`}><BriefcaseIcon className="w-5 h-5" /> <span className="font-medium">工作排程</span></button>}
           {isViewAllowed('report') && <button onClick={() => { setSelectedProject(null); setView('report'); setIsSidebarOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-colors ${view === 'report' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}><ClipboardListIcon className="w-5 h-5" /> <span className="font-medium">工作回報</span></button>}
           
@@ -384,6 +388,7 @@ const App: React.FC = () => {
           {view === 'update_log' ? (<AuditLogList logs={auditLogs} />) : 
            view === 'users' ? (<UserManagement users={allUsers} onUpdateUsers={(nl) => handleUpdateList(allUsers, nl, setAllUsers, '系統帳號')} auditLogs={auditLogs} onLogAction={(action, details) => updateLastAction('系統', details)} projects={projects} onRestoreData={restoreDataToState} systemRules={systemRules} onUpdateSystemRules={setSystemRules} />) : 
            view === 'report' ? (<div className="flex-1 overflow-y-auto custom-scrollbar"><GlobalWorkReport projects={projects} currentUser={currentUser} onUpdateProject={handleUpdateProject} /></div>) : 
+           view === 'task_planning' ? (<div className="flex-1 overflow-hidden"><TaskPlanning projects={projects} taskSchedules={taskSchedules} onUpdateTaskSchedules={(nl) => { setTaskSchedules(nl); updateLastAction('任務規劃', '更新了任務排程'); }} employees={employees} currentUser={currentUser} /></div>) :
            view === 'engineering_hub' ? (<div className="flex-1 overflow-y-auto custom-scrollbar p-6 animate-fade-in"><div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-6 max-w-4xl mx-auto">{[
              { id: 'daily_dispatch', label: '明日工作排程', icon: <ClipboardListIcon className="w-6 h-6" />, color: 'bg-blue-50 text-blue-600' },
              { id: 'driving_time', label: '估計行車時間', icon: <NavigationIcon className="w-6 h-6" />, color: 'bg-amber-50 text-amber-600' },
