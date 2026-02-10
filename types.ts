@@ -138,6 +138,7 @@ export interface PlanningCard {
   materialName?: string; // 專用欄位：材料名稱(備料) (舊資料相容)
   materialDetails?: PlanningMaterialDetail[]; // 新增欄位：備料多筆明細
   note?: string; // 專用欄位：備註(生產)
+  projectName?: string; // 新增欄位：所屬案件名稱
 }
 
 export interface TaskSchedule {

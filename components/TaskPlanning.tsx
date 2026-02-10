@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { Project, User, PlanningCard, TaskSchedule, Employee, CardType } from '../types';
-import { CalendarIcon, UserIcon, LayoutGridIcon, BoxIcon, BriefcaseIcon, UsersIcon, PenToolIcon, XIcon, PlusIcon, SearchIcon, TrashIcon } from './Icons';
+import { CalendarIcon, UserIcon, LayoutGridIcon, BoxIcon, BriefcaseIcon, UsersIcon, PenToolIcon, XIcon, PlusIcon, SearchIcon, TrashIcon, ChevronRightIcon } from './Icons';
 
 interface TaskPlanningProps {
   projects: Project[];
@@ -37,6 +37,9 @@ const TaskPlanning: React.FC<TaskPlanningProps> = ({ projects, taskSchedules, on
   // Dynamic Master Columns State - Initialize with at least one column
   const [masterColumns, setMasterColumns] = useState<string[]>(['col-1']);
   const [selectedMasters, setSelectedMasters] = useState<Record<string, string>>({});
+  
+  // Column Collapse State
+  const [collapsedColumns, setCollapsedColumns] = useState<Set<string>>(new Set());
 
   // Generate 60 days from start date
   const displayDates = useMemo(() => {
@@ -86,7 +89,12 @@ const TaskPlanning: React.FC<TaskPlanningProps> = ({ projects, taskSchedules, on
     project.planningReports.forEach(report => {
         report.items.forEach(item => {
             if (item.cards) {
-                cards.push(...item.cards);
+                // Inject project Name
+                const cardsWithProject = item.cards.map(c => ({
+                    ...c,
+                    projectName: project.name
+                }));
+                cards.push(...cardsWithProject);
             }
         });
     });
@@ -115,10 +123,27 @@ const TaskPlanning: React.FC<TaskPlanningProps> = ({ projects, taskSchedules, on
       const newSelected = { ...selectedMasters };
       delete newSelected[colId];
       setSelectedMasters(newSelected);
+      
+      // Cleanup collapsed state
+      if(collapsedColumns.has(colId)) {
+          const newCollapsed = new Set(collapsedColumns);
+          newCollapsed.delete(colId);
+          setCollapsedColumns(newCollapsed);
+      }
   };
 
   const handleMasterSelect = (colId: string, masterName: string) => {
       setSelectedMasters(prev => ({ ...prev, [colId]: masterName }));
+  };
+
+  const toggleColumnCollapse = (colId: string) => {
+      const newSet = new Set(collapsedColumns);
+      if (newSet.has(colId)) {
+          newSet.delete(colId);
+      } else {
+          newSet.add(colId);
+      }
+      setCollapsedColumns(newSet);
   };
 
   const handleDrop = (e: React.DragEvent, targetDate: string, targetZone: 'master' | 'collab', targetMaster?: string) => {
@@ -257,28 +282,47 @@ const TaskPlanning: React.FC<TaskPlanningProps> = ({ projects, taskSchedules, on
                     <th className="w-28 p-2 border-r border-slate-200 bg-slate-100 text-slate-500 font-black text-xs uppercase tracking-widest sticky left-0 z-30">
                         日期 (Date)
                     </th>
-                    {masterColumns.map((colId, index) => (
-                        <th key={colId} className="p-2 border-r border-slate-200 bg-white min-w-[200px]">
-                            <div className="flex items-center gap-2">
-                                <div className="p-1.5 bg-indigo-50 rounded-lg text-indigo-600"><UserIcon className="w-4 h-4" /></div>
-                                <select 
-                                    value={selectedMasters[colId] || ''}
-                                    onChange={(e) => handleMasterSelect(colId, e.target.value)}
-                                    className="w-full bg-transparent text-sm font-bold text-slate-800 outline-none cursor-pointer border-b border-transparent focus:border-indigo-500"
-                                >
-                                    <option value="">選擇師傅...</option>
-                                    {employees.filter(e => e.category === '現場' || e.category === '做件').map(e => (
-                                        <option key={e.id} value={e.nickname || e.name}>{e.nickname || e.name}</option>
-                                    ))}
-                                </select>
-                                {masterColumns.length > 1 && (
-                                    <button onClick={() => handleRemoveMasterColumn(colId)} className="text-slate-300 hover:text-red-500 p-1">
-                                        <XIcon className="w-4 h-4" />
-                                    </button>
+                    {masterColumns.map((colId, index) => {
+                        const isCollapsed = collapsedColumns.has(colId);
+                        return (
+                            <th key={colId} className={`p-2 border-r border-slate-200 bg-white transition-all duration-300 ${isCollapsed ? 'w-10 min-w-[40px]' : 'min-w-[200px]'}`}>
+                                {isCollapsed ? (
+                                    <div className="flex flex-col items-center gap-2 h-full">
+                                        <button onClick={() => toggleColumnCollapse(colId)} className="text-slate-400 hover:text-indigo-600 p-1 hover:bg-slate-100 rounded">
+                                            <ChevronRightIcon className="w-4 h-4" />
+                                        </button>
+                                        <div className="py-2" style={{ writingMode: 'vertical-rl', textOrientation: 'upright', letterSpacing: '2px' }}>
+                                            <span className="text-xs font-black text-slate-700 whitespace-nowrap">
+                                                {selectedMasters[colId] ? (selectedMasters[colId].length > 3 ? selectedMasters[colId].substring(0,3)+'..' : selectedMasters[colId]) : '未選'}
+                                            </span>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="flex items-center gap-2">
+                                        <button onClick={() => toggleColumnCollapse(colId)} className="text-slate-300 hover:text-indigo-600 p-1 hover:bg-slate-50 rounded flex-shrink-0" title="收起欄位">
+                                            <ChevronRightIcon className="w-4 h-4 rotate-180" />
+                                        </button>
+                                        <div className="p-1.5 bg-indigo-50 rounded-lg text-indigo-600 flex-shrink-0"><UserIcon className="w-4 h-4" /></div>
+                                        <select 
+                                            value={selectedMasters[colId] || ''}
+                                            onChange={(e) => handleMasterSelect(colId, e.target.value)}
+                                            className="w-full bg-transparent text-sm font-bold text-slate-800 outline-none cursor-pointer border-b border-transparent focus:border-indigo-500 truncate"
+                                        >
+                                            <option value="">選擇師傅...</option>
+                                            {employees.filter(e => e.category === '現場' || e.category === '做件').map(e => (
+                                                <option key={e.id} value={e.nickname || e.name}>{e.nickname || e.name}</option>
+                                            ))}
+                                        </select>
+                                        {masterColumns.length > 1 && (
+                                            <button onClick={() => handleRemoveMasterColumn(colId)} className="text-slate-300 hover:text-red-500 p-1 flex-shrink-0">
+                                                <XIcon className="w-4 h-4" />
+                                            </button>
+                                        )}
+                                    </div>
                                 )}
-                            </div>
-                        </th>
-                    ))}
+                            </th>
+                        );
+                    })}
                     <th className="w-10 p-0 border-r border-slate-200 bg-slate-50 text-center align-middle">
                         <button onClick={handleAddMasterColumn} className="w-full h-full flex items-center justify-center text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors" title="新增師傅欄位">
                             <PlusIcon className="w-5 h-5" />
@@ -318,48 +362,60 @@ const TaskPlanning: React.FC<TaskPlanningProps> = ({ projects, taskSchedules, on
                             {masterColumns.map(colId => {
                                 const masterName = selectedMasters[colId];
                                 const cards = masterName ? (schedule.masterAssignments?.[masterName] || []) : [];
+                                const isCollapsed = collapsedColumns.has(colId);
                                 
                                 return (
                                     <td 
                                         key={colId} 
-                                        className={`p-2 border-r border-slate-200 align-top transition-colors ${!masterName ? 'bg-slate-50/50' : 'bg-white'}`}
-                                        onDragOver={(e) => e.preventDefault()}
-                                        onDrop={(e) => handleDrop(e, dateStr, 'master', masterName)}
+                                        className={`border-r border-slate-200 align-top transition-all duration-300 ${!masterName ? 'bg-slate-50/50' : 'bg-white'} ${isCollapsed ? 'p-0 w-10 min-w-[40px]' : 'p-2 min-w-[200px]'}`}
+                                        onDragOver={(e) => !isCollapsed && e.preventDefault()}
+                                        onDrop={(e) => !isCollapsed && handleDrop(e, dateStr, 'master', masterName)}
                                     >
-                                        {!masterName ? (
-                                            <div className="h-20 flex items-center justify-center text-slate-300 text-xs font-bold italic pointer-events-none">
-                                                請先選取師傅
-                                            </div>
-                                        ) : (
-                                            <div className="flex flex-col gap-1.5 min-h-[80px]">
-                                                {cards.map(card => (
-                                                    <div 
-                                                        key={card.id}
-                                                        draggable
-                                                        onDragStart={() => setDraggedCard({ card, source: 'calendar', originalDate: dateStr, originalZone: 'master', originalMaster: masterName })}
-                                                        className={`p-2 rounded-lg border shadow-sm cursor-move text-xs flex flex-col gap-0.5 relative group ${getCardColor(card.type)}`}
-                                                    >
-                                                        <div className="flex justify-between items-start">
-                                                            <div className="flex items-center gap-1 font-black opacity-70 uppercase text-[9px]">
-                                                                {getCardIcon(card.type)} {card.type === 'material' ? '備' : card.type === 'outsourcing' ? '外' : card.type === 'subcontractor' ? '協' : '生'}
-                                                            </div>
-                                                            <button 
-                                                                onClick={() => handleRemoveCard(dateStr, card.id, 'master', masterName)}
-                                                                className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 hover:bg-white/50 rounded"
-                                                            >
-                                                                <XIcon className="w-3 h-3" />
-                                                            </button>
-                                                        </div>
-                                                        <div className="font-bold leading-tight line-clamp-2">{card.name}</div>
-                                                        <div className="text-[9px] opacity-80">{card.spec || card.vendor || '-'}</div>
-                                                    </div>
-                                                ))}
-                                                {cards.length === 0 && (
-                                                    <div className="h-full flex items-center justify-center opacity-10 text-[10px] font-bold pointer-events-none p-4">
-                                                        拖曳卡片
+                                        {isCollapsed ? (
+                                            <div className="h-full w-full flex flex-col items-center pt-4 gap-2 bg-slate-50/30">
+                                                {cards.length > 0 && (
+                                                    <div className="w-6 h-6 rounded-full bg-indigo-600 text-white flex items-center justify-center text-[10px] font-black shadow-sm" title={`${cards.length} 張卡片`}>
+                                                        {cards.length}
                                                     </div>
                                                 )}
                                             </div>
+                                        ) : (
+                                            !masterName ? (
+                                                <div className="h-20 flex items-center justify-center text-slate-300 text-xs font-bold italic pointer-events-none">
+                                                    請先選取師傅
+                                                </div>
+                                            ) : (
+                                                <div className="flex flex-col gap-1.5 min-h-[80px]">
+                                                    {cards.map(card => (
+                                                        <div 
+                                                            key={card.id}
+                                                            draggable
+                                                            onDragStart={() => setDraggedCard({ card, source: 'calendar', originalDate: dateStr, originalZone: 'master', originalMaster: masterName })}
+                                                            className={`p-2 rounded-lg border shadow-sm cursor-move text-xs flex flex-col gap-0.5 relative group ${getCardColor(card.type)}`}
+                                                        >
+                                                            <div className="flex justify-between items-start">
+                                                                <div className="flex items-center gap-1 font-black opacity-70 uppercase text-[9px]">
+                                                                    {getCardIcon(card.type)} {card.type === 'material' ? '備' : card.type === 'outsourcing' ? '外' : card.type === 'subcontractor' ? '協' : '生'}
+                                                                </div>
+                                                                <button 
+                                                                    onClick={() => handleRemoveCard(dateStr, card.id, 'master', masterName)}
+                                                                    className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 hover:bg-white/50 rounded"
+                                                                >
+                                                                    <XIcon className="w-3 h-3" />
+                                                                </button>
+                                                            </div>
+                                                            {card.projectName && <div className="text-[9px] text-indigo-600 font-black truncate">{card.projectName}</div>}
+                                                            <div className="font-bold leading-tight line-clamp-2">{card.name}</div>
+                                                            <div className="text-[9px] opacity-80">{card.spec || card.vendor || '-'}</div>
+                                                        </div>
+                                                    ))}
+                                                    {cards.length === 0 && (
+                                                        <div className="h-full flex items-center justify-center opacity-10 text-[10px] font-bold pointer-events-none p-4">
+                                                            拖曳卡片
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )
                                         )}
                                     </td>
                                 );
@@ -393,6 +449,7 @@ const TaskPlanning: React.FC<TaskPlanningProps> = ({ projects, taskSchedules, on
                                                     <XIcon className="w-3 h-3" />
                                                 </button>
                                             </div>
+                                            {card.projectName && <div className="text-[9px] text-indigo-600 font-black truncate">{card.projectName}</div>}
                                             <div className="font-bold leading-tight line-clamp-2">{card.name}</div>
                                             <div className="text-[9px] opacity-80">{card.spec || card.vendor || '-'}</div>
                                         </div>
@@ -461,6 +518,7 @@ const TaskPlanning: React.FC<TaskPlanningProps> = ({ projects, taskSchedules, on
                                   <div className="flex items-center gap-1.5 font-black uppercase text-[9px] mb-1 opacity-70">
                                       {getCardIcon(card.type)} {card.type === 'material' ? '備料卡' : card.type === 'outsourcing' ? '外包卡' : card.type === 'subcontractor' ? '協力卡' : '生產卡'}
                                   </div>
+                                  {card.projectName && <div className="text-[9px] text-indigo-600 font-black truncate mb-0.5">{card.projectName}</div>}
                                   <div className="font-bold text-sm mb-1">{card.name}</div>
                                   {(card.spec || card.vendor) && <div className="text-[10px] opacity-80 bg-white/50 px-1.5 py-0.5 rounded w-fit">{card.spec || card.vendor}</div>}
                                   <div className="mt-2 flex justify-between items-center text-[10px] opacity-60 font-mono">
