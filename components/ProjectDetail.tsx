@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { Project, ProjectStatus, User, UserRole, ProjectType, GlobalTeamConfigs, SystemRules } from '../types';
-import { ArrowLeftIcon, CalendarIcon, MapPinIcon, ExternalLinkIcon, ClipboardListIcon, BoxIcon, EditIcon, FileTextIcon, PlusIcon, XIcon, UsersIcon, CheckCircleIcon, TruckIcon, LanguagesIcon, LoaderIcon } from './Icons';
+import { ArrowLeftIcon, CalendarIcon, MapPinIcon, ExternalLinkIcon, ClipboardListIcon, BoxIcon, EditIcon, FileTextIcon, PlusIcon, XIcon, UsersIcon, CheckCircleIcon, TruckIcon, LanguagesIcon, LoaderIcon, ClockIcon } from './Icons';
 import ProjectOverview from './ProjectOverview';
 import ConstructionRecord from './ConstructionRecord';
 import ProjectMaterials from './ProjectMaterials';
@@ -23,7 +23,7 @@ interface ProjectDetailProps {
 }
 
 const ProjectDetail: React.FC<ProjectDetailProps> = ({ project, currentUser, onBack, onUpdateProject, onEditProject, onAddToSchedule, globalTeamConfigs, systemRules, onUpdateSystemRules }) => {
-  const [activeTab, setActiveTab] = useState<'overview' | 'materials' | 'construction' | 'completion' | 'preparation' | 'planning'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'materials' | 'construction' | 'completion' | 'preparation' | 'planning' | 'duration_estimation'>('overview');
   
   // 排程與翻譯相關狀態
   const [isScheduling, setIsScheduling] = useState(false);
@@ -204,6 +204,9 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ project, currentUser, onB
           <button className={`pb-3 text-sm font-bold border-b-2 transition-colors whitespace-nowrap flex items-center gap-2 ${activeTab === 'planning' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`} onClick={() => setActiveTab('planning')}>
             <FileTextIcon className="w-4 h-4" /> 報價單 (Báo giá) ({(project.planningReports || []).length})
           </button>
+          <button className={`pb-3 text-sm font-bold border-b-2 transition-colors whitespace-nowrap flex items-center gap-2 ${activeTab === 'duration_estimation' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`} onClick={() => setActiveTab('duration_estimation')}>
+            <ClockIcon className="w-4 h-4" /> 工期推估 (Thời gian) ({(project.durationEstimationReports || []).length})
+          </button>
         </div>
       </div>
 
@@ -213,7 +216,8 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({ project, currentUser, onB
         {activeTab === 'completion' && supportsCompletionReport && <CompletionReport project={project} currentUser={currentUser} onUpdateProject={onUpdateProject} systemRules={systemRules} />}
         {activeTab === 'materials' && <ProjectMaterials project={project} currentUser={currentUser} onUpdateProject={onUpdateProject} />}
         {activeTab === 'preparation' && <MaterialPreparation project={project} currentUser={currentUser} onUpdateProject={onUpdateProject} systemRules={systemRules} />}
-        {activeTab === 'planning' && <EngineeringPlanning project={project} currentUser={currentUser} onUpdateProject={onUpdateProject} systemRules={systemRules} onUpdateSystemRules={onUpdateSystemRules} />}
+        {activeTab === 'planning' && <EngineeringPlanning project={project} currentUser={currentUser} onUpdateProject={onUpdateProject} systemRules={systemRules} onUpdateSystemRules={onUpdateSystemRules} mode="planning" />}
+        {activeTab === 'duration_estimation' && <EngineeringPlanning project={project} currentUser={currentUser} onUpdateProject={onUpdateProject} systemRules={systemRules} onUpdateSystemRules={onUpdateSystemRules} mode="duration_estimation" />}
       </div>
       
       {/* Join Schedule Dialog */}

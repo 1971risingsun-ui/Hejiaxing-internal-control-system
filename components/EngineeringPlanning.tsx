@@ -14,6 +14,7 @@ interface EngineeringPlanningProps {
   onUpdateProject: (updatedProject: Project) => void;
   systemRules: SystemRules;
   onUpdateSystemRules: (rules: SystemRules) => void;
+  mode?: 'planning' | 'duration_estimation';
 }
 
 // 定義大分類及其下的子分類
@@ -75,9 +76,10 @@ interface CardManagementModalProps {
   onSave: (updatedItem: CompletionItem) => void;
   onClose: () => void;
   systemRules: SystemRules;
+  mode?: 'planning' | 'duration_estimation';
 }
 
-const CardManagementModal: React.FC<CardManagementModalProps> = ({ item, onSave, onClose, systemRules }) => {
+const CardManagementModal: React.FC<CardManagementModalProps> = ({ item, onSave, onClose, systemRules, mode = 'planning' }) => {
   // 初始化時檢查是否有舊資料需要遷移到 materialDetails
   const [cards, setCards] = useState<PlanningCard[]>(() => {
       return (item.cards || []).map(c => {
@@ -127,13 +129,14 @@ const CardManagementModal: React.FC<CardManagementModalProps> = ({ item, onSave,
       materialDetails: []
     };
     // 預設值填充
-    if (type === 'material') {
+    // 預設值填充
+    if (type === 'material' || mode === 'duration_estimation') {
         newCard.name = item.name; // 預設帶入施工項目名稱
         newCard.quantity = item.quantity; // 預設帶入數量
         newCard.unit = item.unit; // 預設帶入單位
         
         // 查找匹配的自動生成規則
-        const rule = (systemRules.cardGenerationRules || []).find(r => r.targetType === 'material' && item.name.includes(r.keyword));
+        const rule = (systemRules.cardGenerationRules || []).find(r => r.targetType === type && item.name.includes(r.keyword));
         const baseQty = parseFloat(item.quantity) || 0;
 
         if (rule && rule.materialTemplates && rule.materialTemplates.length > 0) {
@@ -146,7 +149,7 @@ const CardManagementModal: React.FC<CardManagementModalProps> = ({ item, onSave,
                 formula: tpl.quantityFormula || 'baseQty'
             }));
         } else {
-            // 備料卡片預設新增一筆明細，並代入施工項目數量和單位
+            // 備料卡片/工項卡片 預設新增一筆明細，並代入施工項目數量和單位
             newCard.materialDetails = [{
                 id: crypto.randomUUID(),
                 name: '',
@@ -166,7 +169,7 @@ const CardManagementModal: React.FC<CardManagementModalProps> = ({ item, onSave,
             const updatedCard = { ...c, [field]: value };
             
             // 如果修改的是數量，且卡片有詳細資料，嘗試重新計算
-            if (field === 'quantity' && c.type === 'material' && c.materialDetails) {
+            if (field === 'quantity' && (c.type === 'material' || mode === 'duration_estimation') && c.materialDetails) {
                 const baseQty = parseFloat(value) || 0;
                 updatedCard.materialDetails = c.materialDetails.map(d => {
                     if (d.formula) {
@@ -260,11 +263,12 @@ const CardManagementModal: React.FC<CardManagementModalProps> = ({ item, onSave,
   };
 
   const getCardLabel = (type: CardType) => {
+    const isDuration = mode === 'duration_estimation';
     switch(type) {
-        case 'material': return { text: '備料卡片', icon: <BoxIcon className="w-4 h-4 text-blue-600" />, color: 'text-blue-700' };
+        case 'material': return { text: isDuration ? '工項卡片' : '備料卡片', icon: <BoxIcon className="w-4 h-4 text-blue-600" />, color: 'text-blue-700' };
         case 'outsourcing': return { text: '外包卡片', icon: <BriefcaseIcon className="w-4 h-4 text-orange-600" />, color: 'text-orange-700' };
         case 'subcontractor': return { text: '協力卡片', icon: <UsersIcon className="w-4 h-4 text-purple-600" />, color: 'text-purple-700' };
-        case 'production': return { text: '生產卡片', icon: <PenToolIcon className="w-4 h-4 text-emerald-600" />, color: 'text-emerald-700' };
+        case 'production': return { text: isDuration ? '廠內準備卡片' : '生產卡片', icon: <PenToolIcon className="w-4 h-4 text-emerald-600" />, color: 'text-emerald-700' };
     }
   };
 
@@ -280,10 +284,10 @@ const CardManagementModal: React.FC<CardManagementModalProps> = ({ item, onSave,
         </header>
         
         <div className="p-6 bg-white border-b border-slate-100 flex gap-3 overflow-x-auto no-scrollbar">
-            <button onClick={() => handleAddCard('material')} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-100 text-blue-700 font-bold text-xs hover:bg-blue-200 transition-all shadow-sm active:scale-95 whitespace-nowrap"><BoxIcon className="w-4 h-4" /> + 新增備料卡片</button>
+            <button onClick={() => handleAddCard('material')} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-100 text-blue-700 font-bold text-xs hover:bg-blue-200 transition-all shadow-sm active:scale-95 whitespace-nowrap"><BoxIcon className="w-4 h-4" /> + 新增{mode === 'duration_estimation' ? '工項卡片' : '備料卡片'}</button>
             <button onClick={() => handleAddCard('outsourcing')} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-orange-100 text-orange-700 font-bold text-xs hover:bg-orange-200 transition-all shadow-sm active:scale-95 whitespace-nowrap"><BriefcaseIcon className="w-4 h-4" /> + 新增外包卡片</button>
             <button onClick={() => handleAddCard('subcontractor')} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-purple-100 text-purple-700 font-bold text-xs hover:bg-purple-200 transition-all shadow-sm active:scale-95 whitespace-nowrap"><UsersIcon className="w-4 h-4" /> + 新增協力卡片</button>
-            <button onClick={() => handleAddCard('production')} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-100 text-emerald-700 font-bold text-xs hover:bg-emerald-200 transition-all shadow-sm active:scale-95 whitespace-nowrap"><PenToolIcon className="w-4 h-4" /> + 新增生產卡片</button>
+            <button onClick={() => handleAddCard('production')} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-100 text-emerald-700 font-bold text-xs hover:bg-emerald-200 transition-all shadow-sm active:scale-95 whitespace-nowrap"><PenToolIcon className="w-4 h-4" /> + 新增{mode === 'duration_estimation' ? '廠內準備卡片' : '生產卡片'}</button>
         </div>
 
         <div className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar bg-slate-50/50">
@@ -311,8 +315,8 @@ const CardManagementModal: React.FC<CardManagementModalProps> = ({ item, onSave,
                                 </div>
                                 
                                 <div className="space-y-3">
-                                    {/* 備料卡片 (Material) - 支援多筆明細 */}
-                                    {card.type === 'material' && (
+                                    {/* 備料卡片 (Material) or Duration Estimation Mode - 支援多筆明細 */}
+                                    {(card.type === 'material' || mode === 'duration_estimation') && (
                                         <>
                                             <div>
                                                 <label className="text-[10px] font-bold text-slate-500 block mb-1">施工項目</label>
@@ -332,9 +336,9 @@ const CardManagementModal: React.FC<CardManagementModalProps> = ({ item, onSave,
 
                                             <div className="mt-2">
                                                 <div className="flex justify-between items-center mb-1">
-                                                    <label className="text-[10px] font-bold text-slate-500 block">材料明細</label>
+                                                    <label className="text-[10px] font-bold text-slate-500 block">{mode === 'duration_estimation' ? '工程明細' : '材料明細'}</label>
                                                     <button onClick={() => handleAddMaterialDetail(card.id)} className="text-[9px] bg-blue-100 text-blue-600 px-2 py-0.5 rounded font-bold hover:bg-blue-200 transition-colors flex items-center gap-1">
-                                                        <PlusIcon className="w-3 h-3" /> 新增規格
+                                                        <PlusIcon className="w-3 h-3" /> {mode === 'duration_estimation' ? '新增工程項目' : '新增規格'}
                                                     </button>
                                                 </div>
                                                 <div className="space-y-2 max-h-[200px] overflow-y-auto pr-1 custom-scrollbar">
@@ -344,7 +348,7 @@ const CardManagementModal: React.FC<CardManagementModalProps> = ({ item, onSave,
                                                                 <div className="col-span-12">
                                                                     <input 
                                                                         type="text" 
-                                                                        placeholder="材料名稱" 
+                                                                        placeholder={mode === 'duration_estimation' ? '工程項目' : '材料名稱'} 
                                                                         value={detail.name} 
                                                                         onChange={e => handleUpdateMaterialDetail(card.id, detail.id, 'name', e.target.value)} 
                                                                         className="w-full text-xs font-bold bg-white border border-slate-200 rounded px-1.5 py-1 outline-none focus:border-blue-400 placeholder:text-slate-300" 
@@ -353,7 +357,7 @@ const CardManagementModal: React.FC<CardManagementModalProps> = ({ item, onSave,
                                                                 <div className="col-span-12">
                                                                     <input 
                                                                         type="text" 
-                                                                        placeholder="規格" 
+                                                                        placeholder={mode === 'duration_estimation' ? '備註' : '規格'} 
                                                                         value={detail.spec} 
                                                                         onChange={e => handleUpdateMaterialDetail(card.id, detail.id, 'spec', e.target.value)} 
                                                                         className="w-full text-xs bg-white border border-slate-200 rounded px-1.5 py-1 outline-none focus:border-blue-400 placeholder:text-slate-300" 
@@ -394,7 +398,7 @@ const CardManagementModal: React.FC<CardManagementModalProps> = ({ item, onSave,
                                         </>
                                     )}
 
-                                    {(card.type === 'outsourcing' || card.type === 'subcontractor') && (
+                                    {mode !== 'duration_estimation' && (card.type === 'outsourcing' || card.type === 'subcontractor') && (
                                         <>
                                             <div>
                                                 <label className="text-[10px] font-bold text-slate-500 block mb-1">{card.type === 'outsourcing' ? '外包項目' : '協力項目'}</label>
@@ -411,7 +415,7 @@ const CardManagementModal: React.FC<CardManagementModalProps> = ({ item, onSave,
                                         </>
                                     )}
 
-                                    {card.type === 'production' && (
+                                    {mode !== 'duration_estimation' && card.type === 'production' && (
                                         <>
                                             <div>
                                                 <label className="text-[10px] font-bold text-slate-500 block mb-1">品名</label>
@@ -458,9 +462,10 @@ interface CardRulesModalProps {
   systemRules: SystemRules;
   onUpdateSystemRules: (rules: SystemRules) => void;
   onClose: () => void;
+  mode?: 'planning' | 'duration_estimation';
 }
 
-const CardRulesModal: React.FC<CardRulesModalProps> = ({ systemRules, onUpdateSystemRules, onClose }) => {
+const CardRulesModal: React.FC<CardRulesModalProps> = ({ systemRules, onUpdateSystemRules, onClose, mode = 'planning' }) => {
   const [rules, setRules] = useState<CardGenerationRule[]>(systemRules.cardGenerationRules || []);
   const [activeTab, setActiveTab] = useState<CardType>('material');
 
@@ -528,10 +533,10 @@ const CardRulesModal: React.FC<CardRulesModalProps> = ({ systemRules, onUpdateSy
   };
 
   const tabs: { id: CardType; label: string; icon: React.ReactNode; color: string }[] = [
-      { id: 'material', label: '備料卡片規則', icon: <BoxIcon className="w-4 h-4" />, color: 'text-blue-600' },
+      { id: 'material', label: mode === 'duration_estimation' ? '工項卡片規則' : '備料卡片規則', icon: <BoxIcon className="w-4 h-4" />, color: 'text-blue-600' },
       { id: 'outsourcing', label: '外包卡片規則', icon: <BriefcaseIcon className="w-4 h-4" />, color: 'text-orange-600' },
       { id: 'subcontractor', label: '協力卡片規則', icon: <UsersIcon className="w-4 h-4" />, color: 'text-purple-600' },
-      { id: 'production', label: '生產卡片規則', icon: <PenToolIcon className="w-4 h-4" />, color: 'text-emerald-600' },
+      { id: 'production', label: mode === 'duration_estimation' ? '廠內準備卡片規則' : '生產卡片規則', icon: <PenToolIcon className="w-4 h-4" />, color: 'text-emerald-600' },
   ];
 
   const filteredRules = rules.filter(r => r.targetType === activeTab);
@@ -589,13 +594,13 @@ const CardRulesModal: React.FC<CardRulesModalProps> = ({ systemRules, onUpdateSy
                         <button onClick={() => deleteRule(rule.id)} className="mt-5 p-2 text-slate-300 hover:text-red-500 transition-colors"><TrashIcon className="w-5 h-5" /></button>
                     </div>
 
-                    {rule.targetType === 'material' && (
+                    {(rule.targetType === 'material' || mode === 'duration_estimation') && (
                         <div className="pl-4 border-l-2 border-indigo-100 mt-2 space-y-2">
-                            <label className="block text-[10px] font-bold text-indigo-400 uppercase">自動生成材料明細</label>
+                            <label className="block text-[10px] font-bold text-indigo-400 uppercase">{mode === 'duration_estimation' ? '自動生成工程明細' : '自動生成材料明細'}</label>
                             {(rule.materialTemplates || []).map(tpl => (
                                 <div key={tpl.id} className="flex gap-2 items-center bg-slate-50 p-2 rounded-lg border border-slate-100">
-                                    <input type="text" placeholder="材料名稱" value={tpl.name} onChange={e => updateTemplate(rule.id, tpl.id, 'name', e.target.value)} className="flex-[2] px-2 py-1 text-xs border rounded outline-none focus:border-indigo-400 font-bold" />
-                                    <input type="text" placeholder="規格" value={tpl.spec} onChange={e => updateTemplate(rule.id, tpl.id, 'spec', e.target.value)} className="flex-[2] px-2 py-1 text-xs border rounded outline-none focus:border-indigo-400" />
+                                    <input type="text" placeholder={mode === 'duration_estimation' ? '工程項目' : '材料名稱'} value={tpl.name} onChange={e => updateTemplate(rule.id, tpl.id, 'name', e.target.value)} className="flex-[2] px-2 py-1 text-xs border rounded outline-none focus:border-indigo-400 font-bold" />
+                                    <input type="text" placeholder={mode === 'duration_estimation' ? '備註' : '規格'} value={tpl.spec} onChange={e => updateTemplate(rule.id, tpl.id, 'spec', e.target.value)} className="flex-[2] px-2 py-1 text-xs border rounded outline-none focus:border-indigo-400" />
                                     <div className="flex-1 flex items-center gap-1">
                                         <span className="text-[10px] text-slate-400">Qty=</span>
                                         <input type="text" placeholder="baseQty" value={tpl.quantityFormula} onChange={e => updateTemplate(rule.id, tpl.id, 'quantityFormula', e.target.value)} className="w-full px-2 py-1 text-xs border rounded outline-none focus:border-indigo-400 font-mono text-blue-600" title="可用變數: baseQty (項目數量)" />
@@ -624,7 +629,7 @@ const CardRulesModal: React.FC<CardRulesModalProps> = ({ systemRules, onUpdateSy
   );
 };
 
-const EngineeringPlanning: React.FC<EngineeringPlanningProps> = ({ project, currentUser, onUpdateProject, systemRules, onUpdateSystemRules }) => {
+const EngineeringPlanning: React.FC<EngineeringPlanningProps> = ({ project, currentUser, onUpdateProject, systemRules, onUpdateSystemRules, mode = 'planning' }) => {
   const [reportDate, setReportDate] = useState(new Date().toISOString().split('T')[0]);
   const [isEditing, setIsEditing] = useState(true);
   
@@ -645,10 +650,11 @@ const EngineeringPlanning: React.FC<EngineeringPlanningProps> = ({ project, curr
 
   // 直接獲取第一份報價單作為當前活動報價單
   const activeReport = useMemo(() => {
-      return (project.planningReports && project.planningReports.length > 0) 
-        ? project.planningReports[0] 
+      const reports = mode === 'planning' ? project.planningReports : (project.durationEstimationReports || []);
+      return (reports && reports.length > 0) 
+        ? reports[0] 
         : null;
-  }, [project.planningReports]);
+  }, [project.planningReports, project.durationEstimationReports, mode]);
 
   // 修改：判斷是否有報價單不再依賴日期
   const hasReport = !!activeReport;
@@ -721,19 +727,26 @@ const EngineeringPlanning: React.FC<EngineeringPlanningProps> = ({ project, curr
           timestamp: Date.now()
       };
 
-      // 若有 activeReport，則取代之；否則新增
-      let updatedReports = [];
-      if (activeReport) {
-          const otherReports = project.planningReports.filter(r => r.id !== activeReport.id);
-          updatedReports = [newReport, ...otherReports]; // 將更新的放最前面
+      const updateReports = (reports: CompletionReportType[]) => {
+          if (activeReport) {
+              const otherReports = reports.filter(r => r.id !== activeReport.id);
+              return [newReport, ...otherReports];
+          } else {
+              return [newReport, ...(reports || [])];
+          }
+      };
+
+      const updatedProject = { ...project };
+      
+      if (mode === 'planning') {
+          updatedProject.planningReports = updateReports(project.planningReports || []);
+          // 同步複製到工期推估
+          updatedProject.durationEstimationReports = updateReports(project.durationEstimationReports || []);
       } else {
-          updatedReports = [newReport, ...(project.planningReports || [])];
+          updatedProject.durationEstimationReports = updateReports(project.durationEstimationReports || []);
       }
 
-      onUpdateProject({
-          ...project,
-          planningReports: updatedReports
-      });
+      onUpdateProject(updatedProject);
       
       setIsEditing(false);
   };
@@ -743,8 +756,16 @@ const EngineeringPlanning: React.FC<EngineeringPlanningProps> = ({ project, curr
     if (!window.confirm(`確定要刪除此份報價單嗎？`)) return;
     
     // 移除第一份
-    const updatedReports = project.planningReports.filter(r => r.id !== activeReport.id);
-    onUpdateProject({ ...project, planningReports: updatedReports });
+    const reports = mode === 'planning' ? project.planningReports : (project.durationEstimationReports || []);
+    const updatedReports = reports.filter(r => r.id !== activeReport.id);
+    
+    const updatedProject = { ...project };
+    if (mode === 'planning') {
+        updatedProject.planningReports = updatedReports;
+    } else {
+        updatedProject.durationEstimationReports = updatedReports;
+    }
+    onUpdateProject(updatedProject);
   };
 
   // 卡片更新回調
@@ -763,11 +784,28 @@ const EngineeringPlanning: React.FC<EngineeringPlanningProps> = ({ project, curr
                 notes: combinedNotes,
                 timestamp: Date.now()
              };
-             const otherReports = project.planningReports.filter(r => r.id !== activeReport.id);
-             onUpdateProject({
-                ...project,
-                planningReports: [updatedReport, ...otherReports]
-             });
+             
+             const reports = mode === 'planning' ? project.planningReports : (project.durationEstimationReports || []);
+             const otherReports = reports.filter(r => r.id !== activeReport.id);
+             const newReportList = [updatedReport, ...otherReports];
+
+             const updatedProject = { ...project };
+             if (mode === 'planning') {
+                 updatedProject.planningReports = newReportList;
+                 // 同步更新工期推估 (如果需要保持同步)
+                 // updatedProject.durationEstimationReports = newReportList; // 這裡是否要同步？
+                 // 假設卡片更新也算作 "修改報價單"，則應該同步。
+                 // 但為了避免過於激進，這裡先只更新當前模式。
+                 // 如果用戶希望完全同步，應該在 handleSave 中處理。
+                 // 考慮到 "synchronously copy" 通常指 "upload" 動作，這裡先不強制同步卡片更新，除非明確要求。
+                 // 但如果 handleSave 同步了，這裡不同步會導致不一致。
+                 // 讓我們保持一致性：Planning 的修改會同步到 Duration Estimation。
+                 const otherDurationReports = (project.durationEstimationReports || []).filter(r => r.id !== activeReport.id);
+                 updatedProject.durationEstimationReports = [updatedReport, ...otherDurationReports];
+             } else {
+                 updatedProject.durationEstimationReports = newReportList;
+             }
+             onUpdateProject(updatedProject);
           }
       }
   };
@@ -1123,7 +1161,8 @@ const EngineeringPlanning: React.FC<EngineeringPlanningProps> = ({ project, curr
           <div className="p-4 md:p-6 border-b border-slate-100 bg-slate-50/50 flex-shrink-0">
               <div className="flex justify-between items-center mb-4">
                   <h3 className="font-bold text-lg text-slate-800 flex items-center gap-2">
-                    <FileTextIcon className="w-5 h-5 text-indigo-600" /> 報價單 (Quotation / Engineering Planning)
+                    <FileTextIcon className="w-5 h-5 text-indigo-600" /> 
+                    {mode === 'planning' ? '報價單 (Quotation / Engineering Planning)' : '工期推估 (Duration Estimation)'}
                   </h3>
                   <div className="flex gap-2">
                        <button 
@@ -1432,6 +1471,7 @@ const EngineeringPlanning: React.FC<EngineeringPlanningProps> = ({ project, curr
                   onSave={handleCardUpdate} 
                   onClose={() => setModalTarget(null)} 
                   systemRules={systemRules}
+                  mode={mode}
               />
           )}
 
@@ -1440,6 +1480,7 @@ const EngineeringPlanning: React.FC<EngineeringPlanningProps> = ({ project, curr
                   systemRules={systemRules}
                   onUpdateSystemRules={onUpdateSystemRules}
                   onClose={() => setIsRulesModalOpen(false)}
+                  mode={mode}
               />
           )}
       </div>

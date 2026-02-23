@@ -342,6 +342,7 @@ export interface Project {
   constructionSignatures: ConstructionSignature[];
   completionReports: CompletionReport[];
   planningReports: CompletionReport[];
+  durationEstimationReports?: CompletionReport[]; // 新增欄位：工期推估
   fenceMaterialSheets?: Record<string, FenceMaterialSheet>; 
   lastModifiedBy?: string;
   lastModifiedAt?: number;
