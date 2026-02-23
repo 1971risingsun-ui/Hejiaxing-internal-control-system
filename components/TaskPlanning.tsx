@@ -407,6 +407,17 @@ const TaskPlanning: React.FC<TaskPlanningProps> = ({ projects, taskSchedules, on
                                                             {card.projectName && <div className="text-[9px] text-indigo-600 font-black truncate">{card.projectName}</div>}
                                                             <div className="font-bold leading-tight line-clamp-2">{card.name}</div>
                                                             <div className="text-[9px] opacity-80">{card.spec || card.vendor || '-'}</div>
+                                                            <div className="text-[9px] font-mono opacity-90 mt-0.5">Qty: {card.quantity}{card.unit}</div>
+                                                            {card.materialDetails && card.materialDetails.length > 0 && (
+                                                                <div className="mt-1 pt-1 border-t border-black/5 space-y-0.5">
+                                                                    {card.materialDetails.map(d => (
+                                                                        <div key={d.id} className="flex justify-between text-[8px] leading-tight opacity-70">
+                                                                            <span className="truncate pr-1">{d.name}</span>
+                                                                            <span className="font-mono whitespace-nowrap flex-shrink-0">{d.quantity}{d.unit}</span>
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+                                                            )}
                                                         </div>
                                                     ))}
                                                     {cards.length === 0 && (
@@ -452,6 +463,17 @@ const TaskPlanning: React.FC<TaskPlanningProps> = ({ projects, taskSchedules, on
                                             {card.projectName && <div className="text-[9px] text-indigo-600 font-black truncate">{card.projectName}</div>}
                                             <div className="font-bold leading-tight line-clamp-2">{card.name}</div>
                                             <div className="text-[9px] opacity-80">{card.spec || card.vendor || '-'}</div>
+                                            <div className="text-[9px] font-mono opacity-90 mt-0.5">Qty: {card.quantity}{card.unit}</div>
+                                            {card.materialDetails && card.materialDetails.length > 0 && (
+                                                <div className="mt-1 pt-1 border-t border-black/5 space-y-0.5">
+                                                    {card.materialDetails.map(d => (
+                                                        <div key={d.id} className="flex justify-between text-[8px] leading-tight opacity-70">
+                                                            <span className="truncate pr-1">{d.name}</span>
+                                                            <span className="font-mono whitespace-nowrap flex-shrink-0">{d.quantity}{d.unit}</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
                                         </div>
                                     ))}
                                     {schedule.collabCards.length === 0 && (
@@ -524,6 +546,16 @@ const TaskPlanning: React.FC<TaskPlanningProps> = ({ projects, taskSchedules, on
                                   <div className="mt-2 flex justify-between items-center text-[10px] opacity-60 font-mono">
                                       <span>Qty: {card.quantity || '-'} {card.unit}</span>
                                   </div>
+                                  {card.materialDetails && card.materialDetails.length > 0 && (
+                                      <div className="mt-2 pt-2 border-t border-slate-100 space-y-1">
+                                          {card.materialDetails.map(d => (
+                                              <div key={d.id} className="flex justify-between text-[10px] text-slate-500">
+                                                  <span className="truncate pr-2">{d.name}</span>
+                                                  <span className="font-mono whitespace-nowrap flex-shrink-0 bg-slate-50 px-1 rounded">{d.quantity}{d.unit}</span>
+                                              </div>
+                                          ))}
+                                      </div>
+                                  )}
                               </div>
                           ))}
                       </div>
