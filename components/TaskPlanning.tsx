@@ -86,7 +86,7 @@ const TaskPlanning: React.FC<TaskPlanningProps> = ({ projects, taskSchedules, on
     if (!project || !project.planningReports) return [];
     
     const cards: PlanningCard[] = [];
-    project.planningReports.forEach(report => {
+    project.durationEstimationReports?.forEach(report => {
         report.items.forEach(item => {
             if (item.cards) {
                 // Inject project Name
@@ -395,7 +395,7 @@ const TaskPlanning: React.FC<TaskPlanningProps> = ({ projects, taskSchedules, on
                                                         >
                                                             <div className="flex justify-between items-start">
                                                                 <div className="flex items-center gap-1 font-black opacity-70 uppercase text-[9px]">
-                                                                    {getCardIcon(card.type)} {card.type === 'material' ? '備' : card.type === 'outsourcing' ? '外' : card.type === 'subcontractor' ? '協' : '生'}
+                                                                    {getCardIcon(card.type)} {card.type === 'material' ? '工' : card.type === 'outsourcing' ? '外' : card.type === 'subcontractor' ? '協' : '廠'}
                                                                 </div>
                                                                 <button 
                                                                     onClick={() => handleRemoveCard(dateStr, card.id, 'master', masterName)}
@@ -440,7 +440,7 @@ const TaskPlanning: React.FC<TaskPlanningProps> = ({ projects, taskSchedules, on
                                         >
                                             <div className="flex justify-between items-start">
                                                 <div className="flex items-center gap-1 font-black opacity-70 uppercase text-[9px]">
-                                                    {getCardIcon(card.type)} {card.type === 'material' ? '備' : card.type === 'outsourcing' ? '外' : card.type === 'subcontractor' ? '協' : '生'}
+                                                    {getCardIcon(card.type)} {card.type === 'material' ? '工' : card.type === 'outsourcing' ? '外' : card.type === 'subcontractor' ? '協' : '廠'}
                                                 </div>
                                                 <button 
                                                     onClick={() => handleRemoveCard(dateStr, card.id, 'collab')}
@@ -516,7 +516,7 @@ const TaskPlanning: React.FC<TaskPlanningProps> = ({ projects, taskSchedules, on
                                   className={`p-3 rounded-xl border cursor-move transition-all active:scale-95 hover:shadow-md ${getCardColor(card.type)} bg-white`}
                               >
                                   <div className="flex items-center gap-1.5 font-black uppercase text-[9px] mb-1 opacity-70">
-                                      {getCardIcon(card.type)} {card.type === 'material' ? '備料卡' : card.type === 'outsourcing' ? '外包卡' : card.type === 'subcontractor' ? '協力卡' : '生產卡'}
+                                      {getCardIcon(card.type)} {card.type === 'material' ? '工項卡' : card.type === 'outsourcing' ? '外包卡' : card.type === 'subcontractor' ? '協力卡' : '廠內準備卡'}
                                   </div>
                                   {card.projectName && <div className="text-[9px] text-indigo-600 font-black truncate mb-0.5">{card.projectName}</div>}
                                   <div className="font-bold text-sm mb-1">{card.name}</div>
