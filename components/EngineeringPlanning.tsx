@@ -136,7 +136,10 @@ const CardManagementModal: React.FC<CardManagementModalProps> = ({ item, onSave,
         newCard.unit = item.unit; // 預設帶入單位
         
         // 查找匹配的自動生成規則
-        const rule = (systemRules.cardGenerationRules || []).find(r => r.targetType === type && item.name.includes(r.keyword));
+        const ruleList = mode === 'duration_estimation' 
+            ? (systemRules.durationEstimationRules || []) 
+            : (systemRules.cardGenerationRules || []);
+        const rule = ruleList.find(r => r.targetType === type && item.name.includes(r.keyword));
         const baseQty = parseFloat(item.quantity) || 0;
 
         if (rule && rule.materialTemplates && rule.materialTemplates.length > 0) {
@@ -466,11 +469,19 @@ interface CardRulesModalProps {
 }
 
 const CardRulesModal: React.FC<CardRulesModalProps> = ({ systemRules, onUpdateSystemRules, onClose, mode = 'planning' }) => {
-  const [rules, setRules] = useState<CardGenerationRule[]>(systemRules.cardGenerationRules || []);
+  const [rules, setRules] = useState<CardGenerationRule[]>(
+      mode === 'duration_estimation' 
+          ? (systemRules.durationEstimationRules || []) 
+          : (systemRules.cardGenerationRules || [])
+  );
   const [activeTab, setActiveTab] = useState<CardType>('material');
 
   const handleSave = () => {
-    onUpdateSystemRules({ ...systemRules, cardGenerationRules: rules });
+    if (mode === 'duration_estimation') {
+        onUpdateSystemRules({ ...systemRules, durationEstimationRules: rules });
+    } else {
+        onUpdateSystemRules({ ...systemRules, cardGenerationRules: rules });
+    }
     onClose();
   };
 

@@ -297,6 +297,7 @@ export interface SystemRules {
   modularSubcontractorKeywords: string[];
   materialFormulas: MaterialFormulaConfig[];
   cardGenerationRules?: CardGenerationRule[];
+  durationEstimationRules?: CardGenerationRule[];
   rolePermissions?: Record<UserRole, RolePermission>;
   importConfig?: ImportConfig;
 }

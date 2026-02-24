@@ -39,6 +39,7 @@ export const DEFAULT_SYSTEM_RULES: SystemRules = {
   modularProductionKeywords: [],
   modularSubcontractorKeywords: [],
   cardGenerationRules: [],
+  durationEstimationRules: [],
   rolePermissions: {
     [UserRole.ADMIN]: { 
       displayName: '管理員', 
