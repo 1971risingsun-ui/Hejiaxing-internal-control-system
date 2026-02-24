@@ -38,8 +38,52 @@ export const DEFAULT_SYSTEM_RULES: SystemRules = {
   subcontractorKeywords: ['怪手', '告示牌', '安衛貼紙', '美化帆布', '噪音管制看板', '監測告示牌', '寫字'],
   modularProductionKeywords: [],
   modularSubcontractorKeywords: [],
-  cardGenerationRules: [],
-  durationEstimationRules: [],
+  cardGenerationRules: [
+    {
+      id: 'rule-quote-001',
+      keyword: '甲種圍籬',
+      targetType: 'material', // 卡片類型: material(工項/備料), production(廠內), outsourcing(外包), subcontractor(協力)
+      materialTemplates: [    // 自動生成的明細
+        {
+          id: 'tpl-q1',
+          name: '立柱',
+          spec: '',
+          quantityFormula: 'Math.ceil(baseQty / 2.4 + 1)',
+          unit: '支'
+        },
+        {
+          id: 'tpl-q2',
+          name: '二橫',
+          spec: '',
+          quantityFormula: 'Math.ceil((baseQty / 2.4 + 1) * 2)',
+          unit: '支'
+        }
+      ]
+    }
+  ],
+  durationEstimationRules: [
+    {
+      id: 'rule-est-001',
+      keyword: '甲種圍籬',
+      targetType: 'material',
+      materialTemplates: [
+        {
+          id: 'tpl-e1',
+          name: '站立柱',
+          spec: '',
+          quantityFormula: 'baseQty / 96',
+          unit: '天'
+        },
+        {
+          id: 'tpl-e2',
+          name: '骨架',
+          spec: '',
+          quantityFormula: 'baseQty / 140',
+          unit: '天'
+        }
+      ]
+    }
+  ],
   rolePermissions: {
     [UserRole.ADMIN]: { 
       displayName: '管理員', 
