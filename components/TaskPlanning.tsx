@@ -83,18 +83,28 @@ const TaskPlanning: React.FC<TaskPlanningProps> = ({ projects, taskSchedules, on
   const importableCards = useMemo(() => {
     if (!selectedProjectId) return [];
     const project = projects.find(p => p.id === selectedProjectId);
-    if (!project || !project.planningReports) return [];
+    if (!project || !project.durationEstimationReports) return [];
     
     const cards: PlanningCard[] = [];
-    project.durationEstimationReports?.forEach(report => {
+    project.durationEstimationReports.forEach(report => {
         report.items.forEach(item => {
             if (item.cards) {
-                // Inject project Name
-                const cardsWithProject = item.cards.map(c => ({
-                    ...c,
-                    projectName: project.name
-                }));
-                cards.push(...cardsWithProject);
+                item.cards.forEach(c => {
+                    const baseCard = { ...c, projectName: project.name };
+                    
+                    // Split by material details (Engineering Items)
+                    if (baseCard.materialDetails && baseCard.materialDetails.length > 0) {
+                        baseCard.materialDetails.forEach(detail => {
+                            cards.push({
+                                ...baseCard,
+                                id: `${baseCard.id}_${detail.id}`,
+                                materialDetails: [detail]
+                            });
+                        });
+                    } else {
+                        cards.push(baseCard);
+                    }
+                });
             }
         });
     });
