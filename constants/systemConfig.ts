@@ -171,6 +171,13 @@ export const DEFAULT_SYSTEM_RULES: SystemRules = {
           spec: '',
           quantityFormula: 'baseQty / 140',
           unit: '天'
+        },
+        {
+          id: 'tpl-e3',
+          name: '封板',
+          spec: '',
+          quantityFormula: 'baseQty / 140',
+          unit: '天'
         }
       ]
     },
