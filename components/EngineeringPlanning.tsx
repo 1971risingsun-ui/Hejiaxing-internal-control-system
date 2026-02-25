@@ -1,6 +1,7 @@
 
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Project, User, CompletionReport as CompletionReportType, CompletionItem, PlanningCard, CardType, PlanningMaterialDetail, SystemRules, CardGenerationRule, PlanningMaterialDetailTemplate } from '../types';
+import { DEFAULT_SYSTEM_RULES } from '../constants/systemConfig';
 import { PlusIcon, FileTextIcon, TrashIcon, XIcon, CheckCircleIcon, EditIcon, LoaderIcon, ClockIcon, DownloadIcon, UploadIcon, CopyIcon, LayoutGridIcon, BoxIcon, UsersIcon, PenToolIcon, BriefcaseIcon, SettingsIcon, CalendarIcon } from './Icons';
 import { downloadBlob } from '../utils/fileHelpers';
 import ExcelJS from 'exceljs';
@@ -137,8 +138,10 @@ const CardManagementModal: React.FC<CardManagementModalProps> = ({ item, onSave,
         
         // 查找匹配的自動生成規則
         const ruleList = mode === 'duration_estimation' 
-            ? (systemRules.durationEstimationRules || []) 
-            : (systemRules.cardGenerationRules || []);
+            ? ((systemRules.durationEstimationRules && systemRules.durationEstimationRules.length > 0) ? systemRules.durationEstimationRules : (DEFAULT_SYSTEM_RULES.durationEstimationRules || []))
+            : ((systemRules.cardGenerationRules && systemRules.cardGenerationRules.length > 0) ? systemRules.cardGenerationRules : (DEFAULT_SYSTEM_RULES.cardGenerationRules || []));
+        
+        // Ensure we are checking against the correct rules array
         const rule = ruleList.find(r => r.targetType === type && item.name.includes(r.keyword));
         const baseQty = parseFloat(item.quantity) || 0;
 
@@ -471,8 +474,8 @@ interface CardRulesModalProps {
 const CardRulesModal: React.FC<CardRulesModalProps> = ({ systemRules, onUpdateSystemRules, onClose, mode = 'planning' }) => {
   const [rules, setRules] = useState<CardGenerationRule[]>(
       mode === 'duration_estimation' 
-          ? (systemRules.durationEstimationRules || []) 
-          : (systemRules.cardGenerationRules || [])
+          ? ((systemRules.durationEstimationRules && systemRules.durationEstimationRules.length > 0) ? systemRules.durationEstimationRules : (DEFAULT_SYSTEM_RULES.durationEstimationRules || []))
+          : ((systemRules.cardGenerationRules && systemRules.cardGenerationRules.length > 0) ? systemRules.cardGenerationRules : (DEFAULT_SYSTEM_RULES.cardGenerationRules || []))
   );
   const [activeTab, setActiveTab] = useState<CardType>('material');
 
