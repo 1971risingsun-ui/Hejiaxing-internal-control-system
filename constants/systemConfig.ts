@@ -57,6 +57,97 @@ export const DEFAULT_SYSTEM_RULES: SystemRules = {
           spec: '',
           quantityFormula: 'Math.ceil((baseQty / 2.4 + 1) * 2)',
           unit: '支'
+        },
+        {
+          id: 'tpl-q3',
+          name: '三橫',
+          spec: '',
+          quantityFormula: 'Math.ceil((baseQty / 2.4 + 1) * 3)',
+          unit: '支'
+        },
+        {
+          id: 'tpl-q4',
+          name: '斜撐',
+          spec: '',
+          quantityFormula: 'Math.ceil(baseQty / 2.4 + 1)',
+          unit: '支'
+        },
+        {
+          id: 'tpl-q5',
+          name: '圍籬板',
+          spec: '',
+          quantityFormula: 'Math.ceil(baseQty / 0.75)',
+          unit: '片'
+        },
+        {
+          id: 'tpl-q6',
+          name: '2.4m圍籬板',
+          spec: '',
+          quantityFormula: 'Math.ceil(baseQty / 0.95)',
+          unit: '片'
+        }
+      ]
+    },
+    {
+      id: 'rule-quote-002',
+      keyword: '防溢座',
+      targetType: 'material', // 卡片類型: material(工項/備料), production(廠內), outsourcing(外包), subcontractor(協力)
+      materialTemplates: [    // 自動生成的明細
+        {
+          id: 'tpl-q1',
+          name: '單模',
+          spec: '',
+          quantityFormula: 'Math.ceil(baseQty / 1.5)',
+          unit: '片'
+        },
+        {
+          id: 'tpl-q2',
+          name: '雙模',
+          spec: '',
+          quantityFormula: 'Math.ceil((baseQty / 1.5) * 2)',
+          unit: '片'
+        },
+        {
+          id: 'tpl-q3',
+          name: '假模',
+          spec: '',
+          quantityFormula: 'Math.ceil(baseQty / 2.4)',
+          unit: '片'
+        }
+      ]
+    },
+     {
+      id: 'rule-quote-003',
+      keyword: '轉角',
+      targetType: 'material', // 卡片類型: material(工項/備料), production(廠內), outsourcing(外包), subcontractor(協力)
+      materialTemplates: [    // 自動生成的明細
+        {
+          id: 'tpl-q1',
+          name: '透明板',
+          spec: '',
+          quantityFormula: 'Math.ceil(baseQty / 0.75)',
+          unit: '片'
+        }
+      ]
+    },
+    {
+      id: 'rule-quote-004',
+      keyword: '安全走廊',
+      targetType: 'material', // 卡片類型: material(工項/備料), production(廠內), outsourcing(外包), subcontractor(協力)
+      materialTemplates: [    // 自動生成的明細
+        {
+          id: 'tpl-q1',
+          name: '骨料',
+          spec: '',
+          quantityFormula: 'Math.ceil(baseQty / 2.4 + 1)',
+          unit: '組'
+        },
+        {
+          id: 'tpl-q2',
+          name: '安走板',
+          spec: '',
+          quantityFormula: 'Math.ceil(baseQty / 0.75)',
+          unit: '片'
         }
       ]
     }
@@ -79,6 +170,69 @@ export const DEFAULT_SYSTEM_RULES: SystemRules = {
           name: '骨架',
           spec: '',
           quantityFormula: 'baseQty / 140',
+          unit: '天'
+        }
+      ]
+    },
+    {
+      id: 'rule-est-002',
+      keyword: '怪手',
+      targetType: 'subcontractor',
+      materialTemplates: [
+        {
+          id: 'tpl-e1',
+          name: '基地挖洞',
+          spec: '',
+          quantityFormula: 'baseQty / 100 + 1',
+          unit: '天'
+        },
+        {
+          id: 'tpl-e2',
+          name: '基地整地',
+          spec: '',
+          quantityFormula: 'baseQty * baseQty / 1240',
+          unit: '天'
+        }
+      ]
+    },
+    {
+      id: 'rule-est-003',
+      keyword: '防溢座',
+      targetType: 'material',
+      materialTemplates: [
+        {
+          id: 'tpl-e1',
+          name: '30cm單模',
+          spec: '',
+          quantityFormula: 'baseQty / 100',
+          unit: '天'
+        },
+        {
+          id: 'tpl-e2',
+          name: '30cm雙模',
+          spec: '',
+          quantityFormula: 'baseQty / 60',
+          unit: '天'
+        },
+        {
+          id: 'tpl-e3',
+          name: '60cm雙模',
+          spec: '',
+          quantityFormula: 'baseQty / 40',
+          unit: '天'
+        }
+      ]
+    },
+    {
+      id: 'rule-est-004',
+      keyword: '安全走廊',
+      targetType: 'material',
+      materialTemplates: [
+        {
+          id: 'tpl-e1',
+          name: '安全走廊',
+          spec: '',
+          quantityFormula: 'baseQty / 30',
           unit: '天'
         }
       ]
