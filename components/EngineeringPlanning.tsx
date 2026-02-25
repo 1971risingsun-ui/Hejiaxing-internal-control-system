@@ -844,7 +844,7 @@ const EngineeringPlanning: React.FC<EngineeringPlanningProps> = ({ project, curr
         };
 
         if (rule.targetType === 'material' && rule.materialTemplates) {
-          newCard.materialDetails = rule.materialTemplates.map(tpl => {
+          const details = rule.materialTemplates.map(tpl => {
             let calcQty = 0;
             try {
                const func = new Function('baseQty', 'Math', `return ${tpl.quantityFormula || 'baseQty'}`);
@@ -861,9 +861,23 @@ const EngineeringPlanning: React.FC<EngineeringPlanningProps> = ({ project, curr
               formula: tpl.quantityFormula || 'baseQty'
             };
           });
-        }
 
-        generatedCards.push(newCard);
+          if (mode === 'duration_estimation') {
+              // Split into separate cards for each detail
+              details.forEach(detail => {
+                  generatedCards.push({
+                      ...newCard,
+                      id: crypto.randomUUID(),
+                      materialDetails: [detail]
+                  });
+              });
+          } else {
+              newCard.materialDetails = details;
+              generatedCards.push(newCard);
+          }
+        } else {
+          generatedCards.push(newCard);
+        }
       }
     });
     return generatedCards;
@@ -969,8 +983,12 @@ const EngineeringPlanning: React.FC<EngineeringPlanningProps> = ({ project, curr
                 // 檢查重複（同分類同品名同規格）
                 if (!combined.some(i => i.name === newItem.name && i.category === newItem.category && i.spec === newItem.spec)) {
                     // 應用自動卡片生成規則
-                    if (systemRules.cardGenerationRules) {
-                        const generatedCards = applyCardRules(newItem, systemRules.cardGenerationRules);
+                    const rulesToApply = mode === 'duration_estimation' 
+                        ? ((systemRules.durationEstimationRules && systemRules.durationEstimationRules.length > 0) ? systemRules.durationEstimationRules : (DEFAULT_SYSTEM_RULES.durationEstimationRules || []))
+                        : ((systemRules.cardGenerationRules && systemRules.cardGenerationRules.length > 0) ? systemRules.cardGenerationRules : (DEFAULT_SYSTEM_RULES.cardGenerationRules || []));
+
+                    if (rulesToApply && rulesToApply.length > 0) {
+                        const generatedCards = applyCardRules(newItem, rulesToApply);
                         if (generatedCards.length > 0) {
                             newItem.cards = generatedCards;
                         }
