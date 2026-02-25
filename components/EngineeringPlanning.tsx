@@ -727,6 +727,51 @@ const EngineeringPlanning: React.FC<EngineeringPlanningProps> = ({ project, curr
     }
   }, [activeReport]); // 依賴 activeReport 變化
 
+  const applyCardRules = (item: CompletionItem, rules: CardGenerationRule[]): PlanningCard[] => {
+    const generatedCards: PlanningCard[] = [];
+    const baseQty = parseFloat(item.quantity) || 0;
+
+    rules.forEach(rule => {
+      if (item.name.includes(rule.keyword)) {
+        const newCard: PlanningCard = {
+          id: crypto.randomUUID(),
+          type: rule.targetType,
+          name: item.name,
+          quantity: item.quantity,
+          unit: item.unit,
+          spec: item.spec,
+          vendor: '',
+          materialName: '',
+          note: '',
+          materialDetails: []
+        };
+
+        if (rule.targetType === 'material' && rule.materialTemplates) {
+          newCard.materialDetails = rule.materialTemplates.map(tpl => {
+            let calcQty = 0;
+            try {
+               const func = new Function('baseQty', 'Math', `return ${tpl.quantityFormula || 'baseQty'}`);
+               calcQty = func(baseQty, Math);
+            } catch(e) {
+               calcQty = baseQty;
+            }
+            return {
+              id: crypto.randomUUID(),
+              name: tpl.name,
+              spec: tpl.spec,
+              quantity: String(isNaN(calcQty) ? 0 : Number(calcQty.toFixed(2))),
+              unit: tpl.unit,
+              formula: tpl.quantityFormula || 'baseQty'
+            };
+          });
+        }
+
+        generatedCards.push(newCard);
+      }
+    });
+    return generatedCards;
+  };
+
   const handleSave = () => {
       // 移除原本的「日」單位後綴
       const combinedNotes = `【預估工期】圍籬：${estDaysFence} / 組合屋：${estDaysModular}\n\n${notes}`;
@@ -754,8 +799,26 @@ const EngineeringPlanning: React.FC<EngineeringPlanningProps> = ({ project, curr
       
       if (mode === 'planning') {
           updatedProject.planningReports = updateReports(project.planningReports || []);
-          // 同步複製到工期推估
-          updatedProject.durationEstimationReports = updateReports(project.durationEstimationReports || []);
+          
+          // 同步複製到工期推估，但重新生成卡片
+          const durationRules = (systemRules.durationEstimationRules && systemRules.durationEstimationRules.length > 0) 
+              ? systemRules.durationEstimationRules 
+              : (DEFAULT_SYSTEM_RULES.durationEstimationRules || []);
+
+          const durationItems = newReport.items.map(item => {
+              // 清除既有卡片並重新應用工期預估規則
+              const newCards = applyCardRules(item, durationRules);
+              return { ...item, cards: newCards };
+          });
+
+          const durationReport = { ...newReport, items: durationItems };
+          
+          if (activeReport) {
+              const otherDurationReports = (project.durationEstimationReports || []).filter(r => r.id !== activeReport.id);
+              updatedProject.durationEstimationReports = [durationReport, ...otherDurationReports];
+          } else {
+              updatedProject.durationEstimationReports = [durationReport, ...(project.durationEstimationReports || [])];
+          }
       } else {
           updatedProject.durationEstimationReports = updateReports(project.durationEstimationReports || []);
       }
@@ -824,64 +887,7 @@ const EngineeringPlanning: React.FC<EngineeringPlanningProps> = ({ project, curr
       }
   };
 
-  const applyCardRules = (item: CompletionItem, rules: CardGenerationRule[]): PlanningCard[] => {
-    const generatedCards: PlanningCard[] = [];
-    const baseQty = parseFloat(item.quantity) || 0;
 
-    rules.forEach(rule => {
-      if (item.name.includes(rule.keyword)) {
-        const newCard: PlanningCard = {
-          id: crypto.randomUUID(),
-          type: rule.targetType,
-          name: item.name,
-          quantity: item.quantity,
-          unit: item.unit,
-          spec: item.spec,
-          vendor: '',
-          materialName: '',
-          note: '',
-          materialDetails: []
-        };
-
-        if (rule.targetType === 'material' && rule.materialTemplates) {
-          const details = rule.materialTemplates.map(tpl => {
-            let calcQty = 0;
-            try {
-               const func = new Function('baseQty', 'Math', `return ${tpl.quantityFormula || 'baseQty'}`);
-               calcQty = func(baseQty, Math);
-            } catch(e) {
-               calcQty = baseQty;
-            }
-            return {
-              id: crypto.randomUUID(),
-              name: tpl.name,
-              spec: tpl.spec,
-              quantity: String(isNaN(calcQty) ? 0 : Number(calcQty.toFixed(2))),
-              unit: tpl.unit,
-              formula: tpl.quantityFormula || 'baseQty'
-            };
-          });
-
-          if (mode === 'duration_estimation') {
-              // Split into separate cards for each detail
-              details.forEach(detail => {
-                  generatedCards.push({
-                      ...newCard,
-                      id: crypto.randomUUID(),
-                      materialDetails: [detail]
-                  });
-              });
-          } else {
-              newCard.materialDetails = details;
-              generatedCards.push(newCard);
-          }
-        } else {
-          generatedCards.push(newCard);
-        }
-      }
-    });
-    return generatedCards;
-  };
 
   const handleImportExcel = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -983,12 +989,8 @@ const EngineeringPlanning: React.FC<EngineeringPlanningProps> = ({ project, curr
                 // 檢查重複（同分類同品名同規格）
                 if (!combined.some(i => i.name === newItem.name && i.category === newItem.category && i.spec === newItem.spec)) {
                     // 應用自動卡片生成規則
-                    const rulesToApply = mode === 'duration_estimation' 
-                        ? ((systemRules.durationEstimationRules && systemRules.durationEstimationRules.length > 0) ? systemRules.durationEstimationRules : (DEFAULT_SYSTEM_RULES.durationEstimationRules || []))
-                        : ((systemRules.cardGenerationRules && systemRules.cardGenerationRules.length > 0) ? systemRules.cardGenerationRules : (DEFAULT_SYSTEM_RULES.cardGenerationRules || []));
-
-                    if (rulesToApply && rulesToApply.length > 0) {
-                        const generatedCards = applyCardRules(newItem, rulesToApply);
+                    if (systemRules.cardGenerationRules) {
+                        const generatedCards = applyCardRules(newItem, systemRules.cardGenerationRules);
                         if (generatedCards.length > 0) {
                             newItem.cards = generatedCards;
                         }
