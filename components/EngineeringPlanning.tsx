@@ -746,7 +746,7 @@ const EngineeringPlanning: React.FC<EngineeringPlanningProps> = ({ project, curr
           materialDetails: []
         };
 
-        if (rule.targetType === 'material' && rule.materialTemplates) {
+        if (rule.materialTemplates && rule.materialTemplates.length > 0) {
           newCard.materialDetails = rule.materialTemplates.map(tpl => {
             let calcQty = 0;
             try {
