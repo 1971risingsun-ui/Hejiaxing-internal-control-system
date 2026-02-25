@@ -983,14 +983,19 @@ const EngineeringPlanning: React.FC<EngineeringPlanningProps> = ({ project, curr
       });
 
       if (importedItems.length > 0) {
+        // 根據模式取得對應的規則，並包含預設值 fallback
+        const rules = mode === 'duration_estimation'
+            ? ((systemRules.durationEstimationRules && systemRules.durationEstimationRules.length > 0) ? systemRules.durationEstimationRules : (DEFAULT_SYSTEM_RULES.durationEstimationRules || []))
+            : ((systemRules.cardGenerationRules && systemRules.cardGenerationRules.length > 0) ? systemRules.cardGenerationRules : (DEFAULT_SYSTEM_RULES.cardGenerationRules || []));
+
         setItems(prev => {
             const combined = [...prev];
             importedItems.forEach(newItem => {
                 // 檢查重複（同分類同品名同規格）
                 if (!combined.some(i => i.name === newItem.name && i.category === newItem.category && i.spec === newItem.spec)) {
                     // 應用自動卡片生成規則
-                    if (systemRules.cardGenerationRules) {
-                        const generatedCards = applyCardRules(newItem, systemRules.cardGenerationRules);
+                    if (rules && rules.length > 0) {
+                        const generatedCards = applyCardRules(newItem, rules);
                         if (generatedCards.length > 0) {
                             newItem.cards = generatedCards;
                         }
