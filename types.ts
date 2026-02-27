@@ -103,6 +103,7 @@ export interface ConstructionItem {
   worker: string;
   assistant: string;
   date: string;
+  reportId?: string; // 新增欄位：關聯到 DailyReport ID
   lastModifiedBy?: string;
   lastModifiedAt?: number;
 }
@@ -112,6 +113,7 @@ export interface ConstructionSignature {
   date: string;
   url: string;
   timestamp: number;
+  reportId?: string; // 新增欄位：關聯到 DailyReport ID
   lastModifiedBy?: string;
   lastModifiedAt?: number;
 }

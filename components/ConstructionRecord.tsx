@@ -91,6 +91,8 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
     forceEntryMode ? 'entry' : (isMaintenance ? 'entry' : 'overview')
   );
   
+  const [currentReportId, setCurrentReportId] = useState<string | null>(null);
+  
   const [constructionDate, setConstructionDate] = useState(initialDate || new Date().toISOString().split('T')[0]);
   const [dailyWorker, setDailyWorker] = useState('');
   const [dailyAssistant, setDailyAssistant] = useState(''); 
@@ -118,70 +120,95 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
   const canEdit = currentUser.role === UserRole.ADMIN || currentUser.role === UserRole.MANAGER || currentUser.role === UserRole.ENGINEERING || currentUser.role === UserRole.WORKER;
   const currentStandardItems = isMaintenance ? MAINTENANCE_CONSTRUCTION_ITEMS : STANDARD_CONSTRUCTION_ITEMS;
 
+  // 初始化或切換報告時載入資料
   useEffect(() => {
-    const items = (project.constructionItems || []).filter(i => i.date === constructionDate);
-    if (items.length > 0) {
-      setDailyWorker(items[0].worker || '');
-      setDailyAssistant(items[0].assistant || '');
-      
-      const currentResources: Record<string, string> = {};
-      RESOURCE_ITEMS.forEach(res => {
-          const found = items.find(i => i.name === res.name);
-          if (found) currentResources[res.name] = found.quantity;
-      });
-      setResourceInputs(currentResources);
+    if (currentReportId) {
+        // 載入特定報告
+        const report = (project.reports || []).find(r => r.id === currentReportId);
+        if (report) {
+            setConstructionDate(report.date);
+            setDailyWorker(report.worker || '');
+            setDailyAssistant(report.assistant || '');
+            setReportWeather(report.weather);
+            setReportContent(report.content);
+            const photos = (report.photos || []).map(id => project.photos.find(p => p.id === id)).filter((p): p is SitePhoto => !!p);
+            setReportPhotos(photos);
+            
+            // 載入該報告的簽名 (假設簽名也跟著報告 ID 關聯，或是透過日期+人員來關聯？目前結構是用日期)
+            // 為了支援同一天多份，我們需要調整簽名查找邏輯。
+            // 暫時維持用日期查找，但理想上應該要關聯到 Report ID。
+            // 這裡先嘗試找該日期下的簽名，若有多個可能需要更精確的匹配。
+            // 由於資料結構限制，目前 ConstructionSignature 只綁定 date。
+            // 若要完全獨立，建議 ConstructionSignature 也要能綁定 reportId。
+            // 但為求最小改動，我們暫時顯示該日期的所有簽名，或假設簽名是跟著 Report 存的。
+            // 實際上，DailyReport 結構裡沒有 signature 欄位，只有 worker/assistant/weather/content/photos。
+            // ConstructionSignature 是獨立的陣列。
+            // 為了區分，我們可能需要依賴 UI 上的操作當下狀態。
+            
+            // 修正：在多份報告模式下，簽名應該要能被區分。
+            // 但目前資料結構限制，我們先顯示該日期的第一筆簽名作為 fallback，
+            // 或者我們假設 ConstructionSignature 的 id 會被記錄在某處？目前沒有。
+            // 妥協方案：在編輯模式下，簽名會存入 constructionSignatures，
+            // 但因為沒有 reportId 關聯，多份報告會共用或覆蓋同一天的簽名。
+            // 為了達成「各自有不同的簽名」，我們需要讓簽名與報告關聯。
+            // 觀察 DailyReport 類型定義 (types.ts)，目前沒有 signatureId。
+            // 我們可以暫時利用 constructionSignatures 的查找邏輯，但這會有衝突。
+            // 
+            // 為了不更動 types.ts (避免影響全域)，我們可以在 Report Content 或其他欄位偷存 Signature ID?
+            // 或者，我們假設同一天只有一份簽名？不，需求說「各自有不同的簽名」。
+            // 
+            // 解決方案：我們在儲存簽名時，將 reportId 作為 key 的一部分，或者存入 DailyReport 的 content (不理想)。
+            // 更好的方式：利用 ConstructionSignature 的 date 欄位，存成 "YYYY-MM-DD#ReportID" 的格式？
+            // 這樣既保留了日期資訊，又有了唯一性。
+            
+            const sig = (project.constructionSignatures || []).find(s => s.date === `${report.date}#${report.id}` || s.date === report.date);
+            setSignatureData(sig || null);
+        }
     } else {
-      setDailyWorker('');
-      setDailyAssistant('');
-      setResourceInputs({});
-    }
-
-    const existingSig = (project.constructionSignatures || []).find(s => s.date === constructionDate);
-    setSignatureData(existingSig || null);
-
-    const existingReport = (project.reports || []).find(r => r.date === constructionDate);
-    if (existingReport) {
-        setReportWeather(existingReport.weather);
-        setReportContent(existingReport.content);
-        const photos = (existingReport.photos || []).map(id => project.photos.find(p => p.id === id)).filter((p): p is SitePhoto => !!p);
-        setReportPhotos(photos);
-    } else {
+        // 新增模式
+        setDailyWorker('');
+        setDailyAssistant('');
+        setResourceInputs({});
         setReportWeather('sunny');
         setReportContent('');
         setReportPhotos([]);
+        setSignatureData(null);
     }
-  }, [constructionDate, project.constructionItems, project.constructionSignatures, project.reports, project.photos]);
+  }, [currentReportId, project.reports, project.photos, project.constructionSignatures]);
 
-  const updateReportData = (updates: Partial<{ weather: 'sunny' | 'cloudy' | 'rainy', content: string, photos: SitePhoto[] }>) => {
+  const updateReportData = (updates: Partial<{ weather: 'sunny' | 'cloudy' | 'rainy', content: string, photos: SitePhoto[], worker: string, assistant: string }>) => {
+      if (!currentReportId) return; // 必須先有 Report ID
+
       const newWeather = updates.weather || reportWeather;
       const newContent = updates.content !== undefined ? updates.content : reportContent;
       const newPhotos = updates.photos || reportPhotos;
+      const newWorker = updates.worker !== undefined ? updates.worker : dailyWorker;
+      const newAssistant = updates.assistant !== undefined ? updates.assistant : dailyAssistant;
       
       if (updates.weather) setReportWeather(updates.weather);
       if (updates.content !== undefined) setReportContent(updates.content);
       if (updates.photos) setReportPhotos(updates.photos);
+      if (updates.worker !== undefined) setDailyWorker(updates.worker);
+      if (updates.assistant !== undefined) setDailyAssistant(updates.assistant);
 
-      const otherReports = (project.reports || []).filter(r => r.date !== constructionDate);
+      const otherReports = (project.reports || []).filter(r => r.id !== currentReportId);
       const existingPhotoIds = new Set(project.photos.map(p => p.id));
       const photosToAdd = newPhotos.filter(p => !existingPhotoIds.has(p.id));
       const updatedGlobalPhotos = [...project.photos, ...photosToAdd];
 
       const reportPayload: DailyReport = {
-          id: (project.reports || []).find(r => r.date === constructionDate)?.id || crypto.randomUUID(),
+          id: currentReportId,
           date: constructionDate,
           weather: newWeather,
           content: newContent,
           reporter: currentUser.name,
           timestamp: Date.now(),
           photos: newPhotos.map(p => p.id),
-          worker: dailyWorker,
-          assistant: dailyAssistant
+          worker: newWorker,
+          assistant: newAssistant
       };
 
-      const shouldSave = newContent || newPhotos.length > 0 || (project.reports || []).some(r => r.date === constructionDate);
-      if (shouldSave) {
-          onUpdateProject({ ...project, reports: [...otherReports, reportPayload], photos: updatedGlobalPhotos });
-      }
+      onUpdateProject({ ...project, reports: [...otherReports, reportPayload], photos: updatedGlobalPhotos });
   };
 
   const handleReportPhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -208,6 +235,7 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
   };
 
   const handleAddItem = () => {
+    if (!currentReportId) return;
     const newItem: ConstructionItem = {
       id: crypto.randomUUID(),
       name: currentStandardItems[0].name,
@@ -216,13 +244,14 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
       location: isMaintenance ? '裝/Lắp đặt' : '',
       worker: dailyWorker,
       assistant: dailyAssistant,
-      date: constructionDate
+      date: constructionDate,
+      reportId: currentReportId // 關聯到 Report ID
     };
     onUpdateProject({ ...project, constructionItems: [...(project.constructionItems || []), newItem] });
   };
 
   const handleAddCustomItem = () => {
-    if (!customItem.name) return;
+    if (!customItem.name || !currentReportId) return;
     const newItem: ConstructionItem = {
       id: crypto.randomUUID(),
       name: customItem.name,
@@ -231,7 +260,8 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
       location: customItem.location,
       worker: dailyWorker,
       assistant: dailyAssistant,
-      date: constructionDate
+      date: constructionDate,
+      reportId: currentReportId // 關聯到 Report ID
     };
     onUpdateProject({ ...project, constructionItems: [...(project.constructionItems || []), newItem] });
     setCustomItem({ name: '', quantity: '', unit: '', location: '' });
@@ -258,8 +288,16 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
 
   const handleHeaderWorkerChange = (val: string) => {
     setDailyWorker(val);
-    const updatedItems = (project.constructionItems || []).map(item => item.date === constructionDate ? { ...item, worker: val } : item);
-    onUpdateProject({ ...project, constructionItems: updatedItems });
+    updateReportData({ worker: val });
+    // 同步更新該報告下的所有項目的 worker
+    if (currentReportId) {
+        const updatedItems = (project.constructionItems || []).map(item => 
+            (item.reportId === currentReportId || (!item.reportId && item.date === constructionDate)) 
+            ? { ...item, worker: val } 
+            : item
+        );
+        onUpdateProject({ ...project, constructionItems: updatedItems });
+    }
   };
 
   const getAssistantList = () => {
@@ -293,10 +331,16 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
 
   const updateAssistantInItems = (joinedValue: string) => {
     setDailyAssistant(joinedValue);
-    const updatedItems = (project.constructionItems || []).map(item => 
-      item.date === constructionDate ? { ...item, assistant: joinedValue } : item
-    );
-    onUpdateProject({ ...project, constructionItems: updatedItems });
+    updateReportData({ assistant: joinedValue });
+    // 同步更新該報告下的所有項目的 assistant
+    if (currentReportId) {
+        const updatedItems = (project.constructionItems || []).map(item => 
+            (item.reportId === currentReportId || (!item.reportId && item.date === constructionDate))
+            ? { ...item, assistant: joinedValue } 
+            : item
+        );
+        onUpdateProject({ ...project, constructionItems: updatedItems });
+    }
   };
 
   const handleAssistantInputKeyDown = (e: React.KeyboardEvent) => {
@@ -333,9 +377,11 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
     }
   };
   const saveSignature = () => {
-    const canvas = canvasRef.current; if (!canvas) return;
-    const newSig: ConstructionSignature = { id: crypto.randomUUID(), date: constructionDate, url: canvas.toDataURL('image/jpeg', 0.8), timestamp: Date.now() };
-    const otherSignatures = (project.constructionSignatures || []).filter(s => s.date !== constructionDate);
+    const canvas = canvasRef.current; if (!canvas || !currentReportId) return;
+    // 使用 "YYYY-MM-DD#ReportID" 格式來區分不同報告的簽名
+    const sigDateKey = `${constructionDate}#${currentReportId}`;
+    const newSig: ConstructionSignature = { id: crypto.randomUUID(), date: sigDateKey, url: canvas.toDataURL('image/jpeg', 0.8), timestamp: Date.now() };
+    const otherSignatures = (project.constructionSignatures || []).filter(s => s.date !== sigDateKey);
     onUpdateProject({ ...project, constructionSignatures: [...otherSignatures, newSig] });
     setSignatureData(newSig); setIsSigning(false);
   };
@@ -761,13 +807,32 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
   };
 
   const renderConstructionOverview = () => {
-    const groupedItems = (project.constructionItems || []).reduce((acc: any, item) => {
-      if (!acc[item.date]) acc[item.date] = { date: item.date, worker: item.worker, assistant: item.assistant, count: 0 };
-      acc[item.date].count++;
-      if (!acc[item.date].worker) acc[item.date].worker = item.worker;
-      return acc;
-    }, {});
-    const sortedDates = Object.values(groupedItems).sort((a: any, b: any) => b.date.localeCompare(a.date)) as any[];
+    // 依據 Reports 來列表，而不是只依據 Items 分組
+    // 這樣可以顯示同一天多份報告
+    const reports = project.reports || [];
+    const sortedReports = [...reports].sort((a, b) => b.date.localeCompare(a.date) || b.timestamp - a.timestamp);
+
+    const createNewReport = () => {
+        const newId = crypto.randomUUID();
+        const today = new Date().toISOString().split('T')[0];
+        const newReport: DailyReport = {
+            id: newId,
+            date: today,
+            weather: 'sunny',
+            content: '',
+            reporter: currentUser.name,
+            timestamp: Date.now(),
+            photos: [],
+            worker: '',
+            assistant: ''
+        };
+        onUpdateProject({ ...project, reports: [newReport, ...reports] });
+        setCurrentReportId(newId);
+        setConstructionDate(today);
+        setIsEditing(true);
+        setConstructionMode('entry');
+    };
+
     return (
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden min-h-[500px]">
         <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
@@ -780,18 +845,18 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
             >
               <DownloadIcon className="w-5 h-5" />
             </button>
-            {canEdit && <button onClick={() => { setConstructionDate(new Date().toISOString().split('T')[0]); setIsEditing(true); setConstructionMode('entry'); }} className="bg-blue-600 hover:bg-blue-700 text-white w-10 h-10 rounded-full shadow-sm flex items-center justify-center transition-colors"><PlusIcon className="w-6 h-6" /></button>}
+            {canEdit && <button onClick={createNewReport} className="bg-blue-600 hover:bg-blue-700 text-white w-10 h-10 rounded-full shadow-sm flex items-center justify-center transition-colors"><PlusIcon className="w-6 h-6" /></button>}
           </div>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead className="bg-slate-50 text-slate-500 text-xs uppercase font-semibold"><tr><th className="px-6 py-4">日期 (Ngày)</th><th className="px-6 py-4">師傅 (Thợ chính)</th><th className="px-6 py-4 text-center">簽證 (Ký)</th><th className="px-6 py-4 text-right">操作 (Lệnh)</th></tr></thead>
-            <tbody className="divide-y divide-slate-100">{sortedDates.length > 0 ? sortedDates.map((item: any) => (
-              <tr key={item.date} onClick={() => { setConstructionDate(item.date); setIsEditing(false); setConstructionMode('entry'); }} className="hover:bg-slate-50 transition-colors cursor-pointer group">
-                <td className="px-6 py-4 font-medium text-slate-800">{item.date}</td>
-                <td className="px-6 py-4 text-slate-600">{item.worker || '-'}</td>
-                <td className="px-6 py-4 text-center">{(project.constructionSignatures || []).some(s => s.date === item.date) ? <StampIcon className="w-5 h-5 text-green-600 mx-auto" /> : <XCircleIcon className="w-5 h-5 text-slate-300 mx-auto" />}</td>
-                <td className="px-6 py-4 text-right"><div className="flex justify-end gap-2"><button onClick={(e) => { e.stopPropagation(); generateReportExcel(item.date); }} className="p-1.5 text-slate-400 hover:text-emerald-600 rounded" title="匯出 Excel"><DownloadIcon className="w-4 h-4" /></button><button onClick={(e) => { e.stopPropagation(); generateReportPDF(item.date); }} className="p-1.5 text-slate-400 hover:text-green-600 rounded" title="匯出 PDF"><FileTextIcon className="w-4 h-4" /></button></div></td>
+            <tbody className="divide-y divide-slate-100">{sortedReports.length > 0 ? sortedReports.map((report) => (
+              <tr key={report.id} onClick={() => { setCurrentReportId(report.id); setConstructionDate(report.date); setIsEditing(false); setConstructionMode('entry'); }} className="hover:bg-slate-50 transition-colors cursor-pointer group">
+                <td className="px-6 py-4 font-medium text-slate-800">{report.date}</td>
+                <td className="px-6 py-4 text-slate-600 font-bold">{report.worker || <span className="text-slate-300 italic">未填寫</span>}</td>
+                <td className="px-6 py-4 text-center">{(project.constructionSignatures || []).some(s => s.date === `${report.date}#${report.id}` || s.date === report.date) ? <StampIcon className="w-5 h-5 text-green-600 mx-auto" /> : <XCircleIcon className="w-5 h-5 text-slate-300 mx-auto" />}</td>
+                <td className="px-6 py-4 text-right"><div className="flex justify-end gap-2"><button onClick={(e) => { e.stopPropagation(); generateReportExcel(report.date); }} className="p-1.5 text-slate-400 hover:text-emerald-600 rounded" title="匯出 Excel"><DownloadIcon className="w-4 h-4" /></button><button onClick={(e) => { e.stopPropagation(); generateReportPDF(report.date); }} className="p-1.5 text-slate-400 hover:text-green-600 rounded" title="匯出 PDF"><FileTextIcon className="w-4 h-4" /></button></div></td>
               </tr>
             )) : <tr><td colSpan={4} className="px-6 py-12 text-center text-slate-400">尚無紀錄 (Không có dữ liệu)</td></tr>}</tbody>
           </table>
@@ -801,7 +866,11 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
   };
 
   const renderConstructionEntry = () => {
-    const visibleItems = (project.constructionItems || []).filter(item => item.date === constructionDate);
+    // 篩選屬於當前 Report ID 的項目，或者相容舊資料(無 Report ID 但日期相符)
+    const visibleItems = (project.constructionItems || []).filter(item => 
+        (currentReportId && item.reportId === currentReportId) || 
+        (!item.reportId && item.date === constructionDate && !currentReportId)
+    );
     const currentAssistants = getAssistantList();
 
     return (
@@ -809,7 +878,7 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
         <div className="p-4 md:p-6 border-b border-slate-100 bg-slate-50/50 flex-shrink-0">
           <div className="flex flex-row justify-between items-center gap-4 mb-4">
               <div className="flex items-center gap-2">
-                 {!isMaintenance && <button onClick={() => setConstructionMode('overview')} className="text-slate-400 hover:text-slate-600 p-2 -ml-2"><ArrowLeftIcon className="w-5 h-5" /></button>}
+                 {!isMaintenance && <button onClick={() => { setConstructionMode('overview'); setCurrentReportId(null); }} className="text-slate-400 hover:text-slate-600 p-2 -ml-2"><ArrowLeftIcon className="w-5 h-5" /></button>}
                  <h3 className="font-bold text-lg text-slate-800">{isMaintenance ? '施工報告 (Báo cáo thi công)' : '編輯紀錄 (Sửa nhật ký)'}</h3>
               </div>
             <div className="flex items-center gap-1">
@@ -820,7 +889,10 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
           </div>
           <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-sm">
             <label className="block text-xs font-semibold text-slate-500 mb-1">日期 (Ngày)</label>
-            <input type="date" value={constructionDate} disabled={!isEditing || !canEdit} onChange={(e) => setConstructionDate(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white font-bold" />
+            <input type="date" value={constructionDate} disabled={!isEditing || !canEdit} onChange={(e) => {
+                setConstructionDate(e.target.value);
+                updateReportData({ weather: reportWeather }); // 觸發更新日期
+            }} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white font-bold" />
           </div>
         </div>
 
@@ -889,7 +961,7 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
         </div>
 
         <div className="p-3 border-t border-slate-100 bg-white flex justify-between gap-3 flex-shrink-0 z-20 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
-            {!isMaintenance ? <button onClick={() => setConstructionMode('overview')} className="w-12 h-11 flex items-center justify-center rounded-xl border border-slate-200 text-slate-400 hover:text-slate-600 hover:bg-slate-50 transition-colors"><ArrowLeftIcon className="w-6 h-6" /></button> : <div />}
+            {!isMaintenance ? <button onClick={() => { setConstructionMode('overview'); setCurrentReportId(null); }} className="w-12 h-11 flex items-center justify-center rounded-xl border border-slate-200 text-slate-400 hover:text-slate-600 hover:bg-slate-50 transition-colors"><ArrowLeftIcon className="w-6 h-6" /></button> : <div />}
             <div className="flex gap-2">
                 {isEditing && <button onClick={() => setIsSigning(true)} className="w-12 h-11 flex items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 border border-indigo-100 hover:bg-indigo-100 transition-colors shadow-sm" title="簽證簽名 (Ký tên)"><PenToolIcon className="w-6 h-6" /></button>}
                 {isEditing ? <button onClick={handleSubmitLog} className="px-8 h-11 rounded-xl bg-blue-600 text-white hover:bg-blue-700 shadow-lg shadow-blue-100 font-black text-sm flex items-center gap-2 transition-all active:scale-95"><SubmitIcon className="w-5 h-5" /> 提交 (Gửi)</button> : <button onClick={() => setIsEditing(true)} className="px-8 h-11 rounded-xl bg-slate-900 text-white hover:bg-black shadow-lg shadow-slate-200 font-black text-sm flex items-center gap-2 transition-all active:scale-95"><EditIcon className="w-5 h-5" /> 修改 (Sửa)</button>}
