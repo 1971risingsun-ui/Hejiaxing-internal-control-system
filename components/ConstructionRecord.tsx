@@ -91,9 +91,8 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
     forceEntryMode ? 'entry' : (isMaintenance ? 'entry' : 'overview')
   );
   
-  const [currentReportId, setCurrentReportId] = useState<string | null>(null);
-  
   const [constructionDate, setConstructionDate] = useState(initialDate || new Date().toISOString().split('T')[0]);
+  const [currentReportId, setCurrentReportId] = useState<string | null>(null); // New state for tracking active report
   const [dailyWorker, setDailyWorker] = useState('');
   const [dailyAssistant, setDailyAssistant] = useState(''); 
   const [pendingAssistant, setPendingAssistant] = useState(''); 
@@ -120,97 +119,147 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
   const canEdit = currentUser.role === UserRole.ADMIN || currentUser.role === UserRole.MANAGER || currentUser.role === UserRole.ENGINEERING || currentUser.role === UserRole.WORKER;
   const currentStandardItems = isMaintenance ? MAINTENANCE_CONSTRUCTION_ITEMS : STANDARD_CONSTRUCTION_ITEMS;
 
-  // 初始化或切換報告時載入資料
+  // Temporary state for holding changes before submission
+  const [tempReportData, setTempReportData] = useState<{
+    items: ConstructionItem[];
+    report: DailyReport | null;
+    signature: ConstructionSignature | null;
+  }>({ items: [], report: null, signature: null });
+
+  // Initialize or switch report context
   useEffect(() => {
-    if (currentReportId) {
-        // 載入特定報告
-        const report = (project.reports || []).find(r => r.id === currentReportId);
-        if (report) {
-            setConstructionDate(report.date);
-            setDailyWorker(report.worker || '');
-            setDailyAssistant(report.assistant || '');
-            setReportWeather(report.weather);
-            setReportContent(report.content);
-            const photos = (report.photos || []).map(id => project.photos.find(p => p.id === id)).filter((p): p is SitePhoto => !!p);
-            setReportPhotos(photos);
-            
-            // 載入該報告的簽名 (假設簽名也跟著報告 ID 關聯，或是透過日期+人員來關聯？目前結構是用日期)
-            // 為了支援同一天多份，我們需要調整簽名查找邏輯。
-            // 暫時維持用日期查找，但理想上應該要關聯到 Report ID。
-            // 這裡先嘗試找該日期下的簽名，若有多個可能需要更精確的匹配。
-            // 由於資料結構限制，目前 ConstructionSignature 只綁定 date。
-            // 若要完全獨立，建議 ConstructionSignature 也要能綁定 reportId。
-            // 但為求最小改動，我們暫時顯示該日期的所有簽名，或假設簽名是跟著 Report 存的。
-            // 實際上，DailyReport 結構裡沒有 signature 欄位，只有 worker/assistant/weather/content/photos。
-            // ConstructionSignature 是獨立的陣列。
-            // 為了區分，我們可能需要依賴 UI 上的操作當下狀態。
-            
-            // 修正：在多份報告模式下，簽名應該要能被區分。
-            // 但目前資料結構限制，我們先顯示該日期的第一筆簽名作為 fallback，
-            // 或者我們假設 ConstructionSignature 的 id 會被記錄在某處？目前沒有。
-            // 妥協方案：在編輯模式下，簽名會存入 constructionSignatures，
-            // 但因為沒有 reportId 關聯，多份報告會共用或覆蓋同一天的簽名。
-            // 為了達成「各自有不同的簽名」，我們需要讓簽名與報告關聯。
-            // 觀察 DailyReport 類型定義 (types.ts)，目前沒有 signatureId。
-            // 我們可以暫時利用 constructionSignatures 的查找邏輯，但這會有衝突。
-            // 
-            // 為了不更動 types.ts (避免影響全域)，我們可以在 Report Content 或其他欄位偷存 Signature ID?
-            // 或者，我們假設同一天只有一份簽名？不，需求說「各自有不同的簽名」。
-            // 
-            // 解決方案：我們在儲存簽名時，將 reportId 作為 key 的一部分，或者存入 DailyReport 的 content (不理想)。
-            // 更好的方式：利用 ConstructionSignature 的 date 欄位，存成 "YYYY-MM-DD#ReportID" 的格式？
-            // 這樣既保留了日期資訊，又有了唯一性。
-            
-            const sig = (project.constructionSignatures || []).find(s => s.date === `${report.date}#${report.id}` || s.date === report.date);
-            setSignatureData(sig || null);
-        }
-    } else {
-        // 新增模式
+    if (constructionMode === 'entry' && currentReportId) {
+      // Check if we already have this report in temp state (e.g. just created it)
+      if (tempReportData.report && tempReportData.report.id === currentReportId) {
+          return;
+      }
+
+      // Load specific report data
+      const items = (project.constructionItems || []).filter(i => i.reportId === currentReportId);
+      const report = (project.reports || []).find(r => r.id === currentReportId);
+      const signature = (project.constructionSignatures || []).find(s => s.reportId === currentReportId);
+
+      if (report) {
+        setConstructionDate(report.date);
+        setDailyWorker(report.worker || '');
+        setDailyAssistant(report.assistant || '');
+        setReportWeather(report.weather);
+        setReportContent(report.content);
+        const photos = (report.photos || []).map(id => project.photos.find(p => p.id === id)).filter((p): p is SitePhoto => !!p);
+        setReportPhotos(photos);
+        
+        // Initialize temp data
+        setTempReportData({
+            items: JSON.parse(JSON.stringify(items)),
+            report: JSON.parse(JSON.stringify(report)),
+            signature: signature ? JSON.parse(JSON.stringify(signature)) : null
+        });
+      } else {
+        // Fallback or new report state (should ideally not happen if ID exists)
         setDailyWorker('');
         setDailyAssistant('');
-        setResourceInputs({});
         setReportWeather('sunny');
         setReportContent('');
         setReportPhotos([]);
-        setSignatureData(null);
+        setTempReportData({ items: [], report: null, signature: null });
+      }
+
+      if (items.length > 0) {
+        const currentResources: Record<string, string> = {};
+        RESOURCE_ITEMS.forEach(res => {
+            const found = items.find(i => i.name === res.name);
+            if (found) currentResources[res.name] = found.quantity;
+        });
+        setResourceInputs(currentResources);
+      } else {
+        setResourceInputs({});
+      }
+
+      setSignatureData(signature || null);
+    } else if (constructionMode === 'entry' && !currentReportId) {
+       // Creating new report mode
+       setDailyWorker('');
+       setDailyAssistant('');
+       setResourceInputs({});
+       setSignatureData(null);
+       setReportWeather('sunny');
+       setReportContent('');
+       setReportPhotos([]);
+       
+       // Initialize empty temp data for new report
+       const newId = crypto.randomUUID();
+       const today = new Date().toISOString().split('T')[0];
+       setConstructionDate(today);
+       setTempReportData({
+           items: [],
+           report: {
+               id: newId,
+               reportId: newId,
+               date: today,
+               weather: 'sunny',
+               content: '',
+               reporter: currentUser.name,
+               timestamp: Date.now(),
+               photos: [],
+               worker: '',
+               assistant: ''
+           },
+           signature: null
+       });
+       setCurrentReportId(newId); // Set ID immediately for internal reference
     }
-  }, [currentReportId, project.reports, project.photos, project.constructionSignatures]);
+  }, [currentReportId, constructionMode, project]);
 
-  const updateReportData = (updates: Partial<{ weather: 'sunny' | 'cloudy' | 'rainy', content: string, photos: SitePhoto[], worker: string, assistant: string }>) => {
-      if (!currentReportId) return; // 必須先有 Report ID
+  const createNewReport = () => {
+    // Just switch mode, initialization happens in useEffect
+    setCurrentReportId(null);
+    setConstructionMode('entry');
+    setIsEditing(true);
+  };
 
+  const deleteReport = (e: React.MouseEvent, reportId: string) => {
+    e.stopPropagation();
+    if (!confirm('確定要刪除此份日報嗎？這將刪除相關的所有施工項目與簽名。')) return;
+    
+    const updatedReports = (project.reports || []).filter(r => r.id !== reportId);
+    const updatedItems = (project.constructionItems || []).filter(i => i.reportId !== reportId);
+    const updatedSignatures = (project.constructionSignatures || []).filter(s => s.reportId !== reportId);
+    
+    onUpdateProject({
+      ...project,
+      reports: updatedReports,
+      constructionItems: updatedItems,
+      constructionSignatures: updatedSignatures
+    });
+    
+    if (currentReportId === reportId) {
+      setConstructionMode('overview');
+      setCurrentReportId(null);
+    }
+  };
+
+  // Helper to update temp data
+  const updateTempReport = (updates: Partial<DailyReport>) => {
+      setTempReportData(prev => ({
+          ...prev,
+          report: prev.report ? { ...prev.report, ...updates } : null
+      }));
+  };
+
+  const updateReportData = (updates: Partial<{ weather: 'sunny' | 'cloudy' | 'rainy', content: string, photos: SitePhoto[] }>) => {
       const newWeather = updates.weather || reportWeather;
       const newContent = updates.content !== undefined ? updates.content : reportContent;
       const newPhotos = updates.photos || reportPhotos;
-      // 優先使用 updates 中的值，若無則使用 state 中的值
-      const newWorker = updates.worker !== undefined ? updates.worker : dailyWorker;
-      const newAssistant = updates.assistant !== undefined ? updates.assistant : dailyAssistant;
       
-      // 同步更新 State，確保 UI 即時反應
       if (updates.weather) setReportWeather(updates.weather);
       if (updates.content !== undefined) setReportContent(updates.content);
       if (updates.photos) setReportPhotos(updates.photos);
-      if (updates.worker !== undefined) setDailyWorker(updates.worker);
-      if (updates.assistant !== undefined) setDailyAssistant(updates.assistant);
 
-      const otherReports = (project.reports || []).filter(r => r.id !== currentReportId);
-      const existingPhotoIds = new Set(project.photos.map(p => p.id));
-      const photosToAdd = newPhotos.filter(p => !existingPhotoIds.has(p.id));
-      const updatedGlobalPhotos = [...project.photos, ...photosToAdd];
-
-      const reportPayload: DailyReport = {
-          id: currentReportId,
-          date: constructionDate,
+      updateTempReport({
           weather: newWeather,
           content: newContent,
-          reporter: currentUser.name,
-          timestamp: Date.now(),
-          photos: newPhotos.map(p => p.id),
-          worker: newWorker,
-          assistant: newAssistant
-      };
-
-      onUpdateProject({ ...project, reports: [...otherReports, reportPayload], photos: updatedGlobalPhotos });
+          photos: newPhotos.map(p => p.id)
+      });
   };
 
   const handleReportPhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -226,95 +275,109 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
               alert("照片處理失敗");
           }
       }
-      updateReportData({ photos: [...reportPhotos, ...newPhotos] });
+      // Add photos to local state immediately for preview
+      const updatedPhotos = [...reportPhotos, ...newPhotos];
+      setReportPhotos(updatedPhotos);
+      updateTempReport({ photos: updatedPhotos.map(p => p.id) });
+      
+      // We need to store the actual photo objects in project.photos eventually
+      // For now, we'll store them in a temp array or just append to project.photos on submit
+      // To simplify, we can append to project.photos immediately as they are "uploaded"
+      // but only link them to the report on submit.
+      // However, user request is "don't save report without submit".
+      // Uploading photos usually implies saving the file.
+      // Let's append to project.photos immediately to ensure URLs are valid, 
+      // but the report linkage happens only on submit.
+      onUpdateProject({ ...project, photos: [...project.photos, ...newPhotos] });
+
       setIsProcessingPhotos(false);
       e.target.value = '';
     }
   };
 
   const removeReportPhoto = (id: string) => {
-    updateReportData({ photos: reportPhotos.filter(p => p.id !== id) });
+    const updatedPhotos = reportPhotos.filter(p => p.id !== id);
+    setReportPhotos(updatedPhotos);
+    updateTempReport({ photos: updatedPhotos.map(p => p.id) });
   };
 
   const handleAddItem = () => {
-    if (!currentReportId) return;
+    if (!tempReportData.report) return;
+    
     const newItem: ConstructionItem = {
       id: crypto.randomUUID(),
+      reportId: tempReportData.report.id,
       name: currentStandardItems[0].name,
       unit: currentStandardItems[0].unit,
       quantity: '',
       location: isMaintenance ? '裝/Lắp đặt' : '',
       worker: dailyWorker,
       assistant: dailyAssistant,
-      date: constructionDate,
-      reportId: currentReportId // 關聯到 Report ID
+      date: constructionDate
     };
-    onUpdateProject({ ...project, constructionItems: [...(project.constructionItems || []), newItem] });
+    
+    setTempReportData(prev => ({
+        ...prev,
+        items: [...prev.items, newItem]
+    }));
   };
 
   const handleAddCustomItem = () => {
-    if (!customItem.name || !currentReportId) return;
+    if (!tempReportData.report) return;
+    if (!customItem.name) return;
+
     const newItem: ConstructionItem = {
       id: crypto.randomUUID(),
+      reportId: tempReportData.report.id,
       name: customItem.name,
       quantity: customItem.quantity,
       unit: customItem.unit,
       location: customItem.location,
       worker: dailyWorker,
       assistant: dailyAssistant,
-      date: constructionDate,
-      reportId: currentReportId // 關聯到 Report ID
+      date: constructionDate
     };
-    onUpdateProject({ ...project, constructionItems: [...(project.constructionItems || []), newItem] });
+    
+    setTempReportData(prev => ({
+        ...prev,
+        items: [...prev.items, newItem]
+    }));
     setCustomItem({ name: '', quantity: '', unit: '', location: '' });
   };
 
   const deleteConstructionItem = (id: string) => {
-    onUpdateProject({ ...project, constructionItems: (project.constructionItems || []).filter(item => item.id !== id) });
+    setTempReportData(prev => ({
+        ...prev,
+        items: prev.items.filter(item => item.id !== id)
+    }));
   };
 
   const updateConstructionItem = (id: string, field: keyof ConstructionItem, value: any) => {
-    const updatedItems = (project.constructionItems || []).map(item => {
-      if (item.id === id) {
-        const updatedItem = { ...item, [field]: value };
-        if (field === 'name') {
-           const std = currentStandardItems.find(s => s.name === value);
-           if (std) updatedItem.unit = std.unit;
-        }
-        return updatedItem;
-      }
-      return item;
-    });
-    onUpdateProject({ ...project, constructionItems: updatedItems });
+    setTempReportData(prev => ({
+        ...prev,
+        items: prev.items.map(item => {
+            if (item.id === id) {
+                const updatedItem = { ...item, [field]: value };
+                if (field === 'name') {
+                   const std = currentStandardItems.find(s => s.name === value);
+                   if (std) updatedItem.unit = std.unit;
+                }
+                return updatedItem;
+            }
+            return item;
+        })
+    }));
   };
 
   const handleHeaderWorkerChange = (val: string) => {
     setDailyWorker(val);
-    if (!currentReportId) return;
-
-    // 1. Update Report
-    const otherReports = (project.reports || []).filter(r => r.id !== currentReportId);
-    const currentReport = (project.reports || []).find(r => r.id === currentReportId);
-    
-    let newReports = project.reports || [];
-    if (currentReport) {
-        const updatedReport: DailyReport = {
-            ...currentReport,
-            worker: val,
-            timestamp: Date.now()
-        };
-        newReports = [...otherReports, updatedReport];
+    if (tempReportData.report) {
+        setTempReportData(prev => ({
+            ...prev,
+            report: prev.report ? { ...prev.report, worker: val } : null,
+            items: prev.items.map(i => ({ ...i, worker: val }))
+        }));
     }
-
-    // 2. Update Items
-    const updatedItems = (project.constructionItems || []).map(item => 
-        (item.reportId === currentReportId || (!item.reportId && item.date === constructionDate)) 
-        ? { ...item, worker: val } 
-        : item
-    );
-
-    // 3. Single Update
-    onUpdateProject({ ...project, reports: newReports, constructionItems: updatedItems });
   };
 
   const getAssistantList = () => {
@@ -348,30 +411,13 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
 
   const updateAssistantInItems = (joinedValue: string) => {
     setDailyAssistant(joinedValue);
-    if (!currentReportId) return;
-
-    // 1. Update Report
-    const otherReports = (project.reports || []).filter(r => r.id !== currentReportId);
-    const currentReport = (project.reports || []).find(r => r.id === currentReportId);
-    
-    let newReports = project.reports || [];
-    if (currentReport) {
-        const updatedReport: DailyReport = {
-            ...currentReport,
-            assistant: joinedValue,
-            timestamp: Date.now()
-        };
-        newReports = [...otherReports, updatedReport];
+    if (tempReportData.report) {
+        setTempReportData(prev => ({
+            ...prev,
+            report: prev.report ? { ...prev.report, assistant: joinedValue } : null,
+            items: prev.items.map(i => ({ ...i, assistant: joinedValue }))
+        }));
     }
-
-    // 2. Update Items
-    const updatedItems = (project.constructionItems || []).map(item => 
-        (item.reportId === currentReportId || (!item.reportId && item.date === constructionDate))
-        ? { ...item, assistant: joinedValue } 
-        : item
-    );
-    
-    onUpdateProject({ ...project, reports: newReports, constructionItems: updatedItems });
   };
 
   const handleAssistantInputKeyDown = (e: React.KeyboardEvent) => {
@@ -408,13 +454,15 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
     }
   };
   const saveSignature = () => {
-    const canvas = canvasRef.current; if (!canvas || !currentReportId) return;
-    // 使用 "YYYY-MM-DD#ReportID" 格式來區分不同報告的簽名
-    const sigDateKey = `${constructionDate}#${currentReportId}`;
-    const newSig: ConstructionSignature = { id: crypto.randomUUID(), date: sigDateKey, url: canvas.toDataURL('image/jpeg', 0.8), timestamp: Date.now() };
-    const otherSignatures = (project.constructionSignatures || []).filter(s => s.date !== sigDateKey);
-    onUpdateProject({ ...project, constructionSignatures: [...otherSignatures, newSig] });
-    setSignatureData(newSig); setIsSigning(false);
+    const canvas = canvasRef.current; if (!canvas) return;
+    const newSig: ConstructionSignature = { id: crypto.randomUUID(), reportId: tempReportData.report?.id || '', date: constructionDate, url: canvas.toDataURL('image/jpeg', 0.8), timestamp: Date.now() };
+    
+    setTempReportData(prev => ({
+        ...prev,
+        signature: newSig
+    }));
+    setSignatureData(newSig); 
+    setIsSigning(false);
   };
 
   useEffect(() => {
@@ -425,16 +473,59 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
     }
   }, [isSigning]);
 
-  const handleSubmitLog = () => setIsEditing(false);
+  const handleSubmitLog = () => {
+      if (!tempReportData.report) return;
 
-  const generateReportPDF = async (date: string) => {
+      // 1. Update Reports
+      const otherReports = (project.reports || []).filter(r => r.id !== tempReportData.report!.id);
+      const updatedReports = [...otherReports, {
+          ...tempReportData.report,
+          date: constructionDate, // Ensure date is synced
+          lastModifiedAt: Date.now(),
+          lastModifiedBy: currentUser.name
+      }];
+
+      // 2. Update Items
+      const otherItems = (project.constructionItems || []).filter(i => i.reportId !== tempReportData.report!.id);
+      const updatedItems = [...otherItems, ...tempReportData.items.map(i => ({...i, date: constructionDate}))];
+
+      // 3. Update Signatures
+      let updatedSignatures = project.constructionSignatures || [];
+      if (tempReportData.signature) {
+          const otherSignatures = updatedSignatures.filter(s => s.reportId !== tempReportData.report!.id);
+          updatedSignatures = [...otherSignatures, { ...tempReportData.signature, date: constructionDate }];
+      }
+
+      onUpdateProject({
+          ...project,
+          reports: updatedReports,
+          constructionItems: updatedItems,
+          constructionSignatures: updatedSignatures
+      });
+
+      setIsEditing(false);
+      alert("提交成功 (Đã gửi thành công)");
+  };
+
+  const generateReportPDF = async (date: string, reportId?: string) => {
     if (typeof html2canvas === 'undefined' || typeof jspdf === 'undefined') {
         alert("必要元件尚未載入"); return;
     }
     setIsGeneratingPDF(true);
-    const items = (project.constructionItems || []).filter(i => i.date === date);
-    const report = (project.reports || []).find(r => r.date === date);
-    const signature = (project.constructionSignatures || []).find(s => s.date === date);
+    
+    let items = (project.constructionItems || []);
+    let report: DailyReport | undefined;
+    let signature: ConstructionSignature | undefined;
+
+    if (reportId) {
+        items = items.filter(i => i.reportId === reportId);
+        report = (project.reports || []).find(r => r.id === reportId);
+        signature = (project.constructionSignatures || []).find(s => s.reportId === reportId);
+    } else {
+        items = items.filter(i => i.date === date);
+        report = (project.reports || []).find(r => r.date === date);
+        signature = (project.constructionSignatures || []).find(s => s.date === date);
+    }
 
     // Prepare embedded JSON data
     const embeddedData = {
@@ -493,12 +584,22 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
     } catch (error) { alert("PDF 生成失敗"); } finally { document.body.removeChild(container); setIsGeneratingPDF(false); }
   };
 
-  const generateReportExcel = async (date: string) => {
+  const generateReportExcel = async (date: string, reportId?: string) => {
     setIsGeneratingExcel(true);
     try {
-        const items = (project.constructionItems || []).filter(i => i.date === date);
-        const report = (project.reports || []).find(r => r.date === date);
-        const signature = (project.constructionSignatures || []).find(s => s.date === date);
+        let items = (project.constructionItems || []);
+        let report: DailyReport | undefined;
+        let signature: ConstructionSignature | undefined;
+
+        if (reportId) {
+            items = items.filter(i => i.reportId === reportId);
+            report = (project.reports || []).find(r => r.id === reportId);
+            signature = (project.constructionSignatures || []).find(s => s.reportId === reportId);
+        } else {
+            items = items.filter(i => i.date === date);
+            report = (project.reports || []).find(r => r.date === date);
+            signature = (project.constructionSignatures || []).find(s => s.date === date);
+        }
         
         const workbook = new ExcelJS.Workbook();
         const worksheet = workbook.addWorksheet(date);
@@ -716,12 +817,17 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
             const worksheet = workbook.addWorksheet(locName.substring(0, 31)); // Excel 工作表名稱限制 31 字元
             const groupItems = locationGroups[locName];
 
-            // 整理此位置下的所有施作欄位 (以日期 + 師傅作為唯一紀錄)
-            const sessionsMap: Record<string, { date: string, worker: string, location: string }> = {};
+            // 整理此位置下的所有施作欄位 (以 ReportID 或 日期+師傅 作為唯一紀錄)
+            const sessionsMap: Record<string, { date: string, worker: string, location: string, reportId?: string }> = {};
             groupItems.forEach(item => {
-                const key = `${item.date}_${item.worker}`;
+                const key = item.reportId || `${item.date}_${item.worker}`;
                 if (!sessionsMap[key]) {
-                    sessionsMap[key] = { date: item.date, worker: item.worker, location: item.location || '' };
+                    sessionsMap[key] = { 
+                        date: item.date, 
+                        worker: item.worker, 
+                        location: item.location || '',
+                        reportId: item.reportId 
+                    };
                 }
             });
             const sortedSessionKeys = Object.keys(sessionsMap).sort();
@@ -783,9 +889,16 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
                 
                 sortedSessionKeys.forEach((sessionKey, colOffset) => {
                     const sessionData = sessionsMap[sessionKey];
-                    const match = groupItems.find(i => i.date === sessionData.date && i.worker === sessionData.worker && i.name === stdItem.name);
+                    const match = groupItems.find(i => {
+                        if (sessionData.reportId) {
+                            return i.reportId === sessionData.reportId && i.name === stdItem.name;
+                        }
+                        return i.date === sessionData.date && i.worker === sessionData.worker && i.name === stdItem.name;
+                    });
                     if (match) {
-                        row.getCell(4 + colOffset).value = parseFloat(match.quantity) || match.quantity;
+                        const cell = row.getCell(4 + colOffset);
+                        cell.value = parseFloat(match.quantity) || match.quantity;
+                        cell.alignment = centerAlign as any;
                     }
                 });
             });
@@ -810,9 +923,16 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
 
                     sortedSessionKeys.forEach((sessionKey, colOffset) => {
                         const sessionData = sessionsMap[sessionKey];
-                        const match = otherItems.find(i => i.date === sessionData.date && i.worker === sessionData.worker && i.name === name);
+                        const match = otherItems.find(i => {
+                            if (sessionData.reportId) {
+                                return i.reportId === sessionData.reportId && i.name === name;
+                            }
+                            return i.date === sessionData.date && i.worker === sessionData.worker && i.name === name;
+                        });
                         if (match) {
-                            row.getCell(4 + colOffset).value = parseFloat(match.quantity) || match.quantity;
+                            const cell = row.getCell(4 + colOffset);
+                            cell.value = parseFloat(match.quantity) || match.quantity;
+                            cell.alignment = centerAlign as any;
                         }
                     });
                     currentOtherRow++;
@@ -838,41 +958,8 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
   };
 
   const renderConstructionOverview = () => {
-    // 依據 Reports 來列表，而不是只依據 Items 分組
-    // 這樣可以顯示同一天多份報告
-    const reports = project.reports || [];
-    const sortedReports = [...reports].sort((a, b) => b.date.localeCompare(a.date) || b.timestamp - a.timestamp);
-
-    const createNewReport = () => {
-        const newId = crypto.randomUUID();
-        const today = new Date().toISOString().split('T')[0];
-        const newReport: DailyReport = {
-            id: newId,
-            date: today,
-            weather: 'sunny',
-            content: '',
-            reporter: currentUser.name,
-            timestamp: Date.now(),
-            photos: [],
-            worker: '',
-            assistant: ''
-        };
-        onUpdateProject({ ...project, reports: [newReport, ...reports] });
-        setCurrentReportId(newId);
-        setConstructionDate(today);
-        setIsEditing(true);
-        setConstructionMode('entry');
-    };
-
-    const deleteReport = (reportId: string) => {
-        if (!window.confirm("確定要刪除此份施工紀錄嗎？此操作無法復原。")) return;
-        
-        const newReports = (project.reports || []).filter(r => r.id !== reportId);
-        // 同時刪除關聯的施工項目
-        const newItems = (project.constructionItems || []).filter(i => i.reportId !== reportId);
-        
-        onUpdateProject({ ...project, reports: newReports, constructionItems: newItems });
-    };
+    // Group reports by ID instead of date
+    const reports = (project.reports || []).sort((a, b) => b.date.localeCompare(a.date));
 
     return (
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden min-h-[500px]">
@@ -892,17 +979,17 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead className="bg-slate-50 text-slate-500 text-xs uppercase font-semibold"><tr><th className="px-6 py-4">日期 (Ngày)</th><th className="px-6 py-4">師傅 (Thợ chính)</th><th className="px-6 py-4 text-center">簽證 (Ký)</th><th className="px-6 py-4 text-right">操作 (Lệnh)</th></tr></thead>
-            <tbody className="divide-y divide-slate-100">{sortedReports.length > 0 ? sortedReports.map((report) => (
-              <tr key={report.id} onClick={() => { setCurrentReportId(report.id); setConstructionDate(report.date); setIsEditing(false); setConstructionMode('entry'); }} className="hover:bg-slate-50 transition-colors cursor-pointer group">
+            <tbody className="divide-y divide-slate-100">{reports.length > 0 ? reports.map((report) => (
+              <tr key={report.id} onClick={() => { setCurrentReportId(report.id); setConstructionMode('entry'); setIsEditing(false); }} className="hover:bg-slate-50 transition-colors cursor-pointer group">
                 <td className="px-6 py-4 font-medium text-slate-800">{report.date}</td>
-                <td className="px-6 py-4 text-slate-600 font-bold">{report.worker || <span className="text-slate-300 italic">未填寫</span>}</td>
-                <td className="px-6 py-4 text-center">{(project.constructionSignatures || []).some(s => s.date === `${report.date}#${report.id}` || s.date === report.date) ? <StampIcon className="w-5 h-5 text-green-600 mx-auto" /> : <XCircleIcon className="w-5 h-5 text-slate-300 mx-auto" />}</td>
+                <td className="px-6 py-4 text-slate-600">{report.worker || '-'}</td>
+                <td className="px-6 py-4 text-center">{(project.constructionSignatures || []).some(s => s.reportId === report.id) ? <StampIcon className="w-5 h-5 text-green-600 mx-auto" /> : <XCircleIcon className="w-5 h-5 text-slate-300 mx-auto" />}</td>
                 <td className="px-6 py-4 text-right">
-                    <div className="flex justify-end gap-2">
-                        <button onClick={(e) => { e.stopPropagation(); generateReportExcel(report.date); }} className="p-1.5 text-slate-400 hover:text-emerald-600 rounded" title="匯出 Excel"><DownloadIcon className="w-4 h-4" /></button>
-                        <button onClick={(e) => { e.stopPropagation(); generateReportPDF(report.date); }} className="p-1.5 text-slate-400 hover:text-green-600 rounded" title="匯出 PDF"><FileTextIcon className="w-4 h-4" /></button>
-                        {canEdit && <button onClick={(e) => { e.stopPropagation(); deleteReport(report.id); }} className="p-1.5 text-slate-400 hover:text-red-600 rounded" title="刪除紀錄"><TrashIcon className="w-4 h-4" /></button>}
-                    </div>
+                  <div className="flex justify-end gap-2">
+                    <button onClick={(e) => { e.stopPropagation(); generateReportExcel(report.date, report.id); }} className="p-1.5 text-slate-400 hover:text-emerald-600 rounded" title="匯出 Excel"><DownloadIcon className="w-4 h-4" /></button>
+                    <button onClick={(e) => { e.stopPropagation(); generateReportPDF(report.date, report.id); }} className="p-1.5 text-slate-400 hover:text-green-600 rounded" title="匯出 PDF"><FileTextIcon className="w-4 h-4" /></button>
+                    {canEdit && <button onClick={(e) => deleteReport(e, report.id)} className="p-1.5 text-slate-400 hover:text-red-600 rounded" title="刪除日報"><TrashIcon className="w-4 h-4" /></button>}
+                  </div>
                 </td>
               </tr>
             )) : <tr><td colSpan={4} className="px-6 py-12 text-center text-slate-400">尚無紀錄 (Không có dữ liệu)</td></tr>}</tbody>
@@ -913,11 +1000,8 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
   };
 
   const renderConstructionEntry = () => {
-    // 篩選屬於當前 Report ID 的項目，或者相容舊資料(無 Report ID 但日期相符)
-    const visibleItems = (project.constructionItems || []).filter(item => 
-        (currentReportId && item.reportId === currentReportId) || 
-        (!item.reportId && item.date === constructionDate && !currentReportId)
-    );
+    // Filter items by currentReportId from temp data if editing, otherwise from project
+    const visibleItems = isEditing ? tempReportData.items : (project.constructionItems || []).filter(item => item.reportId === currentReportId);
     const currentAssistants = getAssistantList();
 
     return (
@@ -929,16 +1013,33 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
                  <h3 className="font-bold text-lg text-slate-800">{isMaintenance ? '施工報告 (Báo cáo thi công)' : '編輯紀錄 (Sửa nhật ký)'}</h3>
               </div>
             <div className="flex items-center gap-1">
-                <button onClick={() => generateReportExcel(constructionDate)} disabled={isGeneratingExcel} className="p-2 text-slate-500 hover:text-emerald-600 rounded-full" title="匯出 Excel">{isGeneratingExcel ? <LoaderIcon className="w-5 h-5 animate-spin" /> : <DownloadIcon className="w-5 h-5" />}</button>
-                <button onClick={() => generateReportPDF(constructionDate)} disabled={isGeneratingPDF} className="p-2 text-slate-500 hover:text-blue-600 rounded-full" title="匯出 PDF">{isGeneratingPDF ? <LoaderIcon className="w-5 h-5 animate-spin" /> : <FileTextIcon className="w-5 h-5" />}</button>
+                {isMaintenance && (
+                    <button 
+                        onClick={() => { setConstructionMode('overview'); setCurrentReportId(null); }} 
+                        className="p-2 text-slate-500 hover:text-blue-600 rounded-full" 
+                        title="總覽 (Tổng quan)"
+                    >
+                        <ClipboardListIcon className="w-5 h-5" />
+                    </button>
+                )}
+                <button onClick={() => generateReportExcel(constructionDate, currentReportId || undefined)} disabled={isGeneratingExcel} className="p-2 text-slate-500 hover:text-emerald-600 rounded-full" title="匯出 Excel">{isGeneratingExcel ? <LoaderIcon className="w-5 h-5 animate-spin" /> : <DownloadIcon className="w-5 h-5" />}</button>
+                <button onClick={() => generateReportPDF(constructionDate, currentReportId || undefined)} disabled={isGeneratingPDF} className="p-2 text-slate-500 hover:text-blue-600 rounded-full" title="匯出 PDF">{isGeneratingPDF ? <LoaderIcon className="w-5 h-5 animate-spin" /> : <FileTextIcon className="w-5 h-5" />}</button>
                 {signatureData && <div className="text-green-600 flex items-center gap-1 text-xs font-bold border border-green-200 bg-green-50 px-2 py-1 rounded ml-1"><StampIcon className="w-3.5 h-3.5" /><span>已簽證</span></div>}
             </div>
           </div>
           <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-sm">
             <label className="block text-xs font-semibold text-slate-500 mb-1">日期 (Ngày)</label>
             <input type="date" value={constructionDate} disabled={!isEditing || !canEdit} onChange={(e) => {
-                setConstructionDate(e.target.value);
-                updateReportData({ weather: reportWeather }); // 觸發更新日期
+                const newDate = e.target.value;
+                setConstructionDate(newDate);
+                if (tempReportData.report) {
+                    updateTempReport({ date: newDate });
+                    setTempReportData(prev => ({
+                        ...prev,
+                        items: prev.items.map(i => ({ ...i, date: newDate })),
+                        signature: prev.signature ? { ...prev.signature, date: newDate } : null
+                    }));
+                }
             }} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white font-bold" />
           </div>
         </div>
@@ -1008,7 +1109,7 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
         </div>
 
         <div className="p-3 border-t border-slate-100 bg-white flex justify-between gap-3 flex-shrink-0 z-20 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
-            {!isMaintenance ? <button onClick={() => { setConstructionMode('overview'); setCurrentReportId(null); }} className="w-12 h-11 flex items-center justify-center rounded-xl border border-slate-200 text-slate-400 hover:text-slate-600 hover:bg-slate-50 transition-colors"><ArrowLeftIcon className="w-6 h-6" /></button> : <div />}
+            {!isMaintenance ? <button onClick={() => setConstructionMode('overview')} className="w-12 h-11 flex items-center justify-center rounded-xl border border-slate-200 text-slate-400 hover:text-slate-600 hover:bg-slate-50 transition-colors"><ArrowLeftIcon className="w-6 h-6" /></button> : <div />}
             <div className="flex gap-2">
                 {isEditing && <button onClick={() => setIsSigning(true)} className="w-12 h-11 flex items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 border border-indigo-100 hover:bg-indigo-100 transition-colors shadow-sm" title="簽證簽名 (Ký tên)"><PenToolIcon className="w-6 h-6" /></button>}
                 {isEditing ? <button onClick={handleSubmitLog} className="px-8 h-11 rounded-xl bg-blue-600 text-white hover:bg-blue-700 shadow-lg shadow-blue-100 font-black text-sm flex items-center gap-2 transition-all active:scale-95"><SubmitIcon className="w-5 h-5" /> 提交 (Gửi)</button> : <button onClick={() => setIsEditing(true)} className="px-8 h-11 rounded-xl bg-slate-900 text-white hover:bg-black shadow-lg shadow-slate-200 font-black text-sm flex items-center gap-2 transition-all active:scale-95"><EditIcon className="w-5 h-5" /> 修改 (Sửa)</button>}
