@@ -194,7 +194,6 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
            items: [],
            report: {
                id: newId,
-               reportId: newId,
                date: today,
                weather: 'sunny',
                content: '',
