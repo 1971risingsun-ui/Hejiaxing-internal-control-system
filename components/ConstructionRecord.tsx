@@ -182,9 +182,11 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
       const newWeather = updates.weather || reportWeather;
       const newContent = updates.content !== undefined ? updates.content : reportContent;
       const newPhotos = updates.photos || reportPhotos;
+      // 優先使用 updates 中的值，若無則使用 state 中的值
       const newWorker = updates.worker !== undefined ? updates.worker : dailyWorker;
       const newAssistant = updates.assistant !== undefined ? updates.assistant : dailyAssistant;
       
+      // 同步更新 State，確保 UI 即時反應
       if (updates.weather) setReportWeather(updates.weather);
       if (updates.content !== undefined) setReportContent(updates.content);
       if (updates.photos) setReportPhotos(updates.photos);
