@@ -290,16 +290,31 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
 
   const handleHeaderWorkerChange = (val: string) => {
     setDailyWorker(val);
-    updateReportData({ worker: val });
-    // 同步更新該報告下的所有項目的 worker
-    if (currentReportId) {
-        const updatedItems = (project.constructionItems || []).map(item => 
-            (item.reportId === currentReportId || (!item.reportId && item.date === constructionDate)) 
-            ? { ...item, worker: val } 
-            : item
-        );
-        onUpdateProject({ ...project, constructionItems: updatedItems });
+    if (!currentReportId) return;
+
+    // 1. Update Report
+    const otherReports = (project.reports || []).filter(r => r.id !== currentReportId);
+    const currentReport = (project.reports || []).find(r => r.id === currentReportId);
+    
+    let newReports = project.reports || [];
+    if (currentReport) {
+        const updatedReport: DailyReport = {
+            ...currentReport,
+            worker: val,
+            timestamp: Date.now()
+        };
+        newReports = [...otherReports, updatedReport];
     }
+
+    // 2. Update Items
+    const updatedItems = (project.constructionItems || []).map(item => 
+        (item.reportId === currentReportId || (!item.reportId && item.date === constructionDate)) 
+        ? { ...item, worker: val } 
+        : item
+    );
+
+    // 3. Single Update
+    onUpdateProject({ ...project, reports: newReports, constructionItems: updatedItems });
   };
 
   const getAssistantList = () => {
@@ -333,16 +348,30 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
 
   const updateAssistantInItems = (joinedValue: string) => {
     setDailyAssistant(joinedValue);
-    updateReportData({ assistant: joinedValue });
-    // 同步更新該報告下的所有項目的 assistant
-    if (currentReportId) {
-        const updatedItems = (project.constructionItems || []).map(item => 
-            (item.reportId === currentReportId || (!item.reportId && item.date === constructionDate))
-            ? { ...item, assistant: joinedValue } 
-            : item
-        );
-        onUpdateProject({ ...project, constructionItems: updatedItems });
+    if (!currentReportId) return;
+
+    // 1. Update Report
+    const otherReports = (project.reports || []).filter(r => r.id !== currentReportId);
+    const currentReport = (project.reports || []).find(r => r.id === currentReportId);
+    
+    let newReports = project.reports || [];
+    if (currentReport) {
+        const updatedReport: DailyReport = {
+            ...currentReport,
+            assistant: joinedValue,
+            timestamp: Date.now()
+        };
+        newReports = [...otherReports, updatedReport];
     }
+
+    // 2. Update Items
+    const updatedItems = (project.constructionItems || []).map(item => 
+        (item.reportId === currentReportId || (!item.reportId && item.date === constructionDate))
+        ? { ...item, assistant: joinedValue } 
+        : item
+    );
+    
+    onUpdateProject({ ...project, reports: newReports, constructionItems: updatedItems });
   };
 
   const handleAssistantInputKeyDown = (e: React.KeyboardEvent) => {
