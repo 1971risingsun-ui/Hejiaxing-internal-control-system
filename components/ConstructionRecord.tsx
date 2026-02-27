@@ -864,6 +864,16 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
         setConstructionMode('entry');
     };
 
+    const deleteReport = (reportId: string) => {
+        if (!window.confirm("確定要刪除此份施工紀錄嗎？此操作無法復原。")) return;
+        
+        const newReports = (project.reports || []).filter(r => r.id !== reportId);
+        // 同時刪除關聯的施工項目
+        const newItems = (project.constructionItems || []).filter(i => i.reportId !== reportId);
+        
+        onUpdateProject({ ...project, reports: newReports, constructionItems: newItems });
+    };
+
     return (
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden min-h-[500px]">
         <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
@@ -887,7 +897,13 @@ const ConstructionRecord: React.FC<ConstructionRecordProps> = ({ project, curren
                 <td className="px-6 py-4 font-medium text-slate-800">{report.date}</td>
                 <td className="px-6 py-4 text-slate-600 font-bold">{report.worker || <span className="text-slate-300 italic">未填寫</span>}</td>
                 <td className="px-6 py-4 text-center">{(project.constructionSignatures || []).some(s => s.date === `${report.date}#${report.id}` || s.date === report.date) ? <StampIcon className="w-5 h-5 text-green-600 mx-auto" /> : <XCircleIcon className="w-5 h-5 text-slate-300 mx-auto" />}</td>
-                <td className="px-6 py-4 text-right"><div className="flex justify-end gap-2"><button onClick={(e) => { e.stopPropagation(); generateReportExcel(report.date); }} className="p-1.5 text-slate-400 hover:text-emerald-600 rounded" title="匯出 Excel"><DownloadIcon className="w-4 h-4" /></button><button onClick={(e) => { e.stopPropagation(); generateReportPDF(report.date); }} className="p-1.5 text-slate-400 hover:text-green-600 rounded" title="匯出 PDF"><FileTextIcon className="w-4 h-4" /></button></div></td>
+                <td className="px-6 py-4 text-right">
+                    <div className="flex justify-end gap-2">
+                        <button onClick={(e) => { e.stopPropagation(); generateReportExcel(report.date); }} className="p-1.5 text-slate-400 hover:text-emerald-600 rounded" title="匯出 Excel"><DownloadIcon className="w-4 h-4" /></button>
+                        <button onClick={(e) => { e.stopPropagation(); generateReportPDF(report.date); }} className="p-1.5 text-slate-400 hover:text-green-600 rounded" title="匯出 PDF"><FileTextIcon className="w-4 h-4" /></button>
+                        {canEdit && <button onClick={(e) => { e.stopPropagation(); deleteReport(report.id); }} className="p-1.5 text-slate-400 hover:text-red-600 rounded" title="刪除紀錄"><TrashIcon className="w-4 h-4" /></button>}
+                    </div>
+                </td>
               </tr>
             )) : <tr><td colSpan={4} className="px-6 py-12 text-center text-slate-400">尚無紀錄 (Không có dữ liệu)</td></tr>}</tbody>
           </table>
